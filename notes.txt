@@ -1,0 +1,117 @@
+product discount, colors, sizes
+
+
+tests/cart/
+├── cart.repository.test.ts
+├── cart.service.test.ts
+└── cart.api.test.ts
+
+
+CATALOG
+│
+├── Categories
+│    ├── image
+│    └── hierarchy
+│
+├── Brands
+│
+├── Products
+│    ├── base pricing
+│    ├── discounts
+│    ├── images
+│    ├── attributes
+│    └── variants
+│
+├── Product Variants
+│    ├── SKU
+│    ├── price
+│    ├── attributes
+│    ├── images
+│    └── inventory
+│
+├── Collections
+│    ├── Featured
+│    ├── New Arrivals
+│    ├── Seasonal
+│    └── manually curated groups
+│
+├── Wishlist
+│    └── user → products
+│
+└── Banners
+     └── promotional content
+
+
+     ✅ Product refactor
+      ↓
+🔜 Category image/icon support
+      ↓
+🔜 Product collections / merchandising design
+      ↓
+🔜 Inventory → variantId
+      ↓
+🔜 Cart → variantId
+      ↓
+🔜 Wishlist
+      ↓
+🔜 Orders
+      ↓
+🔜 Coupons / promotions
+      ↓
+🔜 Banners
+      ↓
+🔜 Reviews
+      ↓
+🔜 Admin dashboard APIs
+
+-----------------------------------------------
+
+MODULE              STATUS       ACTION
+------------------------------------------------
+Auth                🟢           NONE
+Users               🟢           NONE
+Products            🟢           NONE
+Variants            🟢           NONE
+Inventory           🟡           2 fixes
+Cart                🟢           NONE
+Coupons             🟡           1 fix
+Addresses           🟢           NONE
+Checkout            🟢           NONE
+Orders              🟡           2 fixes
+Payments            🟡           Webhook later
+Swagger             🔴           ADD
+Tests               🟡           Complete critical cases
+
+
+18. آخر خطوة قبل التسليم
+بعد أن ننتهي من هذه edits، لا نضيف APIs جديدة عشوائيًا.
+
+ننفذ بالترتيب:
+npx prisma generate
+
+ثم:
+npx tsc --noEmit
+
+ثم:
+npm test
+
+ثم:
+npm run docs:generate
+
+ثم:
+npm run postman:generate
+
+ثم نراجع:
+docs/openapi.json
+
+والـ Postman collection.
+وبعدها يصبح الـ backend في حالة
+
+
+GET /api/v1/products
+GET /api/v1/products/:id
+GET /api/v1/products/offers
+GET /api/v1/products/best-sellers
+GET /api/v1/products/new-arrivals
+GET /api/v1/collections/:id/products
+GET /api/v1/home
