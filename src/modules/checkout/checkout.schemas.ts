@@ -32,6 +32,18 @@ export const checkoutSchema = z
       .optional()
       .default(true),
 
+    shippingMethodId: z
+      .string()
+      .uuid()
+      .optional(),
+
+      shippingMethodCode: z
+  .string()
+  .trim()
+  .min(1)
+  .max(100)
+  .optional(),
+
     couponCode: z
       .string()
       .trim()
@@ -79,6 +91,8 @@ export const checkoutSchema = z
       });
     }
   });
+
+
 
 export type CheckoutSchemaInput =
   z.infer<typeof checkoutSchema>;

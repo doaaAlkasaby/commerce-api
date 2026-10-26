@@ -7,6 +7,18 @@ import type {
   UpdateCategoryInput,
 } from './category.types.js';
 
+const categoryCountSelection = {
+  _count: {
+    select: {
+      children: {
+        where: {
+          isActive: true,
+        },
+      },
+    },
+  },
+} as const;
+
 export const createCategoryRepository = (
   db: PrismaClient,
 ) => {
@@ -29,6 +41,7 @@ export const createCategoryRepository = (
           parentId: true,
           createdAt: true,
           updatedAt: true,
+          ...categoryCountSelection,
         },
       });
     },
@@ -58,6 +71,7 @@ export const createCategoryRepository = (
           parentId: true,
           createdAt: true,
           updatedAt: true,
+          ...categoryCountSelection,
         },
       });
     },
@@ -69,6 +83,19 @@ export const createCategoryRepository = (
         },
         orderBy: {
           name: 'asc',
+        },
+
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          description: true,
+          imageUrl: true,
+          isActive: true,
+          parentId: true,
+          createdAt: true,
+          updatedAt: true,
+          ...categoryCountSelection,
         },
       });
     },
@@ -83,6 +110,18 @@ export const createCategoryRepository = (
         orderBy: {
           name: 'asc',
         },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          description: true,
+          imageUrl: true,
+          isActive: true,
+          parentId: true,
+          createdAt: true,
+          updatedAt: true,
+          ...categoryCountSelection,
+        },
       });
     },
 
@@ -91,6 +130,18 @@ export const createCategoryRepository = (
     ) => {
       return db.category.create({
         data,
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          description: true,
+          imageUrl: true,
+          isActive: true,
+          parentId: true,
+          createdAt: true,
+          updatedAt: true,
+          ...categoryCountSelection,
+        },
       });
     },
 
@@ -103,6 +154,18 @@ export const createCategoryRepository = (
           id,
         },
         data,
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          description: true,
+          imageUrl: true,
+          isActive: true,
+          parentId: true,
+          createdAt: true,
+          updatedAt: true,
+          ...categoryCountSelection,
+        },
       });
     },
 
@@ -116,6 +179,18 @@ export const createCategoryRepository = (
         },
         data: {
           isActive,
+        },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          description: true,
+          imageUrl: true,
+          isActive: true,
+          parentId: true,
+          createdAt: true,
+          updatedAt: true,
+          ...categoryCountSelection,
         },
       });
     },
@@ -132,6 +207,18 @@ export const createCategoryRepository = (
         data: {
           imageStorageKey,
           imageUrl,
+        },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          description: true,
+          imageUrl: true,
+          isActive: true,
+          parentId: true,
+          createdAt: true,
+          updatedAt: true,
+          ...categoryCountSelection,
         },
       });
     },

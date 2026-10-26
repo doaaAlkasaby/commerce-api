@@ -16,6 +16,7 @@ import type { ProductCollectionRepository } from './product-collection.repositor
 import type { ProductRepository } from '../products/product.repository.js';
 
 import { mapProductCard } from '../products/product.mapper.js';
+import { productEnrichmentService } from '../products/product-enrichment.service.js';
 
 import {
   calculateSkip,
@@ -282,6 +283,7 @@ export class ProductCollectionService {
     collectionId: string,
     page: number,
     limit: number,
+    userId?: string
   ) {
     const collection =
       await this.repository.findPublicById(collectionId);
@@ -302,6 +304,8 @@ export class ProductCollectionService {
         skip,
         limit,
       );
+    const enrichedItems =
+      await productEnrichmentService.enrichProducts(items, userId);
 
     return {
       collection: {
@@ -312,7 +316,7 @@ export class ProductCollectionService {
         imageUrl: collection.imageUrl,
       },
 
-      items: items.map(mapProductCard),
+      items: enrichedItems.map(mapProductCard),
 
       pagination: createPagination(
         page,

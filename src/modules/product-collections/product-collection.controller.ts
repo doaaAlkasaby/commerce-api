@@ -102,6 +102,8 @@ export const getCollectionProducts = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
+      const userId = req.user?.userId;
+
     const { page, limit } =
       parseRequestValue(
         req.validatedQuery ?? req.query,
@@ -114,6 +116,7 @@ export const getCollectionProducts = async (
         getCollectionParams(req).id,
         page,
         limit,
+        userId
       );
 
     res.status(200).json({

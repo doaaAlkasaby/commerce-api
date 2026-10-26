@@ -18,7 +18,11 @@ export const toCategoryResponse = (
     | 'imageUrl'
     | 'createdAt'
     | 'updatedAt'
-  >,
+  > & {
+    _count: {
+      children: number;
+    };
+  },
 ): CategoryResponse => {
   return {
     id: category.id,
@@ -30,6 +34,7 @@ export const toCategoryResponse = (
     imageUrl: category.imageUrl,
     createdAt: category.createdAt,
     updatedAt: category.updatedAt,
+    hasChildren: category._count.children > 0,
   };
 };
 

@@ -27,12 +27,24 @@ import orderRoutes from '../modules/orders/order.routes.js';
 import homeRoutes from '../modules/home/home.routes.js';
 import { appSettingRouter } from '../modules/app-settings/app-setting.routes.js';
 import { productReviewRouter } from '../modules/product-reviews/product-review.routes.js';
+import deviceRouter
+  from '../modules/devices/device.routes.js';
+
+import notificationRouter
+  from '../modules/notifications/notification.routes.js';
+
+import { commerceContextMiddleware } from '../middleware/commerce-context.middleware.js';
+import countryRoutes from '../modules/countries/country.routes.js';
+import { tenantRoutes } from '../modules/tenants/tenant.routes.js';
+
 
 
 
 const router = Router();
 
 router.use(healthRoutes);
+
+router.use('/countries', countryRoutes);
 
 /*
  * Authentication
@@ -71,44 +83,49 @@ router.use('/categories', categoryRoutes);
 
 router.use('/brands', brandRoutes);
 
-router.use('/products', productRoutes);
+router.use('/products', commerceContextMiddleware, productRoutes);
 
 router.use('/product-images', productImageRoutes);
 
 router.use('/inventory', inventoryRoutes);
 
-router.use('/cart', cartRoutes);
+router.use('/cart', commerceContextMiddleware, cartRoutes);
 
-router.use('/product-variants', productVariantRoutes);
+router.use('/',productReviewRouter,);
+
+router.use('/product-variants', commerceContextMiddleware, productVariantRoutes);
 router.use('/product-attributes', productAttributeRoutes);
 router.use('/product-variant-images', productVariantImageRoutes);
 
-router.use('/home', homeRoutes);
+router.use('/home', commerceContextMiddleware, homeRoutes);
 
-router.use('/collections', productCollectionRoutes);
+router.use('/collections', commerceContextMiddleware, productCollectionRoutes);
 
-router.use('/wishlist', wishlistRoutes);
+router.use('/wishlist', commerceContextMiddleware, wishlistRoutes);
 
 router.use('/banners', bannerRoutes);
 
 router.use(`/addresses`, addressRoutes);
 
-router.use('/coupons', couponRouter);
+router.use('/coupons', commerceContextMiddleware, couponRouter);
 
 router.use('/payments', paymentRoutes);
 
-router.use('/checkout', checkoutRoutes);
+router.use('/checkout', commerceContextMiddleware, checkoutRoutes);
 
-router.use(`${env.API_PREFIX}/orders`, orderRoutes);
+router.use('/orders', orderRoutes);
 router.use(
   '/app-settings',
   appSettingRouter,
 );
-router.use(
-  '/',
-  productReviewRouter,
-);
+router.use('/devices', deviceRouter);
 
+router.use('/notifications', notificationRouter);
+
+router.use(
+  '/tenants',
+  tenantRoutes,
+);
 
 
 export default router;

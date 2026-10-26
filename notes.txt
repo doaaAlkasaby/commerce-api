@@ -1,3 +1,8 @@
+git push github main
+
+//---------------------
+
+
 product discount, colors, sizes
 
 
@@ -115,3 +120,19 @@ GET /api/v1/products/best-sellers
 GET /api/v1/products/new-arrivals
 GET /api/v1/collections/:id/products
 GET /api/v1/home
+
+
+1. Finish tenant isolation inside repositories — 🔴 MUST DO
+2. Finalize the checkout transaction — 🔴 MUST DO
+3. Inventory concurrency protection — 🔴 MUST DO
+4. Decide exactly what "reservation" means — 🟠 IMPORTANT
+5. Shipping distance calculation — 🟠 finish the implementation
+6. Shipping minimum order must use the correct subtotal — 🟠 verify
+7. Currency must become server-controlled — 🔴 MUST DO
+8. Snapshot everything that can change after checkout — 🔴 MUST DO
+9. Coupon concurrency — 🔴 MUST DO
+10. Checkout idempotency needs to be completed end-to-end — 🔴 MUST DO
+11. Payment integration should remain separated from checkout calculation — 🟠
+12. Order status + payment status transitions — 🔴 MUST DO
+13. Tax edge cases — 🟠 final verification
+14. Checkout preview endpoint — 🟠 highly recommended

@@ -8,35 +8,34 @@ import {
   verifyAccessToken,
 } from '../common/security/jwt.js';
 
-import { AppError } from '../common/errors/app-error.js';
+import {
+  AppError,
+} from '../common/errors/app-error.js';
 
 export const optionalAuthenticate = async (
   req: Request,
   _res: Response,
   next: NextFunction,
 ): Promise<void> => {
-  const authorization = req.headers.authorization;
-
-  // Guest request.
-  if (!authorization) {
-    next();
-    return;
-  }
-
-  const [scheme, token] = authorization.split(' ');
-
-  if (
-    scheme !== 'Bearer' ||
-    !token
-  ) {
-    throw new AppError(
-      'Invalid authorization header',
-      401,
-      'INVALID_AUTHORIZATION_HEADER',
-    );
-  }
-
   try {
+    const authorization = req.headers.authorization;
+
+    // Guest request.
+    if (!authorization) {
+      next();
+      return;
+    }
+
+    const [scheme, token] = authorization.split(' ');
+
+    if (scheme !== 'Bearer' || !token) {
+      throw new AppError(
+        'Invalid authorization header',
+        401,
+        'INVALID_AUTHORIZATION_HEADER',
+      );
+    }
+
     const payload = await verifyAccessToken(token);
 
     if (!payload.sub) {
@@ -54,13 +53,16 @@ export const optionalAuthenticate = async (
     next();
   } catch (error) {
     if (error instanceof AppError) {
-      throw error;
+      next(error);
+      return;
     }
 
-    throw new AppError(
-      'Invalid or expired access token',
-      401,
-      'INVALID_ACCESS_TOKEN',
+    next(
+      new AppError(
+        'Invalid or expired access token',
+        401,
+        'INVALID_ACCESS_TOKEN',
+      ),
     );
   }
 };

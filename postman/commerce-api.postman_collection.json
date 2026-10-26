@@ -1306,31 +1306,31 @@
                 },
                 {
                   "key": "search",
-                  "value": "",
+                  "value": "string",
                   "type": "text",
                   "enabled": true
                 },
                 {
                   "key": "categoryId",
-                  "value": "",
+                  "value": "string",
                   "type": "text",
                   "enabled": true
                 },
                 {
                   "key": "brandId",
-                  "value": "",
+                  "value": "string",
                   "type": "text",
                   "enabled": true
                 },
                 {
                   "key": "minPrice",
-                  "value": "",
+                  "value": "string",
                   "type": "text",
                   "enabled": true
                 },
                 {
                   "key": "maxPrice",
-                  "value": "",
+                  "value": "string",
                   "type": "text",
                   "enabled": true
                 },
@@ -4173,19 +4173,20 @@
       ]
     },
     {
-      "name": "my",
+      "name": "orders",
       "item": [
         {
-          "name": "GET /my",
+          "name": "GET /orders/my",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/my",
+              "raw": "{{baseUrl}}/orders/my",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
+                "orders",
                 "my"
               ],
               "query": [
@@ -4229,16 +4230,17 @@
           }
         },
         {
-          "name": "GET /my/:id",
+          "name": "GET /orders/my/:id",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/my/{id}",
+              "raw": "{{baseUrl}}/orders/my/{id}",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
+                "orders",
                 "my",
                 "{id}"
               ],
@@ -4260,23 +4262,20 @@
               ]
             }
           }
-        }
-      ]
-    },
-    {
-      "name": "root",
-      "item": [
+        },
         {
-          "name": "GET /",
+          "name": "GET /orders",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/",
+              "raw": "{{baseUrl}}/orders",
               "host": [
                 "{{baseUrl}}"
               ],
-              "path": [],
+              "path": [
+                "orders"
+              ],
               "query": [
                 {
                   "key": "page",
@@ -4316,23 +4315,19 @@
               ]
             }
           }
-        }
-      ]
-    },
-    {
-      "name": ":id",
-      "item": [
+        },
         {
-          "name": "GET /:id",
+          "name": "GET /orders/:id",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/{id}",
+              "raw": "{{baseUrl}}/orders/{id}",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
+                "orders",
                 "{id}"
               ],
               "variable": [
@@ -4355,7 +4350,7 @@
           }
         },
         {
-          "name": "PATCH /:id/status",
+          "name": "PATCH /orders/:id/status",
           "request": {
             "method": "PATCH",
             "header": [
@@ -4365,11 +4360,12 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/{id}/status",
+              "raw": "{{baseUrl}}/orders/{id}/status",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
+                "orders",
                 "{id}",
                 "status"
               ],
@@ -4398,6 +4394,207 @@
                   "language": "json"
                 }
               }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "devices",
+      "item": [
+        {
+          "name": "POST /devices",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/devices",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "devices"
+              ],
+              "variable": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"string\",\n  \"platform\": \"ANDROID\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /devices",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/devices",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "devices"
+              ],
+              "variable": []
+            }
+          }
+        },
+        {
+          "name": "PATCH /devices/:deviceId/deactivate",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/devices/{deviceId}/deactivate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "devices",
+                "{deviceId}",
+                "deactivate"
+              ],
+              "variable": [
+                {
+                  "key": "deviceId",
+                  "value": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "DELETE /devices/:deviceId",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/devices/{deviceId}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "devices",
+                "{deviceId}"
+              ],
+              "variable": [
+                {
+                  "key": "deviceId",
+                  "value": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "notifications",
+      "item": [
+        {
+          "name": "GET /notifications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "type": "text",
+                  "enabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "type": "text",
+                  "enabled": true
+                }
+              ],
+              "variable": []
+            }
+          }
+        },
+        {
+          "name": "PATCH /notifications/read-all",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/read-all",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications",
+                "read-all"
+              ],
+              "variable": []
+            }
+          }
+        },
+        {
+          "name": "PATCH /notifications/:notificationId/read",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/{notificationId}/read",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications",
+                "{notificationId}",
+                "read"
+              ],
+              "variable": [
+                {
+                  "key": "notificationId",
+                  "value": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "DELETE /notifications/:notificationId",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/{notificationId}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications",
+                "{notificationId}"
+              ],
+              "variable": [
+                {
+                  "key": "notificationId",
+                  "value": "string"
+                }
+              ]
             }
           }
         }

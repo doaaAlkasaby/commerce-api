@@ -1,14 +1,10 @@
-import {
-  Router,
-} from 'express';
+import { Router } from 'express';
 
-import {
-  validate,
-} from '../../common/validation/validate.js';
+import { validate } from '../../common/validation/validate.js';
 
-import {
-  authenticate,
-} from '../../middleware/auth.middleware.js';
+import { authenticate } from '../../middleware/auth.middleware.js';
+import { tenantMiddleware } from '../../middleware/tenant.middleware.js';
+import { tenantMemberMiddleware } from '../../middleware/tenant-member.middleware.js';
 
 import {
   addCartItemSchema,
@@ -16,28 +12,37 @@ import {
   cartVariantParamsSchema,
 } from './cart.schemas.js';
 
-import {
-  cartController,
-} from './cart.controller.js';
+import { cartController } from './cart.controller.js';
 
-const router =
-  Router();
+const router = Router();
 
 /**
- * Get current user's cart.
+ * Get current user's cart
+ *
+ * Tenant context
+ *     ↓
+ * Authentication
+ *     ↓
+ * Tenant membership
+ *     ↓
+ * Controller
  */
 router.get(
   '/',
+  tenantMiddleware,
   authenticate,
+  tenantMemberMiddleware,
   cartController.getCart,
 );
 
 /**
- * Add variant to cart.
+ * Add item to cart
  */
 router.post(
   '/items',
+  tenantMiddleware,
   authenticate,
+  tenantMemberMiddleware,
   validate(
     addCartItemSchema,
     'body',
@@ -46,11 +51,13 @@ router.post(
 );
 
 /**
- * Update variant quantity.
+ * Update cart item quantity
  */
 router.patch(
   '/items/:variantId',
+  tenantMiddleware,
   authenticate,
+  tenantMemberMiddleware,
   validate(
     cartVariantParamsSchema,
     'params',
@@ -63,11 +70,13 @@ router.patch(
 );
 
 /**
- * Remove variant from cart.
+ * Remove item from cart
  */
 router.delete(
   '/items/:variantId',
+  tenantMiddleware,
   authenticate,
+  tenantMemberMiddleware,
   validate(
     cartVariantParamsSchema,
     'params',
@@ -76,11 +85,13 @@ router.delete(
 );
 
 /**
- * Clear cart.
+ * Clear current user's cart
  */
 router.delete(
   '/',
+  tenantMiddleware,
   authenticate,
+  tenantMemberMiddleware,
   cartController.clearCart,
 );
 

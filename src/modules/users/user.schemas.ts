@@ -22,6 +22,18 @@ export const updateProfileSchema = z.object({
     .optional(),
 });
 
+
+export const updateDefaultCountrySchema = z.object({
+  countryCode: z
+    .string()
+    .trim()
+    .length(2)
+    .transform((value) => value.toUpperCase()),
+});
+
+export type UpdateDefaultCountryInput =
+  z.infer<typeof updateDefaultCountrySchema>;
+
 export type UpdateProfileRequest =
   z.infer<typeof updateProfileSchema>;
 

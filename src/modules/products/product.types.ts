@@ -140,6 +140,9 @@ export interface ProductListItem {
     name: string;
     slug: string;
   } | null;
+
+  hasVariants: boolean;
+defaultVariantId: string | null;
 }
 
 export interface ProductPriceResponse {
@@ -157,6 +160,9 @@ export interface ProductCardResponse {
 
   image: string | null;
 
+  rating: ProductRating;
+  isInWishlist: boolean;
+  
   category: {
     id: string;
     name: string;
@@ -168,6 +174,9 @@ export interface ProductCardResponse {
     name: string;
     slug: string;
   } | null;
+
+  hasVariants: boolean;
+defaultVariantId: string | null;
 }
 
 export interface PaginatedProductsResponse {
@@ -184,4 +193,9 @@ export interface PaginatedProductsResponse {
 export interface ProductRating {
   average: number;
   count: number;
+}
+
+export interface ProductVariantSelectionInfo {
+  hasVariants: boolean;
+  defaultVariantId: string | null;
 }

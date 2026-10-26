@@ -26,12 +26,75 @@ const BEST_SELLER_ORDER_STATUSES = [
   'DELIVERED',
 ] as const;
 
+/**
+ * Reusable select for product variants.
+ *
+ * This keeps all product listing queries consistent.
+ *
+ * IMPORTANT:
+ * We use `select` only.
+ * Do NOT combine `include` and `select` at the same level.
+ */
+const productVariantSelect = {
+  id: true,
+  sku: true,
+  price: true,
+
+  isActive: true,
+  isDefault: true,
+
+  discountType: true,
+  discountValue: true,
+  discountStartsAt: true,
+  discountEndsAt: true,
+
+  combinationKey: true,
+
+  values: {
+    include: {
+      attributeValue: {
+        include: {
+          attribute: true,
+        },
+      },
+    },
+  },
+
+  images: {
+    orderBy: [
+      { isPrimary: 'desc' },
+      { sortOrder: 'asc' },
+      { createdAt: 'asc' },
+      { id: 'asc' },
+    ],
+  },
+} satisfies Prisma.ProductVariantSelect;
+
+/**
+ * ProductRepository
+ *
+ * Responsibilities:
+ * - Product CRUD
+ * - Product discovery queries
+ * - Product variants loading
+ * - Offers
+ * - Best sellers
+ * - New arrivals
+ * - Collection products
+ */
 export class ProductRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async findById(id: string) {
+  // ============================================================
+  // FIND PRODUCT BY ID
+  // ============================================================
+
+  async findById(id: string, tenantId: string) {
     return this.prisma.product.findUnique({
-      where: { id },
+      where: {
+        id,
+        tenantId,
+      },
 
       include: {
         category: {
@@ -76,25 +139,8 @@ export class ProductRepository {
         variants: {
           orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
 
-          include: {
-            values: {
-              include: {
-                attributeValue: {
-                  include: {
-                    attribute: true,
-                  },
-                },
-              },
-            },
-
-            images: {
-              orderBy: [
-                { isPrimary: 'desc' },
-                { sortOrder: 'asc' },
-                { createdAt: 'asc' },
-                { id: 'asc' },
-              ],
-            },
+          select: {
+            ...productVariantSelect,
 
             inventory: true,
           },
@@ -103,11 +149,21 @@ export class ProductRepository {
     });
   }
 
+  // ============================================================
+  // FIND PRODUCT BY SLUG
+  // ============================================================
+
   async findBySlug(slug: string) {
     return this.prisma.product.findUnique({
-      where: { slug },
+      where: {
+        slug,
+      },
     });
   }
+
+  // ============================================================
+  // FIND ATTRIBUTE VALUES BY IDS
+  // ============================================================
 
   async findAttributeValuesByIds(
     productId: string,
@@ -136,7 +192,15 @@ export class ProductRepository {
     });
   }
 
-  async findList(query: ProductListQuery, skip: number, take: number) {
+  // ============================================================
+  // FIND PRODUCTS
+  // ============================================================
+
+  async findList(
+    query: ProductListQuery,
+    skip: number,
+    take: number,
+  ) {
     const where = {
       status: 'ACTIVE' as const,
 
@@ -172,7 +236,8 @@ export class ProductRepository {
           }
         : {}),
 
-      ...(query.minPrice !== undefined || query.maxPrice !== undefined
+      ...(query.minPrice !== undefined ||
+      query.maxPrice !== undefined
         ? {
             basePrice: {
               ...(query.minPrice !== undefined
@@ -267,6 +332,10 @@ export class ProductRepository {
     };
   }
 
+  // ============================================================
+  // CREATE PRODUCT
+  // ============================================================
+
   async create(input: CreateProductInput) {
     return this.prisma.product.create({
       data: {
@@ -287,9 +356,18 @@ export class ProductRepository {
     });
   }
 
-  async update(id: string, input: UpdateProductInput) {
+  // ============================================================
+  // UPDATE PRODUCT
+  // ============================================================
+
+  async update(
+    id: string,
+    input: UpdateProductInput,
+  ) {
     return this.prisma.product.update({
-      where: { id },
+      where: {
+        id,
+      },
 
       data: {
         ...(input.name !== undefined && {
@@ -318,20 +396,26 @@ export class ProductRepository {
 
         ...(input.discount !== undefined && {
           discountType: input.discount?.type ?? null,
-
           discountValue: input.discount?.value ?? null,
-
           discountStartsAt: input.discount?.startsAt ?? null,
-
           discountEndsAt: input.discount?.endsAt ?? null,
         }),
       },
     });
   }
 
-  async updateStatus(id: string, status: ProductStatus) {
+  // ============================================================
+  // UPDATE PRODUCT STATUS
+  // ============================================================
+
+  async updateStatus(
+    id: string,
+    status: ProductStatus,
+  ) {
     return this.prisma.product.update({
-      where: { id },
+      where: {
+        id,
+      },
 
       data: {
         status,
@@ -339,13 +423,25 @@ export class ProductRepository {
     });
   }
 
+  // ============================================================
+  // DELETE PRODUCT
+  // ============================================================
+
   async delete(id: string) {
     return this.prisma.product.delete({
-      where: { id },
+      where: {
+        id,
+      },
     });
   }
 
-  async countActiveVariants(productId: string): Promise<number> {
+  // ============================================================
+  // COUNT ACTIVE VARIANTS
+  // ============================================================
+
+  async countActiveVariants(
+    productId: string,
+  ): Promise<number> {
     return this.prisma.productVariant.count({
       where: {
         productId,
@@ -354,33 +450,51 @@ export class ProductRepository {
     });
   }
 
-  async categoryExists(categoryId: string): Promise<boolean> {
-    const category = await this.prisma.category.findUnique({
-      where: {
-        id: categoryId,
-      },
+  // ============================================================
+  // CATEGORY EXISTS
+  // ============================================================
 
-      select: {
-        id: true,
-      },
-    });
+  async categoryExists(
+    categoryId: string,
+  ): Promise<boolean> {
+    const category =
+      await this.prisma.category.findUnique({
+        where: {
+          id: categoryId,
+        },
+
+        select: {
+          id: true,
+        },
+      });
 
     return category !== null;
   }
 
-  async brandExists(brandId: string): Promise<boolean> {
-    const brand = await this.prisma.brand.findUnique({
-      where: {
-        id: brandId,
-      },
+  // ============================================================
+  // BRAND EXISTS
+  // ============================================================
 
-      select: {
-        id: true,
-      },
-    });
+  async brandExists(
+    brandId: string,
+  ): Promise<boolean> {
+    const brand =
+      await this.prisma.brand.findUnique({
+        where: {
+          id: brandId,
+        },
+
+        select: {
+          id: true,
+        },
+      });
 
     return brand !== null;
   }
+
+  // ============================================================
+  // FIND OFFERS
+  // ============================================================
 
   /**
    * Returns products that currently have
@@ -388,13 +502,19 @@ export class ProductRepository {
    *
    * Pagination is performed directly by PostgreSQL.
    */
-  async findOffers(skip: number, take: number) {
+  async findOffers(
+    skip: number,
+    take: number,
+  ) {
     const now = new Date();
 
     const where = {
       status: 'ACTIVE' as const,
 
       OR: [
+        // --------------------------------------------------------
+        // Product-level discount
+        // --------------------------------------------------------
         {
           discountType: {
             not: null,
@@ -433,6 +553,9 @@ export class ProductRepository {
           ],
         },
 
+        // --------------------------------------------------------
+        // Variant-level discount
+        // --------------------------------------------------------
         {
           variants: {
             some: {
@@ -479,56 +602,66 @@ export class ProductRepository {
       ],
     } satisfies Prisma.ProductWhereInput;
 
-    const [items, total] = await Promise.all([
-      this.prisma.product.findMany({
-        where,
+    const [items, total] =
+      await Promise.all([
+        this.prisma.product.findMany({
+          where,
 
-        orderBy: [
-          {
-            createdAt: 'desc',
-          },
-
-          {
-            id: 'asc',
-          },
-        ],
-
-        skip,
-        take,
-
-        include: {
-          images: {
-            orderBy: [
-              { isPrimary: 'desc' },
-              { sortOrder: 'asc' },
-              { createdAt: 'asc' },
-              { id: 'asc' },
-            ],
-          },
-
-          variants: {
-            where: {
-              isActive: true,
+          orderBy: [
+            {
+              createdAt: 'desc',
             },
 
-            orderBy: [{ price: 'asc' }, { id: 'asc' }],
+            {
+              id: 'asc',
+            },
+          ],
+
+          skip,
+          take,
+
+          include: {
+            images: {
+              orderBy: [
+                { isPrimary: 'desc' },
+                { sortOrder: 'asc' },
+                { createdAt: 'asc' },
+                { id: 'asc' },
+              ],
+            },
+
+            variants: {
+              where: {
+                isActive: true,
+              },
+
+              orderBy: [
+                { price: 'asc' },
+                { id: 'asc' },
+              ],
+
+              select: productVariantSelect,
+            },
+
+            category: true,
+            brand: true,
           },
+        }),
 
-          category: true,
-          brand: true,
-        },
-      }),
-
-      this.prisma.product.count({
-        where,
-      }),
-    ]);
+        this.prisma.product.count({
+          where,
+        }),
+      ]);
 
     return {
       items,
       total,
     };
   }
+
+  // ============================================================
+  // FIND BEST SELLERS
+  // ============================================================
 
   /**
    * Returns best-selling active products.
@@ -555,21 +688,27 @@ export class ProductRepository {
    *
    * This avoids loading every bestseller into Node.js.
    */
-  async findBestSellers(skip: number, take: number) {
-    const orderStatuses = Prisma.join(
-      BEST_SELLER_ORDER_STATUSES.map((status) => Prisma.sql`${status}`),
-    );
+  async findBestSellers(
+    skip: number,
+    take: number,
+  ) {
+    const orderStatuses =
+      Prisma.join(
+        BEST_SELLER_ORDER_STATUSES.map(
+          (status) => Prisma.sql`${status}`,
+        ),
+      );
 
-    /**
-     * Step 1:
-     *
-     * Get ONLY the product IDs for the requested page.
-     *
-     * Aggregation and pagination happen
-     * inside PostgreSQL.
-     */
-    const rows = await this.prisma.$queryRaw<BestSellerRow[]>(
-      Prisma.sql`
+    // ----------------------------------------------------------
+    // Step 1:
+    // Get ONLY the product IDs for the requested page.
+    // ----------------------------------------------------------
+
+    const rows =
+      await this.prisma.$queryRaw<
+        BestSellerRow[]
+      >(
+        Prisma.sql`
           SELECT
             oi."productId" AS "productId",
             SUM(oi."quantity")::bigint AS "soldQuantity"
@@ -596,15 +735,17 @@ export class ProductRepository {
           OFFSET ${skip}
           LIMIT ${take}
         `,
-    );
+      );
 
-    /**
-     * We still need the total because the API
-     * response must contain correct pagination
-     * information.
-     */
-    const countRows = await this.prisma.$queryRaw<BestSellerCountRow[]>(
-      Prisma.sql`
+    // ----------------------------------------------------------
+    // Count total bestseller products
+    // ----------------------------------------------------------
+
+    const countRows =
+      await this.prisma.$queryRaw<
+        BestSellerCountRow[]
+      >(
+        Prisma.sql`
           SELECT COUNT(*)::bigint AS "count"
 
           FROM (
@@ -627,9 +768,11 @@ export class ProductRepository {
               oi."productId"
           ) AS bestseller_products
         `,
-    );
+      );
 
-    const total = Number(countRows[0]?.count ?? 0n);
+    const total = Number(
+      countRows[0]?.count ?? 0n,
+    );
 
     if (rows.length === 0) {
       return {
@@ -638,99 +781,29 @@ export class ProductRepository {
       };
     }
 
-    /**
-     * Step 2:
-     *
-     * Extract product IDs in their database
-     * ranking order.
-     */
-    const productIds = rows.map((row) => row.productId);
+    // ----------------------------------------------------------
+    // Step 2:
+    // Extract product IDs in database ranking order.
+    // ----------------------------------------------------------
 
-    /**
-     * Step 3:
-     *
-     * Fetch only the products belonging to
-     * the current page.
-     */
-    const products = await this.prisma.product.findMany({
-      where: {
-        id: {
-          in: productIds,
-        },
-
-        status: 'ACTIVE',
-      },
-
-      include: {
-        images: {
-          orderBy: [
-            { isPrimary: 'desc' },
-            { sortOrder: 'asc' },
-            { createdAt: 'asc' },
-            { id: 'asc' },
-          ],
-        },
-
-        variants: {
-          where: {
-            isActive: true,
-          },
-
-          orderBy: [{ price: 'asc' }, { id: 'asc' }],
-        },
-
-        category: true,
-        brand: true,
-      },
-    });
-
-    /**
-     * Prisma's `in` query does not guarantee
-     * that returned products have the same
-     * order as productIds.
-     *
-     * Rebuild the exact database ranking order.
-     */
-    const productMap = new Map(
-      products.map((product) => [product.id, product]),
+    const productIds = rows.map(
+      (row) => row.productId,
     );
 
-    const items = productIds.flatMap((productId) => {
-      const product = productMap.get(productId);
+    // ----------------------------------------------------------
+    // Step 3:
+    // Fetch only products belonging to current page.
+    // ----------------------------------------------------------
 
-      return product ? [product] : [];
-    });
-
-    return {
-      items,
-      total,
-    };
-  }
-
-  /**
-   * Returns active products ordered by creation date.
-   */
-  async findNewArrivals(skip: number, take: number) {
-    const where = {
-      status: 'ACTIVE' as const,
-    };
-
-    const [items, total] = await Promise.all([
-      this.prisma.product.findMany({
-        where,
-
-        orderBy: [
-          {
-            createdAt: 'desc',
+    const products =
+      await this.prisma.product.findMany({
+        where: {
+          id: {
+            in: productIds,
           },
 
-          {
-            id: 'asc',
-          },
-        ],
-
-        skip,
-        take,
+          status: 'ACTIVE',
+        },
 
         include: {
           images: {
@@ -747,18 +820,41 @@ export class ProductRepository {
               isActive: true,
             },
 
-            orderBy: [{ price: 'asc' }, { id: 'asc' }],
+            orderBy: [
+              { price: 'asc' },
+              { id: 'asc' },
+            ],
+
+            select: productVariantSelect,
           },
 
           category: true,
           brand: true,
         },
-      }),
+      });
 
-      this.prisma.product.count({
-        where,
-      }),
-    ]);
+    // ----------------------------------------------------------
+    // Prisma `in` does not guarantee the same order
+    // as productIds.
+    // ----------------------------------------------------------
+
+    const productMap = new Map(
+      products.map((product) => [
+        product.id,
+        product,
+      ]),
+    );
+
+    const items = productIds.flatMap(
+      (productId) => {
+        const product =
+          productMap.get(productId);
+
+        return product
+          ? [product]
+          : [];
+      },
+    );
 
     return {
       items,
@@ -766,12 +862,87 @@ export class ProductRepository {
     };
   }
 
+  // ============================================================
+  // FIND NEW ARRIVALS
+  // ============================================================
+
+  /**
+   * Returns active products ordered by creation date.
+   */
+  async findNewArrivals(
+    skip: number,
+    take: number,
+  ) {
+    const where = {
+      status: 'ACTIVE' as const,
+    };
+
+    const [items, total] =
+      await Promise.all([
+        this.prisma.product.findMany({
+          where,
+
+          orderBy: [
+            {
+              createdAt: 'desc',
+            },
+
+            {
+              id: 'asc',
+            },
+          ],
+
+          skip,
+          take,
+
+          include: {
+            images: {
+              orderBy: [
+                { isPrimary: 'desc' },
+                { sortOrder: 'asc' },
+                { createdAt: 'asc' },
+                { id: 'asc' },
+              ],
+            },
+
+            variants: {
+              where: {
+                isActive: true,
+              },
+
+              orderBy: [
+                { price: 'asc' },
+                { id: 'asc' },
+              ],
+
+              select: productVariantSelect,
+            },
+
+            category: true,
+            brand: true,
+          },
+        }),
+
+        this.prisma.product.count({
+          where,
+        }),
+      ]);
+
+    return {
+      items,
+      total,
+    };
+  }
+
+  // ============================================================
+  // FIND COLLECTION PRODUCTS
+  // ============================================================
+
   /**
    * Returns active products belonging to
    * an active collection.
    *
-   * Pagination is based on collection item
-   * ordering.
+   * Pagination is based on collection item ordering.
    */
   async findCollectionProducts(
     collectionId: string,
@@ -786,68 +957,75 @@ export class ProductRepository {
       },
     };
 
-    const [collectionItems, total] = await Promise.all([
-      this.prisma.productCollectionItem.findMany({
-        where,
+    const [
+      collectionItems,
+      total,
+    ] = await Promise.all([
+      this.prisma.productCollectionItem.findMany(
+        {
+          where,
 
-        orderBy: [
-          {
-            sortOrder: 'asc',
-          },
+          orderBy: [
+            {
+              sortOrder: 'asc',
+            },
 
-          {
-            productId: 'asc',
-          },
-        ],
+            {
+              productId: 'asc',
+            },
+          ],
 
-        skip,
-        take,
+          skip,
+          take,
 
-        include: {
-          product: {
-            include: {
-              images: {
-                orderBy: [
-                  {
-                    isPrimary: 'desc',
-                  },
+          include: {
+            product: {
+              include: {
+                images: {
+                  orderBy: [
+                    {
+                      isPrimary: 'desc',
+                    },
 
-                  {
-                    sortOrder: 'asc',
-                  },
+                    {
+                      sortOrder: 'asc',
+                    },
 
-                  {
-                    createdAt: 'asc',
-                  },
+                    {
+                      createdAt: 'asc',
+                    },
 
-                  {
-                    id: 'asc',
-                  },
-                ],
-              },
-
-              variants: {
-                where: {
-                  isActive: true,
+                    {
+                      id: 'asc',
+                    },
+                  ],
                 },
 
-                orderBy: [
-                  {
-                    price: 'asc',
+                variants: {
+                  where: {
+                    isActive: true,
                   },
 
-                  {
-                    id: 'asc',
-                  },
-                ],
+                  orderBy: [
+                    {
+                      price: 'asc',
+                    },
+
+                    {
+                      id: 'asc',
+                    },
+                  ],
+
+                  select: productVariantSelect,
+                },
+
+                category: true,
+                brand: true,
               },
-
-              category: true,
-              brand: true,
             },
           },
         },
-      }),
+      ),
 
       this.prisma.productCollectionItem.count({
         where,
@@ -855,12 +1033,19 @@ export class ProductRepository {
     ]);
 
     return {
-      items: collectionItems.map((item) => item.product),
+      items: collectionItems.map(
+        (item) => item.product,
+      ),
 
       total,
     };
   }
 }
 
-export const createProductRepository = (prisma: PrismaClient) =>
-  new ProductRepository(prisma);
+// ============================================================
+// REPOSITORY FACTORY
+// ============================================================
+
+export const createProductRepository = (
+  prisma: PrismaClient,
+) => new ProductRepository(prisma);

@@ -72,6 +72,15 @@ export const mapCheckoutOrder = (
   items: order.items.map(
     mapCheckoutOrderItem,
   ),
+  shippingMethodId:
+  order.shippingMethodId,
+
+shippingMethodCode:
+  order.shippingMethodCode,
+
+shippingMethodName:
+  order.shippingMethodName,
+  
   createdAt: order.createdAt.toISOString(),
   updatedAt: order.updatedAt.toISOString(),
 });

@@ -9,6 +9,7 @@ import type {
   HomeBanner,
   HomeBrand,
   HomeCategory,
+  HomeCategoryRecord,
   HomeProduct,
 } from './home.types.js';
 
@@ -29,12 +30,13 @@ export function mapHomeBanner(banner: HomeBanner): HomeBanner {
   };
 }
 
-export function mapHomeCategory(category: HomeCategory): HomeCategory {
+export function mapHomeCategory(category: HomeCategoryRecord): HomeCategory {
   return {
     id: category.id,
     name: category.name,
     slug: category.slug,
     imageUrl: category.imageUrl,
+hasChildren: category._count.children > 0,
   };
 }
 
@@ -47,13 +49,63 @@ export function mapHomeBrand(brand: HomeBrand): HomeBrand {
   };
 }
 
-export function mapHomeProduct(product: HomeProductRecord): HomeProduct {
+/**
+ * Determines whether the product requires the user to select
+ * a variant before adding it to the cart.
+ *
+ * Product variants are handled in two ways:
+ *
+ * 1. Selectable variants:
+ *    Example:
+ *      Size S / Black
+ *      Size M / Black
+ *      Size L / Black
+ *
+ *    These variants have isDefault = false.
+ *
+ * 2. Default variant:
+ *    Used for products without selectable options.
+ *    Example:
+ *      Wireless Headphones
+ *
+ *    This variant has isDefault = true.
+ */
+function getVariantSelectionInfo(product: HomeProductRecord) {
+  const activeVariants = product.variants.filter(
+    (variant) => variant.isActive,
+  );
+
+  const hasSelectableVariants = activeVariants.some(
+    (variant) => variant.values.length > 0,
+  );
+
+  const defaultVariant =
+    activeVariants.find(
+      (variant) => variant.isDefault,
+    ) ?? null;
+
+  return {
+    hasVariants: hasSelectableVariants,
+    defaultVariantId: defaultVariant?.id ?? null,
+  };
+}
+
+export function mapHomeProduct(
+  product: HomeProductRecord & {
+    rating: {
+      average: number;
+      count: number;
+    };
+    isInWishlist: boolean;
+  },
+): HomeProduct {
   const productDiscount = {
     type: product.discountType,
     value: product.discountValue?.toString() ?? null,
     startsAt: product.discountStartsAt,
     endsAt: product.discountEndsAt,
   };
+
   const candidates =
     product.variants.length > 0
       ? product.variants.map((variant) =>
@@ -80,16 +132,26 @@ export function mapHomeProduct(product: HomeProductRecord): HomeProduct {
             },
           ),
         ];
+
   const pricing = candidates.reduce((lowest, current) =>
-    toCents(current.finalPrice) < toCents(lowest.finalPrice) ? current : lowest,
+    toCents(current.finalPrice) < toCents(lowest.finalPrice)
+      ? current
+      : lowest,
   );
+
   const baseCents = toCents(pricing.basePrice);
   const discountCents = toCents(pricing.discountAmount);
 
   const discountPercentage =
     pricing.discountType === null || baseCents === 0n
       ? null
-      : Number((discountCents * 10_000n + baseCents / 2n) / baseCents) / 100;
+      : Number(
+          (discountCents * 10_000n + baseCents / 2n) / baseCents,
+        ) / 100;
+
+        const variantInfo =
+    getVariantSelectionInfo(product);
+
 
   return {
     id: product.id,
@@ -106,5 +168,22 @@ export function mapHomeProduct(product: HomeProductRecord): HomeProduct {
       product.images.find((image) => image.isPrimary)?.url ??
       product.images[0]?.url ??
       null,
+
+    rating: product.rating,
+
+    isInWishlist: product.isInWishlist,
+
+    /*
+     * NEW
+     */
+    hasVariants:
+      variantInfo.hasVariants,
+
+    /*
+     * NEW
+     */
+    defaultVariantId:
+      variantInfo.defaultVariantId,
+
   };
 }

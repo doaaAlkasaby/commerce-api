@@ -46,6 +46,22 @@ export class HomeRepository {
       ],
 
       take: limit,
+
+          select: {
+      id: true,
+      name: true,
+      slug: true,
+      imageUrl: true,
+      _count: {
+        select: {
+          children: {
+      where: {
+        isActive: true,
+      },
+    },
+        },
+      },
+    },
     });
   }
 

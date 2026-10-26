@@ -1,7 +1,4 @@
-import {
-  Prisma,
-  ProductStatus,
-} from '../../generated/prisma/client.js';
+import { Prisma, ProductStatus } from '../../generated/prisma/client.js';
 
 import { AppError } from '../../common/errors/app-error.js';
 
@@ -23,48 +20,31 @@ import {
   calculateSkip,
   createPagination,
 } from '../../common/pagination/pagination.js';
-
-
-import {productEnrichmentService} from  './product-enrichment.service.js';
-
-
+import { productEnrichmentService } from './product-enrichment.service.js';
 
 export class ProductService {
-  constructor(
-    private readonly productRepository: ProductRepository,
-  ) {}
+  constructor(private readonly productRepository: ProductRepository) {}
 
   async create(input: CreateProductInput) {
-    const categoryExists =
-      await this.productRepository.categoryExists(
-        input.categoryId,
-      );
+    const categoryExists = await this.productRepository.categoryExists(
+      input.categoryId,
+    );
 
     if (!categoryExists) {
-      throw new AppError(
-        'Category not found',
-        404,
-        'CATEGORY_NOT_FOUND',
-      );
+      throw new AppError('Category not found', 404, 'CATEGORY_NOT_FOUND');
     }
 
     if (input.brandId) {
-      const brandExists =
-        await this.productRepository.brandExists(
-          input.brandId,
-        );
+      const brandExists = await this.productRepository.brandExists(
+        input.brandId,
+      );
 
       if (!brandExists) {
-        throw new AppError(
-          'Brand not found',
-          404,
-          'BRAND_NOT_FOUND',
-        );
+        throw new AppError('Brand not found', 404, 'BRAND_NOT_FOUND');
       }
     }
 
-    const existing =
-      await this.productRepository.findBySlug(input.slug);
+    const existing = await this.productRepository.findBySlug(input.slug);
 
     if (existing) {
       throw new AppError(
@@ -92,59 +72,35 @@ export class ProductService {
     }
   }
 
-  async update(
-    id: string,
-    input: UpdateProductInput,
-  ) {
-    const product =
-      await this.productRepository.findById(id);
+  async update(id: string, input: UpdateProductInput) {
+    const product = await this.productRepository.findById(id);
 
     if (!product) {
-      throw new AppError(
-        'Product not found',
-        404,
-        'PRODUCT_NOT_FOUND',
-      );
+      throw new AppError('Product not found', 404, 'PRODUCT_NOT_FOUND');
     }
 
     if (input.categoryId) {
-      const categoryExists =
-        await this.productRepository.categoryExists(
-          input.categoryId,
-        );
+      const categoryExists = await this.productRepository.categoryExists(
+        input.categoryId,
+      );
 
       if (!categoryExists) {
-        throw new AppError(
-          'Category not found',
-          404,
-          'CATEGORY_NOT_FOUND',
-        );
+        throw new AppError('Category not found', 404, 'CATEGORY_NOT_FOUND');
       }
     }
 
     if (input.brandId) {
-      const brandExists =
-        await this.productRepository.brandExists(
-          input.brandId,
-        );
+      const brandExists = await this.productRepository.brandExists(
+        input.brandId,
+      );
 
       if (!brandExists) {
-        throw new AppError(
-          'Brand not found',
-          404,
-          'BRAND_NOT_FOUND',
-        );
+        throw new AppError('Brand not found', 404, 'BRAND_NOT_FOUND');
       }
     }
 
-    if (
-      input.slug &&
-      input.slug !== product.slug
-    ) {
-      const existing =
-        await this.productRepository.findBySlug(
-          input.slug,
-        );
+    if (input.slug && input.slug !== product.slug) {
+      const existing = await this.productRepository.findBySlug(input.slug);
 
       if (existing && existing.id !== id) {
         throw new AppError(
@@ -156,10 +112,7 @@ export class ProductService {
     }
 
     try {
-      return await this.productRepository.update(
-        id,
-        input,
-      );
+      return await this.productRepository.update(id, input);
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -176,48 +129,24 @@ export class ProductService {
     }
   }
 
-  async changeStatus(
-    id: string,
-    newStatus: ProductStatus,
-  ) {
-    const product =
-      await this.productRepository.findById(id);
+  async changeStatus(id: string, newStatus: ProductStatus) {
+    const product = await this.productRepository.findById(id);
 
     if (!product) {
-      throw new AppError(
-        'Product not found',
-        404,
-        'PRODUCT_NOT_FOUND',
-      );
+      throw new AppError('Product not found', 404, 'PRODUCT_NOT_FOUND');
     }
 
-    const allowedTransitions: Record<
-      ProductStatus,
-      ProductStatus[]
-    > = {
-      [ProductStatus.DRAFT]: [
-        ProductStatus.ACTIVE,
-        ProductStatus.ARCHIVED,
-      ],
+    const allowedTransitions: Record<ProductStatus, ProductStatus[]> = {
+      [ProductStatus.DRAFT]: [ProductStatus.ACTIVE, ProductStatus.ARCHIVED],
 
-      [ProductStatus.ACTIVE]: [
-        ProductStatus.INACTIVE,
-        ProductStatus.ARCHIVED,
-      ],
+      [ProductStatus.ACTIVE]: [ProductStatus.INACTIVE, ProductStatus.ARCHIVED],
 
-      [ProductStatus.INACTIVE]: [
-        ProductStatus.ACTIVE,
-        ProductStatus.ARCHIVED,
-      ],
+      [ProductStatus.INACTIVE]: [ProductStatus.ACTIVE, ProductStatus.ARCHIVED],
 
       [ProductStatus.ARCHIVED]: [],
     };
 
-    if (
-      !allowedTransitions[product.status].includes(
-        newStatus,
-      )
-    ) {
+    if (!allowedTransitions[product.status].includes(newStatus)) {
       throw new AppError(
         `Cannot change product status from ${product.status} to ${newStatus}`,
         409,
@@ -227,9 +156,7 @@ export class ProductService {
 
     if (newStatus === ProductStatus.ACTIVE) {
       const activeVariants =
-        await this.productRepository.countActiveVariants(
-          id,
-        );
+        await this.productRepository.countActiveVariants(id);
 
       if (activeVariants === 0) {
         throw new AppError(
@@ -240,76 +167,62 @@ export class ProductService {
       }
     }
 
-    return this.productRepository.updateStatus(
-      id,
-      newStatus,
-    );
+    return this.productRepository.updateStatus(id, newStatus);
   }
 
   async getById(id: string, userId?: string) {
-    const product =
-      await this.productRepository.findById(id);
+    const product = await this.productRepository.findById(id);
 
-      const enrichedItems =
-  await productEnrichmentService.enrichProducts(
-    product,
-    userId,
-  );
-
-    if (
-      !product ||
-      product.status !== ProductStatus.ACTIVE
-    ) {
-      throw new AppError(
-        'Product not found',
-        404,
-        'PRODUCT_NOT_FOUND',
-      );
+    if (!product || product.status !== ProductStatus.ACTIVE) {
+      throw new AppError('Product not found', 404, 'PRODUCT_NOT_FOUND');
     }
 
-    return mapProductDetails(enrichedItems);
+    const [enrichedProduct] = await productEnrichmentService.enrichProducts(
+      [product],
+      userId,
+    );
+
+    if (!enrichedProduct) {
+      throw new Error('Product enrichment returned no product');
+    }
+
+    return {
+      ...mapProductDetails(enrichedProduct),
+      rating: enrichedProduct.rating,
+      isInWishlist: enrichedProduct.isInWishlist,
+    };
   }
 
- async list(query: ProductListQuery, userId?: string) {
-  const skip = calculateSkip(
-    query.page,
-    query.limit,
-  );
+  async list(query: ProductListQuery, userId?: string) {
+    const skip = calculateSkip(query.page, query.limit);
 
-  const { items, total } =
-    await this.productRepository.findList(
+    const { items, total } = await this.productRepository.findList(
       query,
       skip,
       query.limit,
     );
 
-    const enrichedItems =
-  await productEnrichmentService.enrichProducts(
-    items,
-    userId,
-  );
+    const enrichedItems = await productEnrichmentService.enrichProducts(
+      items,
+      userId,
+    );
 
-  return {
-    items: enrichedItems.map(mapProductListItem),
+    return {
+      items: enrichedItems.map((product) => ({
+        ...mapProductListItem(product),
+        rating: product.rating,
+        isInWishlist: product.isInWishlist,
+      })),
 
-    pagination: createPagination(
-      query.page,
-      query.limit,
-      total,
-    ),
-  };
-}
+      pagination: createPagination(query.page, query.limit, total),
+    };
+  }
 
   async delete(id: string) {
-    const product =
-      await this.productRepository.findById(id);
+    const product = await this.productRepository.findById(id);
 
     if (!product) {
-      throw new AppError(
-        'Product not found',
-        404,
-        'PRODUCT_NOT_FOUND',
-      );
+      throw new AppError('Product not found', 404, 'PRODUCT_NOT_FOUND');
     }
 
     if (product.status === ProductStatus.ACTIVE) {
@@ -338,106 +251,66 @@ export class ProductService {
     }
   }
 
-  async getOffers(
-    page: number,
-    limit: number,
-    userId?: string
-  ) {
-    const skip = calculateSkip(
-      page,
+  async getOffers(page: number, limit: number, userId?: string) {
+    const skip = calculateSkip(page, limit);
+
+    const { items, total } = await this.productRepository.findOffers(
+      skip,
       limit,
     );
 
-    const { items, total } =
-      await this.productRepository.findOffers(
-        skip,
-        limit,
-      );
+    const enrichedItems = await productEnrichmentService.enrichProducts(
+      items,
+      userId,
+    );
 
-      const enrichedItems =
-  await productEnrichmentService.enrichProducts(
-    items,
-    userId,
-  );
     return {
       items: enrichedItems.map(mapProductCard),
 
-      pagination: createPagination(
-        page,
-        limit,
-        total,
-      ),
+      pagination: createPagination(page, limit, total),
     };
   }
 
-  async getBestSellers(
-    page: number,
-    limit: number,
-     userId?: string
-  ) {
-    const skip = calculateSkip(
-      page,
+  async getBestSellers(page: number, limit: number, userId?: string) {
+    const skip = calculateSkip(page, limit);
+
+    const { items, total } = await this.productRepository.findBestSellers(
+      skip,
       limit,
     );
 
-    const { items, total } =
-      await this.productRepository.findBestSellers(
-        skip,
-        limit,
-      );
-
-      const enrichedItems =
-  await productEnrichmentService.enrichProducts(
-    items,
-    userId,
-  );
+    const enrichedItems = await productEnrichmentService.enrichProducts(
+      items,
+      userId,
+    );
 
     return {
       items: enrichedItems.map(mapProductCard),
 
-      pagination: createPagination(
-        page,
-        limit,
-        total,
-      ),
+      pagination: createPagination(page, limit, total),
     };
   }
 
-  async getNewArrivals(
-    page: number,
-    limit: number,
-     userId?: string
-  ) {
-    const skip = calculateSkip(
-      page,
+  async getNewArrivals(page: number, limit: number, userId?: string) {
+    const skip = calculateSkip(page, limit);
+
+    const { items, total } = await this.productRepository.findNewArrivals(
+      skip,
       limit,
     );
 
-    const { items, total } =
-      await this.productRepository.findNewArrivals(
-        skip,
-        limit,
-      );
-
-      const enrichedItems =
-  await productEnrichmentService.enrichProducts(
-    items,
-    userId,
-  );
+    const enrichedItems = await productEnrichmentService.enrichProducts(
+      items,
+      userId,
+    );
 
     return {
       items: enrichedItems.map(mapProductCard),
 
-      pagination: createPagination(
-        page,
-        limit,
-        total,
-      ),
+      pagination: createPagination(page, limit, total),
     };
   }
 }
 
-export const createProductService = (
-  productRepository: ProductRepository,
-) =>
+export const createProductService = (productRepository: ProductRepository) =>
   new ProductService(productRepository);

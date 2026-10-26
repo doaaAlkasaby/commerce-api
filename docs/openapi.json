@@ -1231,47 +1231,37 @@
           {
             "name": "search",
             "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "example": "string"
-            }
+            "required": true,
+            "schema": {},
+            "example": "string"
           },
           {
             "name": "categoryId",
             "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "example": "string"
-            }
+            "required": true,
+            "schema": {},
+            "example": "string"
           },
           {
             "name": "brandId",
             "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "example": "string"
-            }
+            "required": true,
+            "schema": {},
+            "example": "string"
           },
           {
             "name": "minPrice",
             "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "example": "string"
-            }
+            "required": true,
+            "schema": {},
+            "example": "string"
           },
           {
             "name": "maxPrice",
             "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "example": "string"
-            }
+            "required": true,
+            "schema": {},
+            "example": "string"
           },
           {
             "name": "sortBy",
@@ -4538,12 +4528,12 @@
         }
       }
     },
-    "/my": {
+    "/orders/my": {
       "get": {
-        "summary": "GET /my",
-        "operationId": "get_my",
+        "summary": "GET /orders/my",
+        "operationId": "get_orders_my",
         "tags": [
-          "my"
+          "orders"
         ],
         "security": [
           {
@@ -4619,12 +4609,12 @@
         }
       }
     },
-    "/my/{id}": {
+    "/orders/my/{id}": {
       "get": {
-        "summary": "GET /my/:id",
-        "operationId": "get_my_id",
+        "summary": "GET /orders/my/:id",
+        "operationId": "get_orders_my_id",
         "tags": [
-          "my"
+          "orders"
         ],
         "security": [
           {
@@ -4650,12 +4640,12 @@
         }
       }
     },
-    "/": {
+    "/orders": {
       "get": {
-        "summary": "GET /",
-        "operationId": "get_",
+        "summary": "GET /orders",
+        "operationId": "get_orders",
         "tags": [
-          "root"
+          "orders"
         ],
         "security": [
           {
@@ -4731,12 +4721,12 @@
         }
       }
     },
-    "/{id}": {
+    "/orders/{id}": {
       "get": {
-        "summary": "GET /:id",
-        "operationId": "get_id",
+        "summary": "GET /orders/:id",
+        "operationId": "get_orders_id",
         "tags": [
-          ":id"
+          "orders"
         ],
         "security": [
           {
@@ -4762,12 +4752,12 @@
         }
       }
     },
-    "/{id}/status": {
+    "/orders/{id}/status": {
       "patch": {
-        "summary": "PATCH /:id/status",
-        "operationId": "patch_id_status",
+        "summary": "PATCH /orders/:id/status",
+        "operationId": "patch_orders_id_status",
         "tags": [
-          ":id"
+          "orders"
         ],
         "security": [
           {
@@ -4800,6 +4790,219 @@
             }
           }
         },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          }
+        }
+      }
+    },
+    "/devices": {
+      "post": {
+        "summary": "POST /devices",
+        "operationId": "post_devices",
+        "tags": [
+          "devices"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "platform": {
+                    "type": "string",
+                    "enum": [
+                      "ANDROID",
+                      "IOS"
+                    ]
+                  },
+                  "appVersion": {
+                    "type": "string",
+                    "maxLength": 50
+                  }
+                },
+                "required": [
+                  "token",
+                  "platform"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          }
+        }
+      },
+      "get": {
+        "summary": "GET /devices",
+        "operationId": "get_devices",
+        "tags": [
+          "devices"
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          }
+        }
+      }
+    },
+    "/devices/{deviceId}/deactivate": {
+      "patch": {
+        "summary": "PATCH /devices/:deviceId/deactivate",
+        "operationId": "patch_devices_deviceId_deactivate",
+        "tags": [
+          "devices"
+        ],
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "string"
+            },
+            "example": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          }
+        }
+      }
+    },
+    "/devices/{deviceId}": {
+      "delete": {
+        "summary": "DELETE /devices/:deviceId",
+        "operationId": "delete_devices_deviceId",
+        "tags": [
+          "devices"
+        ],
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "string"
+            },
+            "example": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          }
+        }
+      }
+    },
+    "/notifications": {
+      "get": {
+        "summary": "GET /notifications",
+        "operationId": "get_notifications",
+        "tags": [
+          "notifications"
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "example": 1,
+              "default": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "example": 1,
+              "default": 20
+            },
+            "example": 20
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          }
+        }
+      }
+    },
+    "/notifications/read-all": {
+      "patch": {
+        "summary": "PATCH /notifications/read-all",
+        "operationId": "patch_notifications_read_all",
+        "tags": [
+          "notifications"
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          }
+        }
+      }
+    },
+    "/notifications/{notificationId}/read": {
+      "patch": {
+        "summary": "PATCH /notifications/:notificationId/read",
+        "operationId": "patch_notifications_notificationId_read",
+        "tags": [
+          "notifications"
+        ],
+        "parameters": [
+          {
+            "name": "notificationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "string"
+            },
+            "example": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          }
+        }
+      }
+    },
+    "/notifications/{notificationId}": {
+      "delete": {
+        "summary": "DELETE /notifications/:notificationId",
+        "operationId": "delete_notifications_notificationId",
+        "tags": [
+          "notifications"
+        ],
+        "parameters": [
+          {
+            "name": "notificationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "string"
+            },
+            "example": "string"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful response"

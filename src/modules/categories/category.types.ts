@@ -18,6 +18,7 @@ export interface CategoryResponse {
   slug: string;
   description: string | null;
   isActive: boolean;
+  hasChildren: boolean;
   parentId: string | null;
   imageUrl: string | null;
   createdAt: Date;

@@ -29,15 +29,19 @@ export const validate =
       schema.safeParse(
         req[source],
       );
+if (!result.success) {
+  console.error(
+    'VALIDATION ERROR:',
+    JSON.stringify(result.error.issues, null, 2),
+  );
 
-    if (!result.success) {
-      throw new AppError(
-        'Validation failed',
-        400,
-        'VALIDATION_ERROR',
-        true,
-      );
-    }
+  throw new AppError(
+    'Validation failed',
+    400,
+    'VALIDATION_ERROR',
+    true,
+  );
+}
 
     if (source === 'body') {
       req.validatedBody =

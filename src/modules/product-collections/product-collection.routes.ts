@@ -26,6 +26,10 @@ import { validate } from '../../common/validation/validate.js';
 
 import { authenticate } from '../../middleware/auth.middleware.js';
 import { authorize } from '../../middleware/authorization.middleware.js';
+import { optionalAuthenticate } from '../../middleware/optional-auth.middleware.js';
+
+
+
 
 const router = Router();
 
@@ -33,16 +37,21 @@ const router = Router();
  * Public
  */
 
-router.get('/', listCollections);
+router.get('/', 
+   optionalAuthenticate,
+  listCollections);
 
 router.get(
   '/:id/products',
+   optionalAuthenticate,
   validate(collectionIdParamsSchema, 'params'),
   validate(collectionProductsQuerySchema, 'query'),
   getCollectionProducts,
 );
 
-router.get('/:id', validate(collectionIdParamsSchema, 'params'), getCollection);
+router.get('/:id', 
+   optionalAuthenticate,
+  validate(collectionIdParamsSchema, 'params'), getCollection);
 
 /*
  * Admin / Manager

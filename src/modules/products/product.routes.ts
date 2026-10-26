@@ -1,10 +1,12 @@
 import { Router } from 'express';
 
-import { authenticate } from '../../middleware/auth.middleware.js';
-
-import { authorize } from '../../middleware/authorization.middleware.js';
-
 import { validate } from '../../common/validation/validate.js';
+
+import { authenticate } from '../../middleware/auth.middleware.js';
+import { optionalAuthenticate } from '../../middleware/optional-auth.middleware.js';
+import { tenantMiddleware } from '../../middleware/tenant.middleware.js';
+import { tenantMemberMiddleware } from '../../middleware/tenant-member.middleware.js';
+import { requireTenantRoles } from '../../middleware/tenant-role.middleware.js';
 
 import {
   createProductSchema,
@@ -27,56 +29,203 @@ import {
   getOffers,
 } from './product.controller.js';
 
-import {
-  optionalAuthenticate,
-} from '../../middleware/optional-auth.middleware.js';
-
-
 const router = Router();
 
-router.get('/offers', optionalAuthenticate,validate(productListingQuerySchema, 'query'), getOffers);
+/**
+ * ============================================================
+ * PUBLIC PRODUCT APIs
+ * ============================================================
+ *
+ * Tenant context
+ *     ↓
+ * Optional authentication
+ *     ↓
+ * Validation
+ *     ↓
+ * Controller
+ *
+ * Login is NOT required.
+ */
 
+/**
+ * Get products with active offers
+ */
+router.get(
+  '/offers',
+  tenantMiddleware,
+  optionalAuthenticate,
+  validate(
+    productListingQuerySchema,
+    'query',
+  ),
+  getOffers,
+);
+
+/**
+ * Get best-selling products
+ */
 router.get(
   '/best-sellers',
+  tenantMiddleware,
   optionalAuthenticate,
-  validate(productListingQuerySchema, 'query'),
+  validate(
+    productListingQuerySchema,
+    'query',
+  ),
   getBestSellers,
 );
 
+/**
+ * Get newest products
+ */
 router.get(
   '/new-arrivals',
+  tenantMiddleware,
   optionalAuthenticate,
-  validate(productListingQuerySchema, 'query'),
+  validate(
+    productListingQuerySchema,
+    'query',
+  ),
   getNewArrivals,
 );
 
-router.get('/', optionalAuthenticate,
-  validate(productListQuerySchema, 'query'), listProducts);
+/**
+ * List products
+ */
+router.get(
+  '/',
+  tenantMiddleware,
+  optionalAuthenticate,
+  validate(
+    productListQuerySchema,
+    'query',
+  ),
+  listProducts,
+);
 
-router.get('/:id', optionalAuthenticate,
-  validate(productIdParamSchema, 'params'), getProduct);
+/**
+ * Get product details
+ */
+router.get(
+  '/:id',
+  tenantMiddleware,
+  optionalAuthenticate,
+  validate(
+    productIdParamSchema,
+    'params',
+  ),
+  getProduct,
+);
 
-router.use(authenticate);
-router.use(authorize('ADMIN', 'MANAGER'));
+/**
+ * ============================================================
+ * PROTECTED PRODUCT ADMIN APIs
+ * ============================================================
+ *
+ * Tenant context
+ *     ↓
+ * Authentication
+ *     ↓
+ * Tenant membership
+ *     ↓
+ * Tenant role authorization
+ *     ↓
+ * Validation
+ *     ↓
+ * Controller
+ *
+ * Allowed tenant roles:
+ * OWNER
+ * ADMIN
+ * MANAGER
+ */
 
-router.post('/', validate(createProductSchema, 'body'), createProduct);
+/**
+ * Create product
+ */
+router.post(
+  '/',
+  tenantMiddleware,
+  authenticate,
+  tenantMemberMiddleware,
+  requireTenantRoles(
+    'OWNER',
+    'ADMIN',
+    'MANAGER',
+  ),
+  validate(
+    createProductSchema,
+    'body',
+  ),
+  createProduct,
+);
 
+/**
+ * Update product
+ */
 router.patch(
   '/:id',
-  validate(productIdParamSchema, 'params'),
-  validate(updateProductSchema, 'body'),
+  tenantMiddleware,
+  authenticate,
+  tenantMemberMiddleware,
+  requireTenantRoles(
+    'OWNER',
+    'ADMIN',
+    'MANAGER',
+  ),
+  validate(
+    productIdParamSchema,
+    'params',
+  ),
+  validate(
+    updateProductSchema,
+    'body',
+  ),
   updateProduct,
 );
 
+/**
+ * Change product status
+ */
 router.patch(
   '/:id/status',
-  validate(productIdParamSchema, 'params'),
-  validate(productStatusSchema, 'body'),
+  tenantMiddleware,
+  authenticate,
+  tenantMemberMiddleware,
+  requireTenantRoles(
+    'OWNER',
+    'ADMIN',
+    'MANAGER',
+  ),
+  validate(
+    productIdParamSchema,
+    'params',
+  ),
+  validate(
+    productStatusSchema,
+    'body',
+  ),
   changeProductStatus,
 );
 
-
-
-router.delete('/:id', validate(productIdParamSchema, 'params'), deleteProduct);
+/**
+ * Delete product
+ */
+router.delete(
+  '/:id',
+  tenantMiddleware,
+  authenticate,
+  tenantMemberMiddleware,
+  requireTenantRoles(
+    'OWNER',
+    'ADMIN',
+    'MANAGER',
+  ),
+  validate(
+    productIdParamSchema,
+    'params',
+  ),
+  deleteProduct,
+);
 
 export default router;

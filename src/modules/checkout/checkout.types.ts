@@ -5,11 +5,17 @@ import type {
   PaymentStatus,
 } from '../../generated/prisma/client.js';
 
+
+
+
 export interface CheckoutInput {
   shippingAddressId: string;
   billingAddressId?: string;
   billingSameAsShipping?: boolean;
   couponCode?: string;
+
+  shippingMethodId?: string;
+
   paymentMethod: PaymentMethod;
   paymentProvider?: PaymentProvider;
   currency?: string;
@@ -51,6 +57,12 @@ export interface CheckoutOrderResponse {
   shippingAmount: string;
   taxAmount: string;
   totalAmount: string;
+
+  shippingMethodId: string | null;
+  shippingMethodCode: string | null;
+  shippingMethodName: string | null;
+
+
   shippingAddress: Record<string, unknown>;
   billingAddress: Record<string, unknown>;
   items: CheckoutOrderItemResponse[];
@@ -69,4 +81,17 @@ export interface CheckoutPaymentResponse {
   providerTransactionId: string | null;
   checkoutUrl?: string | null;
   clientSecret?: string | null;
+}
+
+export interface CheckoutInput {
+  shippingAddressId: string;
+  billingAddressId?: string;
+  billingSameAsShipping?: boolean;
+  couponCode?: string;
+
+  shippingMethodCode?: string;
+
+  paymentMethod: PaymentMethod;
+  paymentProvider?: PaymentProvider;
+  currency?: string;
 }

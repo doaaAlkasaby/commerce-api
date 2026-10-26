@@ -20,6 +20,14 @@ type DiscountEntity = Pick<
   'discountType' | 'discountValue' | 'discountStartsAt' | 'discountEndsAt'
 >;
 
+type ProductEnrichedFields = {
+  rating: {
+    average: number;
+    count: number;
+  };
+  isInWishlist: boolean;
+};
+
 export const mapProductListItem = (product: ProductListItem) => {
   return {
     id: product.id,
@@ -176,7 +184,8 @@ export const mapProductDetails = (product: ProductDetails) => {
 };
 
 export function mapProductCard(
-  product: ProductCardRecord,
+    product: ProductCardRecord & ProductEnrichedFields,
+
 ): ProductCardResponse {
   const productDiscount = {
     type: product.discountType,
@@ -222,12 +231,17 @@ export function mapProductCard(
       ? null
       : Number((discountCents * 10_000n + baseCents / 2n) / baseCents) / 100;
 
+      const variantInfo = getProductVariantInfo(product);
+
   return {
     id: product.id,
 
     name: product.name,
 
     slug: product.slug,
+    rating: product.rating,
+
+  isInWishlist: product.isInWishlist,
 
     price: {
       original: pricing.basePrice,
@@ -252,5 +266,41 @@ export function mapProductCard(
           slug: product.brand.slug,
         }
       : null,
+
+      hasVariants: variantInfo.hasVariants,
+
+  defaultVariantId: variantInfo.defaultVariantId,
+  };
+}
+
+function getProductVariantInfo(
+  product: {
+    variants: Array<{
+      id: string;
+      isDefault: boolean;
+      isActive: boolean;
+    }>;
+  },
+) {
+  const activeVariants = product.variants.filter(
+    (variant) => variant.isActive,
+  );
+
+  const defaultVariant =
+    activeVariants.find(
+      (variant) => variant.isDefault,
+    ) ?? null;
+
+  const selectableVariants =
+    activeVariants.filter(
+      (variant) => !variant.isDefault,
+    );
+
+  return {
+    hasVariants: selectableVariants.length > 0,
+    defaultVariantId:
+      selectableVariants.length === 0
+        ? defaultVariant?.id ?? null
+        : null,
   };
 }

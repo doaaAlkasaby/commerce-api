@@ -100,3 +100,31 @@ updateStatus: async (
 
   };
 };
+
+export async updateDefaultCountry(
+  userId: string,
+  countryCode: string,
+) {
+  const country = await prisma.country.findFirst({
+    where: {
+      code: countryCode,
+      isActive: true,
+    },
+    select: {
+      code: true,
+    },
+  });
+
+  if (!country) {
+    throw new AppError(
+      'COUNTRY_NOT_SUPPORTED',
+      'The selected country is not supported.',
+      400,
+    );
+  }
+
+  return this.repository.updateDefaultCountry(
+    userId,
+    countryCode,
+  );
+}
