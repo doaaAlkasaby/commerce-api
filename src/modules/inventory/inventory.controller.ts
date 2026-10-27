@@ -17,6 +17,7 @@ export class InventoryController {
     try {
       const result =
         await inventoryService.create(
+          req.tenant!.tenantId,
           req.validatedBody as {
             variantId: string;
             quantity?: number;
@@ -42,6 +43,7 @@ export class InventoryController {
     try {
       const result =
         await inventoryService.list(
+          req.tenant!.tenantId,
           req.validatedQuery as {
             page: number;
             limit: number;
@@ -75,6 +77,7 @@ export class InventoryController {
 
       const result =
         await inventoryService.getById(
+          req.tenant!.tenantId,
           id,
         );
 
@@ -103,6 +106,7 @@ export class InventoryController {
 
       const result =
         await inventoryService.getByVariantId(
+          req.tenant!.tenantId,
           variantId,
         );
 
@@ -131,6 +135,7 @@ export class InventoryController {
 
       const result =
         await inventoryService.stockIn(
+          req.tenant!.tenantId,
           id,
           req.validatedBody as {
             quantity: number;
@@ -165,6 +170,7 @@ export class InventoryController {
 
       const result =
         await inventoryService.stockOut(
+          req.tenant!.tenantId,
           id,
           req.validatedBody as {
             quantity: number;
@@ -199,6 +205,7 @@ export class InventoryController {
 
       const result =
         await inventoryService.adjustment(
+          req.tenant!.tenantId,
           id,
           req.validatedBody as {
             quantity: number;
@@ -233,6 +240,7 @@ export class InventoryController {
 
       const result =
         await inventoryService.reserve(
+          req.tenant!.tenantId,
           id,
           req.validatedBody as {
             quantity: number;
@@ -267,6 +275,7 @@ export class InventoryController {
 
       const result =
         await inventoryService.release(
+          req.tenant!.tenantId,
           id,
           req.validatedBody as {
             quantity: number;
@@ -301,6 +310,7 @@ export class InventoryController {
 
       const result =
         await inventoryService.sale(
+          req.tenant!.tenantId,
           id,
           req.validatedBody as {
             quantity: number;
@@ -341,6 +351,7 @@ export class InventoryController {
 
       const result =
         await inventoryService.listTransactions(
+          req.tenant!.tenantId,
           id,
           query,
         );

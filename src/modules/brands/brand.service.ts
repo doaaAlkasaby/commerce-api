@@ -34,10 +34,12 @@ export const createBrandService = (
 ) => {
   return {
     create: async (
+      tenantId: string,
       data: CreateBrandInput,
     ) => {
       const existingBrand =
         await brandRepository.findBySlug(
+          tenantId,
           data.slug,
         );
 
@@ -51,6 +53,7 @@ export const createBrandService = (
 
       const brand =
         await brandRepository.create(
+          tenantId,
           data,
         );
 
@@ -58,10 +61,12 @@ export const createBrandService = (
     },
 
     getById: async (
+      tenantId: string,
       id: string,
     ) => {
       const brand =
         await brandRepository.findById(
+          tenantId,
           id,
         );
 
@@ -76,18 +81,18 @@ export const createBrandService = (
       return toBrandResponse(brand);
     },
 
-    getAll: async () => {
+    getAll: async (tenantId: string) => {
       const brands =
-        await brandRepository.findAll();
+        await brandRepository.findAll(tenantId);
 
       return brands.map(
         toBrandResponse,
       );
     },
 
-    getActive: async () => {
+    getActive: async (tenantId: string) => {
       const brands =
-        await brandRepository.findActive();
+        await brandRepository.findActive(tenantId);
 
       return brands.map(
         toBrandResponse,
@@ -95,11 +100,13 @@ export const createBrandService = (
     },
 
     update: async (
+      tenantId: string,
       id: string,
       data: UpdateBrandInput,
     ) => {
       const brand =
         await brandRepository.findById(
+          tenantId,
           id,
         );
 
@@ -117,6 +124,7 @@ export const createBrandService = (
       ) {
         const existingBrand =
           await brandRepository.findBySlug(
+            tenantId,
             data.slug,
           );
 
@@ -134,6 +142,7 @@ export const createBrandService = (
 
       const updatedBrand =
         await brandRepository.update(
+          tenantId,
           id,
           data,
         );
@@ -144,11 +153,13 @@ export const createBrandService = (
     },
 
     updateStatus: async (
+      tenantId: string,
       id: string,
       isActive: boolean,
     ) => {
       const brand =
         await brandRepository.findById(
+          tenantId,
           id,
         );
 
@@ -162,6 +173,7 @@ export const createBrandService = (
 
       const updatedBrand =
         await brandRepository.updateStatus(
+          tenantId,
           id,
           isActive,
         );
@@ -172,11 +184,12 @@ export const createBrandService = (
     },
 
     uploadImage: async (
+      tenantId: string,
       id: string,
       data: UploadBrandImageInput,
     ) => {
       const brand =
-        await brandRepository.findById(id);
+        await brandRepository.findById(tenantId, id);
 
       if (!brand) {
         throw new AppError(
@@ -208,6 +221,7 @@ export const createBrandService = (
       try {
         updatedBrand =
           await brandRepository.updateImage(
+            tenantId,
             id,
             storedFile.storageKey,
             storedFile.url,
@@ -230,10 +244,11 @@ export const createBrandService = (
     },
 
     deleteImage: async (
+      tenantId: string,
       id: string,
     ) => {
       const brand =
-        await brandRepository.findById(id);
+        await brandRepository.findById(tenantId, id);
 
       if (!brand) {
         throw new AppError(
@@ -244,6 +259,7 @@ export const createBrandService = (
       }
 
       await brandRepository.updateImage(
+        tenantId,
         id,
         null,
         null,
@@ -257,10 +273,12 @@ export const createBrandService = (
     },
 
     delete: async (
+      tenantId: string,
       id: string,
     ) => {
       const brand =
         await brandRepository.findById(
+          tenantId,
           id,
         );
 
@@ -272,7 +290,7 @@ export const createBrandService = (
         );
       }
 
-      await brandRepository.delete(id);
+      await brandRepository.delete(tenantId, id);
     },
   };
 };

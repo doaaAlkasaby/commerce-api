@@ -32,8 +32,8 @@ export class ProductAttributeService {
   // ATTRIBUTES
   // --------------------------------------------------
 
-  async createAttribute(input: CreateProductAttributeInput) {
-    const product = await this.productRepository.findById(input.productId);
+  async createAttribute(tenantId: string, input: CreateProductAttributeInput) {
+    const product = await this.productRepository.findById(input.productId, tenantId);
 
     if (!product) {
       throw new AppError('Product not found', 404, 'PRODUCT_NOT_FOUND');
@@ -89,8 +89,8 @@ export class ProductAttributeService {
     return toProductAttributeResponse(attribute);
   }
 
-  async getAttributesByProduct(productId: string) {
-    const product = await this.productRepository.findById(productId);
+  async getAttributesByProduct(tenantId: string, productId: string) {
+    const product = await this.productRepository.findById(productId, tenantId);
 
     if (!product) {
       throw new AppError('Product not found', 404, 'PRODUCT_NOT_FOUND');

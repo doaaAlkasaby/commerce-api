@@ -43,6 +43,7 @@ export const productImageController = {
     res: Response,
   ): Promise<void> => {
     const image = await productImageService.getById(
+      req.tenant!.tenantId,
       getImageId(req),
     );
 
@@ -70,6 +71,7 @@ export const productImageController = {
     }
 
     const images = await productImageService.listByProduct(
+      req.tenant!.tenantId,
       result.data.productId,
     );
 
@@ -97,6 +99,7 @@ export const productImageController = {
     }
 
     const image = await productImageService.create(
+      req.tenant!.tenantId,
       result.data,
     );
 
@@ -124,6 +127,7 @@ export const productImageController = {
     }
 
     const image = await productImageService.update(
+      req.tenant!.tenantId,
       getImageId(req),
       result.data,
     );
@@ -161,12 +165,15 @@ export const productImageController = {
       );
     }
 
-    const image = await productImageService.upload({
-      ...result.data,
-      file: file.buffer,
-      originalName: file.originalname,
-      contentType: file.mimetype,
-    });
+    const image = await productImageService.upload(
+      req.tenant!.tenantId,
+      {
+        ...result.data,
+        file: file.buffer,
+        originalName: file.originalname,
+        contentType: file.mimetype,
+      },
+    );
 
     res.status(201).json({
       success: true,
@@ -180,6 +187,7 @@ export const productImageController = {
     res: Response,
   ): Promise<void> => {
     const image = await productImageService.setPrimary(
+      req.tenant!.tenantId,
       getImageId(req),
     );
 
@@ -195,6 +203,7 @@ export const productImageController = {
     res: Response,
   ): Promise<void> => {
     await productImageService.delete(
+      req.tenant!.tenantId,
       getImageId(req),
     );
 

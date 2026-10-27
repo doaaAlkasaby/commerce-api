@@ -22,6 +22,7 @@ export interface CheckoutInput {
 }
 
 export interface CheckoutContext {
+  tenantId: string;
   userId: string;
   idempotencyKey: string;
 }

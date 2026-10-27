@@ -19,19 +19,15 @@ export interface ProductRatingSummaryData {
 export class ProductReviewRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async findById(reviewId: string): Promise<ProductReview | null> {
-    return this.prisma.productReview.findUnique({
-      where: {
-        id: reviewId,
-      },
+  async findById(tenantId: string, reviewId: string): Promise<ProductReview | null> {
+    return this.prisma.productReview.findFirst({
+      where: { id: reviewId, product: { tenantId } },
     });
   }
 
-  async findByIdWithUser(reviewId: string) {
-    return this.prisma.productReview.findUnique({
-      where: {
-        id: reviewId,
-      },
+  async findByIdWithUser(tenantId: string, reviewId: string) {
+    return this.prisma.productReview.findFirst({
+      where: { id: reviewId, product: { tenantId } },
       include: {
         user: {
           select: {
@@ -45,20 +41,17 @@ export class ProductReviewRepository {
   }
 
   async findUserReview(
+    tenantId: string,
     productId: string,
     userId: string,
   ): Promise<ProductReview | null> {
-    return this.prisma.productReview.findUnique({
-      where: {
-        productId_userId: {
-          productId,
-          userId,
-        },
-      },
+    return this.prisma.productReview.findFirst({
+      where: { productId, userId, product: { tenantId } },
     });
   }
 
   async hasPurchasedProduct(
+    tenantId: string,
     productId: string,
     userId: string,
   ): Promise<boolean> {
@@ -66,6 +59,7 @@ export class ProductReviewRepository {
       where: {
         productId,
         order: {
+          tenantId,
           userId,
           status: {
             in: ['PROCESSING', 'SHIPPED', 'DELIVERED'],
@@ -81,37 +75,44 @@ export class ProductReviewRepository {
   }
 
   async create(
+    tenantId: string,
     data: Prisma.ProductReviewUncheckedCreateInput,
   ): Promise<ProductReview> {
+    const product = await this.prisma.product.findFirst({ where: { id: data.productId, tenantId }, select: { id: true } });
+    if (!product) throw new Error('Product does not belong to this tenant');
     return this.prisma.productReview.create({
       data,
     });
   }
 
   async update(
+    tenantId: string,
     reviewId: string,
     data: Prisma.ProductReviewUpdateInput,
   ): Promise<ProductReview> {
     return this.prisma.productReview.update({
       where: {
         id: reviewId,
+        product: { tenantId },
       },
       data,
     });
   }
 
-  async delete(reviewId: string): Promise<ProductReview> {
+  async delete(tenantId: string, reviewId: string): Promise<ProductReview> {
     return this.prisma.productReview.delete({
       where: {
         id: reviewId,
+        product: { tenantId },
       },
     });
   }
 
-  async findProductReviews(productId: string, skip: number, take: number) {
+  async findProductReviews(tenantId: string, productId: string, skip: number, take: number) {
     return this.prisma.productReview.findMany({
       where: {
         productId,
+        product: { tenantId },
         isApproved: true,
       },
       include: {
@@ -136,20 +137,22 @@ export class ProductReviewRepository {
     });
   }
 
-  async countProductReviews(productId: string): Promise<number> {
+  async countProductReviews(tenantId: string, productId: string): Promise<number> {
     return this.prisma.productReview.count({
       where: {
         productId,
+        product: { tenantId },
         isApproved: true,
       },
     });
   }
 
-  async getRatingSummary(productId: string): Promise<ProductRatingSummaryData> {
+  async getRatingSummary(tenantId: string, productId: string): Promise<ProductRatingSummaryData> {
     const [aggregate, distributionRows] = await Promise.all([
       this.prisma.productReview.aggregate({
         where: {
           productId,
+          product: { tenantId },
           isApproved: true,
         },
         _count: {
@@ -164,6 +167,7 @@ export class ProductReviewRepository {
         by: ['rating'],
         where: {
           productId,
+          product: { tenantId },
           isApproved: true,
         },
         _count: {
@@ -200,6 +204,7 @@ export class ProductReviewRepository {
   }
 
   async getRatingSummaries(
+  tenantId: string,
   productIds: string[],
 ): Promise<ProductRatingSummaryItem[]> {
   if (productIds.length === 0) {
@@ -212,6 +217,7 @@ export class ProductReviewRepository {
       productId: {
         in: productIds,
       },
+      product: { tenantId },
       isApproved: true,
     },
     _count: {

@@ -10,8 +10,9 @@ export class BannerRepository {
     private readonly prisma: PrismaClient,
   ) {}
 
-  async findMany() {
+  async findMany(tenantId: string) {
     return this.prisma.banner.findMany({
+      where: { tenantId },
       orderBy: [
         {
           sortOrder: 'asc',
@@ -23,11 +24,12 @@ export class BannerRepository {
     });
   }
 
-  async findActive() {
+  async findActive(tenantId: string) {
     const now = new Date();
 
     return this.prisma.banner.findMany({
       where: {
+        tenantId,
         isActive: true,
 
         AND: [
@@ -69,17 +71,18 @@ export class BannerRepository {
     });
   }
 
-  async findById(id: string) {
+  async findById(tenantId: string, id: string) {
     return this.prisma.banner.findUnique({
       where: {
-        id,
+        id, tenantId,
       },
     });
   }
 
-  async create(input: CreateBannerInput) {
+  async create(tenantId: string, input: CreateBannerInput) {
     return this.prisma.banner.create({
       data: {
+        tenantId,
         title: input.title ?? null,
         subtitle: input.subtitle ?? null,
 
@@ -119,12 +122,13 @@ export class BannerRepository {
   }
 
   async update(
+    tenantId: string,
     id: string,
     input: UpdateBannerInput,
   ) {
     return this.prisma.banner.update({
       where: {
-        id,
+        id, tenantId,
       },
 
       data: {
@@ -186,38 +190,38 @@ export class BannerRepository {
     });
   }
 
-  async delete(id: string) {
-    return this.prisma.banner.delete({
+  async delete(tenantId: string, id: string) {
+    return this.prisma.banner.deleteMany({
       where: {
-        id,
+        id, tenantId,
       },
     });
   }
 
-  async productExists(id: string) {
+  async productExists(tenantId: string, id: string) {
     const product =
       await this.prisma.product.findUnique({
-        where: { id },
+        where: { id, tenantId },
         select: { id: true },
       });
 
     return Boolean(product);
   }
 
-  async categoryExists(id: string) {
+  async categoryExists(tenantId: string, id: string) {
     const category =
       await this.prisma.category.findUnique({
-        where: { id },
+        where: { id, tenantId },
         select: { id: true },
       });
 
     return Boolean(category);
   }
 
-  async collectionExists(id: string) {
+  async collectionExists(tenantId: string, id: string) {
     const collection =
       await this.prisma.productCollection.findUnique({
-        where: { id },
+        where: { id, tenantId },
         select: { id: true },
       });
 

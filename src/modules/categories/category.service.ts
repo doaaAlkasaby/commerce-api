@@ -34,10 +34,12 @@ export const createCategoryService = (
 ) => {
   return {
     create: async (
+      tenantId: string,
       data: CreateCategoryInput,
     ) => {
       const existingSlug =
         await categoryRepository.findBySlug(
+          tenantId,
           data.slug,
         );
 
@@ -52,6 +54,7 @@ export const createCategoryService = (
       if (data.parentId) {
         const parent =
           await categoryRepository.findById(
+            tenantId,
             data.parentId,
           );
 
@@ -74,6 +77,7 @@ export const createCategoryService = (
 
       const category =
         await categoryRepository.create(
+          tenantId,
           data,
         );
 
@@ -83,10 +87,12 @@ export const createCategoryService = (
     },
 
     getById: async (
+      tenantId: string,
       id: string,
     ) => {
       const category =
         await categoryRepository.findById(
+          tenantId,
           id,
         );
 
@@ -103,18 +109,18 @@ export const createCategoryService = (
       );
     },
 
-    getAll: async () => {
+    getAll: async (tenantId: string) => {
       const categories =
-        await categoryRepository.findAll();
+        await categoryRepository.findAll(tenantId);
 
       return categories.map(
         toCategoryResponse,
       );
     },
 
-    getActive: async () => {
+    getActive: async (tenantId: string) => {
       const categories =
-        await categoryRepository.findActive();
+        await categoryRepository.findActive(tenantId);
 
       return categories.map(
         toCategoryResponse,
@@ -122,10 +128,12 @@ export const createCategoryService = (
     },
 
     getChildren: async (
+      tenantId: string,
       parentId: string,
     ) => {
       const parent =
         await categoryRepository.findById(
+          tenantId,
           parentId,
         );
 
@@ -139,6 +147,7 @@ export const createCategoryService = (
 
       const children =
         await categoryRepository.findChildren(
+          tenantId,
           parentId,
         );
 
@@ -148,11 +157,13 @@ export const createCategoryService = (
     },
 
     update: async (
+      tenantId: string,
       id: string,
       data: UpdateCategoryInput,
     ) => {
       const category =
         await categoryRepository.findById(
+          tenantId,
           id,
         );
 
@@ -170,6 +181,7 @@ export const createCategoryService = (
       ) {
         const existingSlug =
           await categoryRepository.findBySlug(
+            tenantId,
             data.slug,
           );
 
@@ -201,6 +213,7 @@ export const createCategoryService = (
         if (data.parentId) {
           const parent =
             await categoryRepository.findById(
+              tenantId,
               data.parentId,
             );
 
@@ -224,6 +237,7 @@ export const createCategoryService = (
 
       const updatedCategory =
         await categoryRepository.update(
+          tenantId,
           id,
           data,
         );
@@ -234,11 +248,13 @@ export const createCategoryService = (
     },
 
     updateStatus: async (
+      tenantId: string,
       id: string,
       isActive: boolean,
     ) => {
       const category =
         await categoryRepository.findById(
+          tenantId,
           id,
         );
 
@@ -252,6 +268,7 @@ export const createCategoryService = (
 
       const updatedCategory =
         await categoryRepository.updateStatus(
+          tenantId,
           id,
           isActive,
         );
@@ -262,11 +279,12 @@ export const createCategoryService = (
     },
 
     uploadImage: async (
+      tenantId: string,
       id: string,
       data: UploadCategoryImageInput,
     ) => {
       const category =
-        await categoryRepository.findById(id);
+        await categoryRepository.findById(tenantId, id);
 
       if (!category) {
         throw new AppError(
@@ -298,6 +316,7 @@ export const createCategoryService = (
       try {
         updatedCategory =
           await categoryRepository.updateImage(
+            tenantId,
             id,
             storedFile.storageKey,
             storedFile.url,
@@ -322,10 +341,11 @@ export const createCategoryService = (
     },
 
     deleteImage: async (
+      tenantId: string,
       id: string,
     ) => {
       const category =
-        await categoryRepository.findById(id);
+        await categoryRepository.findById(tenantId, id);
 
       if (!category) {
         throw new AppError(
@@ -336,6 +356,7 @@ export const createCategoryService = (
       }
 
       await categoryRepository.updateImage(
+        tenantId,
         id,
         null,
         null,
@@ -349,10 +370,12 @@ export const createCategoryService = (
     },
 
     delete: async (
+      tenantId: string,
       id: string,
     ) => {
       const category =
         await categoryRepository.findById(
+          tenantId,
           id,
         );
 
@@ -365,6 +388,7 @@ export const createCategoryService = (
       }
 
       await categoryRepository.delete(
+        tenantId,
         id,
       );
     },

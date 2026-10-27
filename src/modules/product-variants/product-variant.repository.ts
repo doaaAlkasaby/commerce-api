@@ -11,9 +11,9 @@ export class ProductVariantRepository {
     private readonly prisma: PrismaClient,
   ) {}
 
-  async findById(id: string) {
-    return this.prisma.productVariant.findUnique({
-      where: { id },
+  async findById(tenantId: string, id: string) {
+    return this.prisma.productVariant.findFirst({
+      where: { id, product: { tenantId } },
       select:
         productVariantDetailsSelect,
     });
@@ -28,15 +28,15 @@ export class ProductVariantRepository {
   }
 
   async findByCombination(
+    tenantId: string,
     productId: string,
     combinationKey: string,
   ) {
-    return this.prisma.productVariant.findUnique({
+    return this.prisma.productVariant.findFirst({
       where: {
-        productId_combinationKey: {
-          productId,
-          combinationKey,
-        },
+        productId,
+        combinationKey,
+        product: { tenantId },
       },
 
       select:
@@ -45,6 +45,7 @@ export class ProductVariantRepository {
   }
 
   async create(data: {
+    tenantId: string;
     productId: string;
     sku: string;
     price?: string | null;
@@ -63,6 +64,8 @@ export class ProductVariantRepository {
 
     attributeValueIds: string[];
   }) {
+    const product = await this.prisma.product.findFirst({ where: { id: data.productId, tenantId: data.tenantId }, select: { id: true } });
+    if (!product) throw new Error('Product does not belong to this tenant');
     return this.prisma.productVariant.create({
       data: {
         productId:
@@ -112,6 +115,7 @@ export class ProductVariantRepository {
   }
 
   async update(
+    tenantId: string,
     id: string,
     data: {
       sku?: string;
@@ -149,6 +153,7 @@ export class ProductVariantRepository {
         return tx.productVariant.update({
           where: {
             id,
+            product: { tenantId },
           },
 
           data: {
@@ -237,11 +242,13 @@ export class ProductVariantRepository {
   }
 
   async delete(
+    tenantId: string,
     id: string,
   ): Promise<void> {
-    await this.prisma.productVariant.delete({
+    await this.prisma.productVariant.deleteMany({
       where: {
         id,
+        product: { tenantId },
       },
     });
   }

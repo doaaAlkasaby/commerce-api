@@ -5,6 +5,7 @@ import { UserRole } from '../../generated/prisma/client.js';
 import { authenticate } from '../../middleware/auth.middleware.js';
 import { authorize } from '../../middleware/authorization.middleware.js';
 import { validate } from '../../common/validation/validate.js';
+import { tenantMiddleware } from '../../middleware/tenant.middleware.js';
 
 import {
   productImageController,
@@ -23,6 +24,7 @@ import {
 
 
 const router = Router();
+router.use(tenantMiddleware);
 
 router.get(
   '/product/:productId',

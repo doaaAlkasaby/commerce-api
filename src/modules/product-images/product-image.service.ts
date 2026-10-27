@@ -39,10 +39,12 @@ export const createProductImageService = (
 ) => {
   return {
     getById: async (
+      tenantId: string,
       id: string,
     ) => {
       const image =
         await productImageRepository.findById(
+          tenantId,
           id,
         );
 
@@ -58,11 +60,13 @@ export const createProductImageService = (
     },
 
     listByProduct: async (
+      tenantId: string,
       productId: string,
     ) => {
       const product =
         await productRepository.findById(
           productId,
+          tenantId,
         );
 
       if (!product) {
@@ -75,6 +79,7 @@ export const createProductImageService = (
 
       const images =
         await productImageRepository.findByProductId(
+          tenantId,
           productId,
         );
 
@@ -84,11 +89,13 @@ export const createProductImageService = (
     },
 
     create: async (
+      tenantId: string,
       data: CreateProductImageInput,
     ) => {
       const product =
         await productRepository.findById(
           data.productId,
+          tenantId,
         );
 
       if (!product) {
@@ -101,6 +108,7 @@ export const createProductImageService = (
 
       const image =
         await productImageRepository.create(
+          tenantId,
           data,
         );
 
@@ -108,11 +116,13 @@ export const createProductImageService = (
     },
 
     upload: async (
+      tenantId: string,
       data: UploadProductImageInput,
     ) => {
       const product =
         await productRepository.findById(
           data.productId,
+          tenantId,
         );
 
       if (!product) {
@@ -139,6 +149,7 @@ export const createProductImageService = (
       try {
         const image =
           await productImageRepository.create(
+            tenantId,
             {
               productId:
                 data.productId,
@@ -167,11 +178,13 @@ export const createProductImageService = (
     },
 
     update: async (
+      tenantId: string,
       id: string,
       data: UpdateProductImageInput,
     ) => {
       const existing =
         await productImageRepository.findById(
+          tenantId,
           id,
         );
 
@@ -185,6 +198,7 @@ export const createProductImageService = (
 
       const image =
         await productImageRepository.update(
+          tenantId,
           id,
           data,
         );
@@ -193,10 +207,12 @@ export const createProductImageService = (
     },
 
     setPrimary: async (
+      tenantId: string,
       id: string,
     ) => {
       const existing =
         await productImageRepository.findById(
+          tenantId,
           id,
         );
 
@@ -210,6 +226,7 @@ export const createProductImageService = (
 
       const image =
         await productImageRepository.setPrimary(
+          tenantId,
           id,
           existing.productId,
         );
@@ -218,10 +235,12 @@ export const createProductImageService = (
     },
 
     delete: async (
+      tenantId: string,
       id: string,
     ) => {
       const existing =
         await productImageRepository.findById(
+          tenantId,
           id,
         );
 
@@ -234,6 +253,7 @@ export const createProductImageService = (
       }
 
       await productImageRepository.delete(
+        tenantId,
         id,
       );
 

@@ -8,14 +8,16 @@ export class WishlistService {
     private readonly repository: WishlistRepository,
   ) {}
 
-  async getWishlist(userId: string) {
+  async getWishlist(tenantId: string, userId: string) {
     const wishlist =
       await this.repository.findOrCreateForUser(
+        tenantId,
         userId,
       );
 
     const items =
       await this.repository.findItems(
+        tenantId,
         wishlist.id,
       );
 
@@ -27,11 +29,13 @@ export class WishlistService {
   }
 
   async addProduct(
+    tenantId: string,
     userId: string,
     productId: string,
   ) {
     const product =
       await this.repository.findProduct(
+        tenantId,
         productId,
       );
 
@@ -45,11 +49,13 @@ export class WishlistService {
 
     const wishlist =
       await this.repository.findOrCreateForUser(
+        tenantId,
         userId,
       );
 
     const existing =
       await this.repository.findItem(
+        tenantId,
         wishlist.id,
         productId,
       );
@@ -64,6 +70,7 @@ export class WishlistService {
 
     const item =
       await this.repository.addItem(
+        tenantId,
         wishlist.id,
         productId,
       );
@@ -76,11 +83,13 @@ export class WishlistService {
   }
 
   async removeProduct(
+    tenantId: string,
     userId: string,
     productId: string,
   ) {
     const wishlist =
       await this.repository.findByUserId(
+        tenantId,
         userId,
       );
 
@@ -94,6 +103,7 @@ export class WishlistService {
 
     const existing =
       await this.repository.findItem(
+        tenantId,
         wishlist.id,
         productId,
       );
@@ -107,6 +117,7 @@ export class WishlistService {
     }
 
     await this.repository.removeItem(
+      tenantId,
       wishlist.id,
       productId,
     );
@@ -115,11 +126,13 @@ export class WishlistService {
   }
 
   async isProductInWishlist(
+    tenantId: string,
     userId: string,
     productId: string,
   ) {
     const wishlist =
       await this.repository.findByUserId(
+        tenantId,
         userId,
       );
 
@@ -132,6 +145,7 @@ export class WishlistService {
 
     const item =
       await this.repository.findItem(
+        tenantId,
         wishlist.id,
         productId,
       );

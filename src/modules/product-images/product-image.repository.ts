@@ -9,17 +9,18 @@ export const createProductImageRepository = (
   db: PrismaClient,
 ) => {
   return {
-    findById: async (id: string) => {
-      return db.productImage.findUnique({
-        where: { id },
+    findById: async (tenantId: string, id: string) => {
+      return db.productImage.findFirst({
+        where: { id, product: { tenantId } },
       });
     },
 
     findByProductId: async (
+      tenantId: string,
       productId: string,
     ) => {
       return db.productImage.findMany({
-        where: { productId },
+        where: { productId, product: { tenantId } },
         orderBy: [
           { sortOrder: 'asc' },
           { createdAt: 'asc' },
@@ -28,14 +29,20 @@ export const createProductImageRepository = (
     },
 
     create: async (
+      tenantId: string,
       data: CreateProductImageInput,
     ) => {
       return db.$transaction(
         async (tx) => {
+          const product = await tx.product.findFirst({
+            where: { id: data.productId, tenantId }, select: { id: true },
+          });
+          if (!product) throw new Error('Product does not belong to this tenant');
           if (data.isPrimary) {
             await tx.productImage.updateMany({
               where: {
                 productId: data.productId,
+                product: { tenantId },
                 isPrimary: true,
               },
               data: {
@@ -59,11 +66,12 @@ export const createProductImageRepository = (
     },
 
     update: async (
+      tenantId: string,
       id: string,
       data: UpdateProductImageInput,
     ) => {
       return db.productImage.update({
-        where: { id },
+        where: { id, product: { tenantId } },
         data: {
           ...(data.altText !== undefined
             ? { altText: data.altText }
@@ -76,6 +84,7 @@ export const createProductImageRepository = (
     },
 
     setPrimary: async (
+      tenantId: string,
       id: string,
       productId: string,
     ) => {
@@ -84,6 +93,7 @@ export const createProductImageRepository = (
           await tx.productImage.updateMany({
             where: {
               productId,
+              product: { tenantId },
               isPrimary: true,
             },
             data: {
@@ -92,7 +102,7 @@ export const createProductImageRepository = (
           });
 
           return tx.productImage.update({
-            where: { id },
+            where: { id, product: { tenantId } },
             data: {
               isPrimary: true,
             },
@@ -101,9 +111,9 @@ export const createProductImageRepository = (
       );
     },
 
-    delete: async (id: string) => {
-      return db.productImage.delete({
-        where: { id },
+    delete: async (tenantId: string, id: string) => {
+      return db.productImage.deleteMany({
+        where: { id, product: { tenantId } },
       });
     },
   };

@@ -1,11 +1,12 @@
 import { prisma } from '../../config/database.js';
 
 export class HomeRepository {
-  async findBanners(limit: number) {
+  async findBanners(tenantId: string, limit: number) {
     const now = new Date();
 
     return prisma.banner.findMany({
       where: {
+        tenantId,
         isActive: true,
 
         AND: [
@@ -34,9 +35,10 @@ export class HomeRepository {
     });
   }
 
-  async findCategories(limit: number) {
+  async findCategories(tenantId: string, limit: number) {
     return prisma.category.findMany({
       where: {
+        tenantId,
         isActive: true,
       },
 
@@ -56,6 +58,7 @@ export class HomeRepository {
         select: {
           children: {
       where: {
+        tenantId,
         isActive: true,
       },
     },
@@ -65,9 +68,10 @@ export class HomeRepository {
     });
   }
 
-  async findBrands(limit: number) {
+  async findBrands(tenantId: string, limit: number) {
     return prisma.brand.findMany({
       where: {
+        tenantId,
         isActive: true,
       },
 

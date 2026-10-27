@@ -31,7 +31,10 @@ import { optionalAuthenticate } from '../../middleware/optional-auth.middleware.
 
 
 
+import { tenantMiddleware } from '../../middleware/tenant.middleware.js';
+
 const router = Router();
+router.use(tenantMiddleware);
 
 /*
  * Public

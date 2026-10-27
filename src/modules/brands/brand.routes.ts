@@ -30,7 +30,10 @@ import {
   brandIdSchema,
 } from './brand.schemas.js';
 
+import { tenantMiddleware } from '../../middleware/tenant.middleware.js';
+
 const router = Router();
+router.use(tenantMiddleware);
 
 /*
  * Public

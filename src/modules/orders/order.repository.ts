@@ -24,11 +24,13 @@ export class OrderRepository {
   };
 
   async findById(
+    tenantId: string,
     orderId: string,
   ) {
     return this.prisma.order.findUnique({
       where: {
         id: orderId,
+        tenantId,
       },
 
       include:
@@ -37,12 +39,14 @@ export class OrderRepository {
   }
 
   async findByIdForUser(
+    tenantId: string,
     orderId: string,
     userId: string,
   ) {
     return this.prisma.order.findFirst({
       where: {
         id: orderId,
+        tenantId,
         userId,
       },
 
@@ -52,6 +56,7 @@ export class OrderRepository {
   }
 
   async findManyByUserId(
+    tenantId: string,
     userId: string,
     page: number,
     limit: number,
@@ -59,6 +64,7 @@ export class OrderRepository {
     paymentStatus?: PaymentStatus,
   ) {
     const where = {
+      tenantId,
       userId,
 
       ...(status
@@ -105,12 +111,14 @@ export class OrderRepository {
   }
 
   async findMany(
+    tenantId: string,
     page: number,
     limit: number,
     status?: OrderStatus,
     paymentStatus?: PaymentStatus,
   ) {
     const where = {
+      tenantId,
       ...(status
         ? {
             status,
@@ -155,12 +163,14 @@ export class OrderRepository {
   }
 
   async updateStatus(
+    tenantId: string,
     orderId: string,
     status: OrderStatus,
   ) {
     return this.prisma.order.update({
       where: {
         id: orderId,
+        tenantId,
       },
 
       data: {

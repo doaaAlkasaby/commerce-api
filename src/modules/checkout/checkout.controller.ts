@@ -62,6 +62,7 @@ export class CheckoutController {
         await checkoutService.checkout(
           input,
           {
+            tenantId: req.tenant!.tenantId,
             userId:
               req.user.userId,
 

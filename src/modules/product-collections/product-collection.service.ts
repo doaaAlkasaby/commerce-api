@@ -29,14 +29,14 @@ export class ProductCollectionService {
     private readonly productRepository: ProductRepository,
   ) {}
 
-  async listCollections() {
-    const collections = await this.repository.findMany();
+  async listCollections(tenantId: string) {
+    const collections = await this.repository.findMany(tenantId);
 
     return collections.map(mapProductCollection);
   }
 
-  async getCollection(id: string) {
-    const collection = await this.repository.findPublicById(id);
+  async getCollection(tenantId: string, id: string) {
+    const collection = await this.repository.findPublicById(tenantId, id);
 
     if (!collection) {
       throw new AppError(
@@ -50,6 +50,7 @@ export class ProductCollectionService {
   }
 
   async createCollection(
+    tenantId: string,
     input: CreateProductCollectionInput,
   ) {
     if (
@@ -64,7 +65,7 @@ export class ProductCollectionService {
       );
     }
 
-    const existing = await this.repository.findBySlug(input.slug);
+    const existing = await this.repository.findBySlug(tenantId, input.slug);
 
     if (existing) {
       throw new AppError(
@@ -74,16 +75,17 @@ export class ProductCollectionService {
       );
     }
 
-    const collection = await this.repository.create(input);
+    const collection = await this.repository.create(tenantId, input);
 
     return mapProductCollection(collection);
   }
 
   async updateCollection(
+    tenantId: string,
     id: string,
     input: UpdateProductCollectionInput,
   ) {
-    const existing = await this.repository.findById(id);
+    const existing = await this.repository.findById(tenantId, id);
 
     if (!existing) {
       throw new AppError(
@@ -120,7 +122,7 @@ export class ProductCollectionService {
       input.slug !== existing.slug
     ) {
       const slugExists =
-        await this.repository.findBySlug(input.slug);
+        await this.repository.findBySlug(tenantId, input.slug);
 
       if (slugExists) {
         throw new AppError(
@@ -132,13 +134,13 @@ export class ProductCollectionService {
     }
 
     const collection =
-      await this.repository.update(id, input);
+      await this.repository.update(tenantId, id, input);
 
     return mapProductCollection(collection);
   }
 
-  async deleteCollection(id: string) {
-    const existing = await this.repository.findById(id);
+  async deleteCollection(tenantId: string, id: string) {
+    const existing = await this.repository.findById(tenantId, id);
 
     if (!existing) {
       throw new AppError(
@@ -148,17 +150,18 @@ export class ProductCollectionService {
       );
     }
 
-    await this.repository.delete(id);
+    await this.repository.delete(tenantId, id);
 
     return null;
   }
 
   async addProduct(
+    tenantId: string,
     collectionId: string,
     input: AddProductToCollectionInput,
   ) {
     const collection =
-      await this.repository.findById(collectionId);
+      await this.repository.findById(tenantId, collectionId);
 
     if (!collection) {
       throw new AppError(
@@ -169,7 +172,7 @@ export class ProductCollectionService {
     }
 
     const product =
-      await this.repository.findProduct(input.productId);
+      await this.repository.findProduct(tenantId, input.productId);
 
     if (!product) {
       throw new AppError(
@@ -181,6 +184,7 @@ export class ProductCollectionService {
 
     const existing =
       await this.repository.findCollectionProduct(
+        tenantId,
         collectionId,
         input.productId,
       );
@@ -195,6 +199,7 @@ export class ProductCollectionService {
 
     const item =
       await this.repository.addProduct(
+        tenantId,
         collectionId,
         input,
       );
@@ -203,11 +208,12 @@ export class ProductCollectionService {
   }
 
   async removeProduct(
+    tenantId: string,
     collectionId: string,
     productId: string,
   ) {
     const collection =
-      await this.repository.findById(collectionId);
+      await this.repository.findById(tenantId, collectionId);
 
     if (!collection) {
       throw new AppError(
@@ -219,6 +225,7 @@ export class ProductCollectionService {
 
     const existing =
       await this.repository.findCollectionProduct(
+        tenantId,
         collectionId,
         productId,
       );
@@ -232,6 +239,7 @@ export class ProductCollectionService {
     }
 
     await this.repository.removeProduct(
+      tenantId,
       collectionId,
       productId,
     );
@@ -240,12 +248,13 @@ export class ProductCollectionService {
   }
 
   async updateProductOrder(
+    tenantId: string,
     collectionId: string,
     productId: string,
     input: UpdateCollectionProductOrderInput,
   ) {
     const collection =
-      await this.repository.findById(collectionId);
+      await this.repository.findById(tenantId, collectionId);
 
     if (!collection) {
       throw new AppError(
@@ -257,6 +266,7 @@ export class ProductCollectionService {
 
     const existing =
       await this.repository.findCollectionProduct(
+        tenantId,
         collectionId,
         productId,
       );
@@ -271,22 +281,28 @@ export class ProductCollectionService {
 
     const item =
       await this.repository.updateProductOrder(
+        tenantId,
         collectionId,
         productId,
         input,
       );
 
+    if (!item) {
+      throw new AppError('Product is not in this collection', 404, 'PRODUCT_NOT_IN_COLLECTION');
+    }
+
     return mapCollectionProductItem(item);
   }
 
   async getProducts(
+    tenantId: string,
     collectionId: string,
     page: number,
     limit: number,
     userId?: string
   ) {
     const collection =
-      await this.repository.findPublicById(collectionId);
+      await this.repository.findPublicById(tenantId, collectionId);
 
     if (!collection) {
       throw new AppError(
@@ -300,12 +316,13 @@ export class ProductCollectionService {
 
     const { items, total } =
       await this.productRepository.findCollectionProducts(
+        tenantId,
         collectionId,
         skip,
         limit,
       );
     const enrichedItems =
-      await productEnrichmentService.enrichProducts(items, userId);
+      await productEnrichmentService.enrichProducts(items, tenantId, userId);
 
     return {
       collection: {

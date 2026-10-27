@@ -48,7 +48,7 @@ export const createProduct = async (
   res: Response,
 ): Promise<void> => {
   const body = req.validatedBody as CreateProductInput;
-  const product = await productService.create({
+  const product = await productService.create(req.tenant!.tenantId, {
     name: body.name,
     slug: body.slug,
     categoryId: body.categoryId,
@@ -74,7 +74,7 @@ export const updateProduct = async (
   res: Response,
 ): Promise<void> => {
   const body = req.validatedBody as UpdateProductInput;
-  const product = await productService.update(getProductId(req), {
+  const product = await productService.update(req.tenant!.tenantId, getProductId(req), {
     ...(body.name !== undefined ? { name: body.name } : {}),
     ...(body.slug !== undefined ? { slug: body.slug } : {}),
     ...(body.description !== undefined
@@ -100,7 +100,7 @@ export const getProduct = async (
   res: Response,
 ): Promise<void> => {
   const userId = req.user?.userId;
-  const product = await productService.getById(getProductId(req), userId);
+  const product = await productService.getById(req.tenant!.tenantId, getProductId(req), userId);
 
   res.json({
     success: true,
@@ -114,7 +114,7 @@ export const listProducts = async (
   res: Response,
 ): Promise<void> => {
   const userId = req.user?.userId;
-  const products = await productService.list(getProductListQuery(req), userId);
+  const products = await productService.list(req.tenant!.tenantId, getProductListQuery(req), userId);
 
   res.json({
     success: true,
@@ -132,6 +132,7 @@ export const changeProductStatus = async (
   };
 
   const product = await productService.changeStatus(
+    req.tenant!.tenantId,
     getProductId(req),
     body.status,
   );
@@ -147,7 +148,7 @@ export const deleteProduct = async (
   req: Request,
   res: Response,
 ): Promise<void> => {
-  await productService.delete(getProductId(req));
+  await productService.delete(req.tenant!.tenantId, getProductId(req));
 
   res.status(204).send();
 };
@@ -155,7 +156,7 @@ export const deleteProduct = async (
 export const getOffers = async (req: Request, res: Response): Promise<void> => {
   const userId = req.user?.userId;
   const { page, limit } = getListingQuery(req);
-  const data = await productService.getOffers(page, limit, userId);
+  const data = await productService.getOffers(req.tenant!.tenantId, page, limit, userId);
 
   res.status(200).json({
     success: true,
@@ -170,7 +171,7 @@ export const getBestSellers = async (
 ): Promise<void> => {
   const userId = req.user?.userId;
   const { page, limit } = getListingQuery(req);
-  const data = await productService.getBestSellers(page, limit, userId);
+  const data = await productService.getBestSellers(req.tenant!.tenantId, page, limit, userId);
 
   res.status(200).json({
     success: true,
@@ -185,7 +186,7 @@ export const getNewArrivals = async (
 ): Promise<void> => {
   const userId = req.user?.userId;
   const { page, limit } = getListingQuery(req);
-  const data = await productService.getNewArrivals(page, limit, userId);
+  const data = await productService.getNewArrivals(req.tenant!.tenantId, page, limit, userId);
 
   res.status(200).json({
     success: true,

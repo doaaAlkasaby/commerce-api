@@ -37,6 +37,7 @@ export class OrderController {
 
       const result =
         await orderService.getMyOrders(
+          req.tenant!.tenantId,
           req.user.userId,
           query,
         );
@@ -72,6 +73,7 @@ export class OrderController {
 
       const order =
         await orderService.getMyOrder(
+          req.tenant!.tenantId,
           req.user.userId,
           params.id,
         );
@@ -97,6 +99,7 @@ export class OrderController {
 
       const result =
         await orderService.getOrders(
+          req.tenant!.tenantId,
           query,
         );
 
@@ -123,6 +126,7 @@ export class OrderController {
 
       const order =
         await orderService.getOrder(
+          req.tenant!.tenantId,
           params.id,
         );
 
@@ -152,6 +156,7 @@ export class OrderController {
 
       const order =
         await orderService.updateStatus(
+          req.tenant!.tenantId,
           params.id,
           input,
         );

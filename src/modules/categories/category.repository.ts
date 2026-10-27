@@ -7,28 +7,31 @@ import type {
   UpdateCategoryInput,
 } from './category.types.js';
 
-const categoryCountSelection = {
+const categoryCountSelection = (tenantId: string) => ({
   _count: {
     select: {
       children: {
         where: {
           isActive: true,
+          tenantId,
         },
       },
     },
   },
-} as const;
+} as const);
 
 export const createCategoryRepository = (
   db: PrismaClient,
 ) => {
   return {
     findById: async (
+      tenantId: string,
       id: string,
     ) => {
       return db.category.findUnique({
         where: {
           id,
+          tenantId,
         },
         select: {
           id: true,
@@ -41,23 +44,25 @@ export const createCategoryRepository = (
           parentId: true,
           createdAt: true,
           updatedAt: true,
-          ...categoryCountSelection,
+          ...categoryCountSelection(tenantId),
         },
       });
     },
 
     findBySlug: async (
+      tenantId: string,
       slug: string,
     ) => {
       return db.category.findUnique({
         where: {
-          slug,
+          tenantId_slug: { tenantId, slug },
         },
       });
     },
 
-    findAll: async () => {
+    findAll: async (tenantId: string) => {
       return db.category.findMany({
+        where: { tenantId },
         orderBy: {
           name: 'asc',
         },
@@ -71,14 +76,15 @@ export const createCategoryRepository = (
           parentId: true,
           createdAt: true,
           updatedAt: true,
-          ...categoryCountSelection,
+          ...categoryCountSelection(tenantId),
         },
       });
     },
 
-    findActive: async () => {
+    findActive: async (tenantId: string) => {
       return db.category.findMany({
         where: {
+          tenantId,
           isActive: true,
         },
         orderBy: {
@@ -95,17 +101,19 @@ export const createCategoryRepository = (
           parentId: true,
           createdAt: true,
           updatedAt: true,
-          ...categoryCountSelection,
+          ...categoryCountSelection(tenantId),
         },
       });
     },
 
     findChildren: async (
+      tenantId: string,
       parentId: string,
     ) => {
       return db.category.findMany({
         where: {
           parentId,
+          tenantId,
         },
         orderBy: {
           name: 'asc',
@@ -120,16 +128,24 @@ export const createCategoryRepository = (
           parentId: true,
           createdAt: true,
           updatedAt: true,
-          ...categoryCountSelection,
+          ...categoryCountSelection(tenantId),
         },
       });
     },
 
     create: async (
+      tenantId: string,
       data: CreateCategoryInput,
     ) => {
+      if (data.parentId) {
+        const parent = await db.category.findFirst({
+          where: { id: data.parentId, tenantId },
+          select: { id: true },
+        });
+        if (!parent) throw new Error('Parent category does not belong to this tenant');
+      }
       return db.category.create({
-        data,
+        data: { ...data, tenantId },
         select: {
           id: true,
           name: true,
@@ -140,18 +156,27 @@ export const createCategoryRepository = (
           parentId: true,
           createdAt: true,
           updatedAt: true,
-          ...categoryCountSelection,
+          ...categoryCountSelection(tenantId),
         },
       });
     },
 
     update: async (
+      tenantId: string,
       id: string,
       data: UpdateCategoryInput,
     ) => {
+      if (data.parentId) {
+        const parent = await db.category.findFirst({
+          where: { id: data.parentId, tenantId },
+          select: { id: true },
+        });
+        if (!parent) throw new Error('Parent category does not belong to this tenant');
+      }
       return db.category.update({
         where: {
           id,
+          tenantId,
         },
         data,
         select: {
@@ -164,18 +189,20 @@ export const createCategoryRepository = (
           parentId: true,
           createdAt: true,
           updatedAt: true,
-          ...categoryCountSelection,
+          ...categoryCountSelection(tenantId),
         },
       });
     },
 
     updateStatus: async (
+      tenantId: string,
       id: string,
       isActive: boolean,
     ) => {
       return db.category.update({
         where: {
           id,
+          tenantId,
         },
         data: {
           isActive,
@@ -190,12 +217,13 @@ export const createCategoryRepository = (
           parentId: true,
           createdAt: true,
           updatedAt: true,
-          ...categoryCountSelection,
+          ...categoryCountSelection(tenantId),
         },
       });
     },
 
     updateImage: async (
+      tenantId: string,
       id: string,
       imageStorageKey: string | null,
       imageUrl: string | null,
@@ -203,6 +231,7 @@ export const createCategoryRepository = (
       return db.category.update({
         where: {
           id,
+          tenantId,
         },
         data: {
           imageStorageKey,
@@ -218,17 +247,19 @@ export const createCategoryRepository = (
           parentId: true,
           createdAt: true,
           updatedAt: true,
-          ...categoryCountSelection,
+          ...categoryCountSelection(tenantId),
         },
       });
     },
 
     delete: async (
+      tenantId: string,
       id: string,
     ) => {
       return db.category.delete({
         where: {
           id,
+          tenantId,
         },
       });
     },

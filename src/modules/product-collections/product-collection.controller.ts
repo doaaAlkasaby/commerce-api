@@ -57,13 +57,13 @@ const getCollectionProductParams = (
   );
 
 export const listCollections = async (
-  _req: Request,
+  req: Request,
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
   try {
     const data =
-      await productCollectionService.listCollections();
+      await productCollectionService.listCollections(req.tenant!.tenantId);
 
     res.status(200).json({
       success: true,
@@ -83,6 +83,7 @@ export const getCollection = async (
   try {
     const data =
       await productCollectionService.getCollection(
+        req.tenant!.tenantId,
         getCollectionParams(req).id,
       );
 
@@ -113,6 +114,7 @@ export const getCollectionProducts = async (
 
     const data =
       await productCollectionService.getProducts(
+        req.tenant!.tenantId,
         getCollectionParams(req).id,
         page,
         limit,
@@ -137,6 +139,7 @@ export const createCollection = async (
   try {
     const data =
       await productCollectionService.createCollection(
+        req.tenant!.tenantId,
         parseRequestValue(
           req.validatedBody ?? req.body,
           createProductCollectionSchema,
@@ -162,6 +165,7 @@ export const updateCollection = async (
   try {
     const data =
       await productCollectionService.updateCollection(
+        req.tenant!.tenantId,
         getCollectionParams(req).id,
         parseRequestValue(
           req.validatedBody ?? req.body,
@@ -187,6 +191,7 @@ export const deleteCollection = async (
 ): Promise<void> => {
   try {
     await productCollectionService.deleteCollection(
+      req.tenant!.tenantId,
       getCollectionParams(req).id,
     );
 
@@ -208,6 +213,7 @@ export const addProduct = async (
   try {
     const data =
       await productCollectionService.addProduct(
+        req.tenant!.tenantId,
         getCollectionParams(req).id,
         parseRequestValue(
           req.validatedBody ?? req.body,
@@ -236,6 +242,7 @@ export const removeProduct = async (
       getCollectionProductParams(req);
 
     await productCollectionService.removeProduct(
+      req.tenant!.tenantId,
       params.id,
       params.productId,
     );
@@ -261,6 +268,7 @@ export const updateProductOrder = async (
 
     const data =
       await productCollectionService.updateProductOrder(
+        req.tenant!.tenantId,
         params.id,
         params.productId,
         parseRequestValue(

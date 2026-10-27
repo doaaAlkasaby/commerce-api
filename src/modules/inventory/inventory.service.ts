@@ -33,13 +33,14 @@ export class InventoryService {
    * ==================================================
    */
 
-  async create(input: CreateInventoryInput) {
+  async create(tenantId: string, input: CreateInventoryInput) {
     const quantity = input.quantity ?? 0;
     this.validateNonNegativeQuantity(quantity);
 
-    const variant = await prisma.productVariant.findUnique({
+    const variant = await prisma.productVariant.findFirst({
       where: {
         id: input.variantId,
+        product: { tenantId },
       },
       select: {
         id: true,
@@ -73,7 +74,7 @@ export class InventoryService {
       );
     }
 
-    const exists = await this.repository.existsByVariantId(input.variantId);
+    const exists = await this.repository.existsByVariantId(tenantId, input.variantId);
 
     if (exists) {
       throw new AppError(
@@ -84,7 +85,7 @@ export class InventoryService {
     }
 
     const inventory = await this.repository
-      .create(input.variantId, quantity)
+      .create(tenantId, input.variantId, quantity)
       .catch((error: unknown) => {
         if (isPrismaUniqueConstraintError(error)) {
           throw new AppError(
@@ -106,8 +107,8 @@ export class InventoryService {
    * ==================================================
    */
 
-  async getById(id: string) {
-    const inventory = await this.repository.findById(id);
+  async getById(tenantId: string, id: string) {
+    const inventory = await this.repository.findById(tenantId, id);
 
     if (!inventory) {
       throw new AppError('Inventory not found', 404, 'INVENTORY_NOT_FOUND');
@@ -122,8 +123,8 @@ export class InventoryService {
    * ==================================================
    */
 
-  async getByVariantId(variantId: string) {
-    const inventory = await this.repository.findByVariantId(variantId);
+  async getByVariantId(tenantId: string, variantId: string) {
+    const inventory = await this.repository.findByVariantId(tenantId, variantId);
 
     if (!inventory) {
       throw new AppError('Inventory not found', 404, 'INVENTORY_NOT_FOUND');
@@ -138,8 +139,8 @@ export class InventoryService {
    * ==================================================
    */
 
-  async list(query: InventoryListQuery) {
-    const { items, total } = await this.repository.findMany(query);
+  async list(tenantId: string, query: InventoryListQuery) {
+    const { items, total } = await this.repository.findMany(tenantId, query);
 
     return {
       items: items.map(mapInventory),
@@ -160,15 +161,16 @@ export class InventoryService {
    * ==================================================
    */
 
-  async stockIn(inventoryId: string, input: StockInInput) {
+  async stockIn(tenantId: string, inventoryId: string, input: StockInInput) {
     this.validatePositiveQuantity(input.quantity);
 
     return prisma.$transaction(async (tx) => {
       const repository = new InventoryRepository(tx);
 
-      await this.ensureInventoryExists(repository, inventoryId);
+      await this.ensureInventoryExists(tenantId, repository, inventoryId);
 
       const affectedRows = await repository.stockIn(
+        tenantId,
         inventoryId,
         input.quantity,
       );
@@ -181,7 +183,7 @@ export class InventoryService {
         );
       }
 
-      await repository.createTransaction({
+      await repository.createTransaction(tenantId, {
         inventoryId,
         type: 'STOCK_IN',
         quantity: input.quantity,
@@ -189,7 +191,7 @@ export class InventoryService {
         reason: input.reason ?? null,
       });
 
-      const inventory = await repository.findById(inventoryId);
+      const inventory = await repository.findById(tenantId, inventoryId);
 
       if (!inventory) {
         throw new AppError('Inventory not found', 404, 'INVENTORY_NOT_FOUND');
@@ -205,15 +207,16 @@ export class InventoryService {
    * ==================================================
    */
 
-  async stockOut(inventoryId: string, input: StockOutInput) {
+  async stockOut(tenantId: string, inventoryId: string, input: StockOutInput) {
     this.validatePositiveQuantity(input.quantity);
 
     return prisma.$transaction(async (tx) => {
       const repository = new InventoryRepository(tx);
 
-      await this.ensureInventoryExists(repository, inventoryId);
+      await this.ensureInventoryExists(tenantId, repository, inventoryId);
 
       const affectedRows = await repository.stockOut(
+        tenantId,
         inventoryId,
         input.quantity,
       );
@@ -226,7 +229,7 @@ export class InventoryService {
         );
       }
 
-      await repository.createTransaction({
+      await repository.createTransaction(tenantId, {
         inventoryId,
         type: 'STOCK_OUT',
         quantity: input.quantity,
@@ -234,7 +237,7 @@ export class InventoryService {
         reason: input.reason ?? null,
       });
 
-      const inventory = await repository.findById(inventoryId);
+      const inventory = await repository.findById(tenantId, inventoryId);
 
       if (!inventory) {
         throw new AppError('Inventory not found', 404, 'INVENTORY_NOT_FOUND');
@@ -250,7 +253,7 @@ export class InventoryService {
    * ==================================================
    */
 
-  async adjustment(inventoryId: string, input: AdjustmentInput) {
+  async adjustment(tenantId: string, inventoryId: string, input: AdjustmentInput) {
     if (!Number.isInteger(input.quantity) || input.quantity === 0) {
       throw new AppError(
         'Adjustment quantity must be a non-zero integer',
@@ -262,9 +265,10 @@ export class InventoryService {
     return prisma.$transaction(async (tx) => {
       const repository = new InventoryRepository(tx);
 
-      await this.ensureInventoryExists(repository, inventoryId);
+      await this.ensureInventoryExists(tenantId, repository, inventoryId);
 
       const affectedRows = await repository.adjustment(
+        tenantId,
         inventoryId,
         input.quantity,
       );
@@ -277,7 +281,7 @@ export class InventoryService {
         );
       }
 
-      await repository.createTransaction({
+      await repository.createTransaction(tenantId, {
         inventoryId,
         type: 'ADJUSTMENT',
         quantity: input.quantity,
@@ -285,7 +289,7 @@ export class InventoryService {
         reason: input.reason,
       });
 
-      const inventory = await repository.findById(inventoryId);
+      const inventory = await repository.findById(tenantId, inventoryId);
 
       if (!inventory) {
         throw new AppError('Inventory not found', 404, 'INVENTORY_NOT_FOUND');
@@ -301,11 +305,12 @@ export class InventoryService {
    * ==================================================
    */
 
-  async reserve(inventoryId: string, input: ReservationInput) {
+  async reserve(tenantId: string, inventoryId: string, input: ReservationInput) {
     this.validatePositiveQuantity(input.quantity);
     this.validateReferenceId(input.referenceId);
 
     return this.runIdempotentTransaction(
+      tenantId,
       inventoryId,
       'RESERVATION',
       input.referenceId,
@@ -315,6 +320,7 @@ export class InventoryService {
           const repository = new InventoryRepository(tx);
 
           const existing = await repository.findTransactionByReference(
+            tenantId,
             inventoryId,
             'RESERVATION',
             input.referenceId,
@@ -323,7 +329,7 @@ export class InventoryService {
           if (existing) {
             this.validateIdempotentQuantity(existing.quantity, input.quantity);
 
-            const inventory = await repository.findById(inventoryId);
+            const inventory = await repository.findById(tenantId, inventoryId);
 
             if (!inventory) {
               throw new AppError(
@@ -336,9 +342,10 @@ export class InventoryService {
             return mapInventory(inventory);
           }
 
-          await this.ensureInventoryExists(repository, inventoryId);
+          await this.ensureInventoryExists(tenantId, repository, inventoryId);
 
           const affectedRows = await repository.reserve(
+            tenantId,
             inventoryId,
             input.quantity,
           );
@@ -351,7 +358,7 @@ export class InventoryService {
             );
           }
 
-          await repository.createTransaction({
+          await repository.createTransaction(tenantId, {
             inventoryId,
             type: 'RESERVATION',
             quantity: input.quantity,
@@ -359,7 +366,7 @@ export class InventoryService {
             reason: input.reason ?? null,
           });
 
-          const inventory = await repository.findById(inventoryId);
+          const inventory = await repository.findById(tenantId, inventoryId);
 
           if (!inventory) {
             throw new AppError(
@@ -380,11 +387,12 @@ export class InventoryService {
    * ==================================================
    */
 
-  async release(inventoryId: string, input: ReleaseInput) {
+  async release(tenantId: string, inventoryId: string, input: ReleaseInput) {
     this.validatePositiveQuantity(input.quantity);
     this.validateReferenceId(input.referenceId);
 
     return this.runIdempotentTransaction(
+      tenantId,
       inventoryId,
       'RELEASE',
       input.referenceId,
@@ -394,6 +402,7 @@ export class InventoryService {
           const repository = new InventoryRepository(tx);
 
           const existing = await repository.findTransactionByReference(
+            tenantId,
             inventoryId,
             'RELEASE',
             input.referenceId,
@@ -402,7 +411,7 @@ export class InventoryService {
           if (existing) {
             this.validateIdempotentQuantity(existing.quantity, input.quantity);
 
-            const inventory = await repository.findById(inventoryId);
+            const inventory = await repository.findById(tenantId, inventoryId);
 
             if (!inventory) {
               throw new AppError(
@@ -415,9 +424,10 @@ export class InventoryService {
             return mapInventory(inventory);
           }
 
-          await this.ensureInventoryExists(repository, inventoryId);
+          await this.ensureInventoryExists(tenantId, repository, inventoryId);
 
           const affectedRows = await repository.release(
+            tenantId,
             inventoryId,
             input.quantity,
           );
@@ -430,7 +440,7 @@ export class InventoryService {
             );
           }
 
-          await repository.createTransaction({
+          await repository.createTransaction(tenantId, {
             inventoryId,
             type: 'RELEASE',
             quantity: input.quantity,
@@ -438,7 +448,7 @@ export class InventoryService {
             reason: input.reason ?? null,
           });
 
-          const inventory = await repository.findById(inventoryId);
+          const inventory = await repository.findById(tenantId, inventoryId);
 
           if (!inventory) {
             throw new AppError(
@@ -459,11 +469,12 @@ export class InventoryService {
    * ==================================================
    */
 
-  async sale(inventoryId: string, input: SaleInput) {
+  async sale(tenantId: string, inventoryId: string, input: SaleInput) {
     this.validatePositiveQuantity(input.quantity);
     this.validateReferenceId(input.referenceId);
 
     return this.runIdempotentTransaction(
+      tenantId,
       inventoryId,
       'SALE',
       input.referenceId,
@@ -473,6 +484,7 @@ export class InventoryService {
           const repository = new InventoryRepository(tx);
 
           const existing = await repository.findTransactionByReference(
+            tenantId,
             inventoryId,
             'SALE',
             input.referenceId,
@@ -481,7 +493,7 @@ export class InventoryService {
           if (existing) {
             this.validateIdempotentQuantity(existing.quantity, input.quantity);
 
-            const inventory = await repository.findById(inventoryId);
+            const inventory = await repository.findById(tenantId, inventoryId);
 
             if (!inventory) {
               throw new AppError(
@@ -494,9 +506,10 @@ export class InventoryService {
             return mapInventory(inventory);
           }
 
-          await this.ensureInventoryExists(repository, inventoryId);
+          await this.ensureInventoryExists(tenantId, repository, inventoryId);
 
           const affectedRows = await repository.sale(
+            tenantId,
             inventoryId,
             input.quantity,
           );
@@ -509,7 +522,7 @@ export class InventoryService {
             );
           }
 
-          await repository.createTransaction({
+          await repository.createTransaction(tenantId, {
             inventoryId,
             type: 'SALE',
             quantity: input.quantity,
@@ -517,7 +530,7 @@ export class InventoryService {
             reason: input.reason ?? null,
           });
 
-          const inventory = await repository.findById(inventoryId);
+          const inventory = await repository.findById(tenantId, inventoryId);
 
           if (!inventory) {
             throw new AppError(
@@ -539,15 +552,17 @@ export class InventoryService {
    */
 
   async listTransactions(
+    tenantId: string,
     inventoryId: string,
     params: {
       page: number;
       limit: number;
     },
   ) {
-    await this.ensureInventoryExists(this.repository, inventoryId);
+    await this.ensureInventoryExists(tenantId, this.repository, inventoryId);
 
     const { items, total } = await this.repository.findTransactions(
+      tenantId,
       inventoryId,
       params,
     );
@@ -572,10 +587,11 @@ export class InventoryService {
    */
 
   private async ensureInventoryExists(
+    tenantId: string,
     repository: InventoryRepository,
     inventoryId: string,
   ) {
-    const inventory = await repository.findById(inventoryId);
+    const inventory = await repository.findById(tenantId, inventoryId);
 
     if (!inventory) {
       throw new AppError('Inventory not found', 404, 'INVENTORY_NOT_FOUND');
@@ -585,6 +601,7 @@ export class InventoryService {
   }
 
   private async runIdempotentTransaction(
+    tenantId: string,
     inventoryId: string,
     type: 'RESERVATION' | 'RELEASE' | 'SALE',
     referenceId: string,
@@ -599,6 +616,7 @@ export class InventoryService {
       }
 
       const existing = await this.repository.findTransactionByReference(
+        tenantId,
         inventoryId,
         type,
         referenceId,
@@ -610,7 +628,7 @@ export class InventoryService {
 
       this.validateIdempotentQuantity(existing.quantity, quantity);
 
-      const inventory = await this.repository.findById(inventoryId);
+      const inventory = await this.repository.findById(tenantId, inventoryId);
 
       if (!inventory) {
         throw new AppError('Inventory not found', 404, 'INVENTORY_NOT_FOUND');

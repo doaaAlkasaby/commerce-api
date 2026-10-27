@@ -13,6 +13,7 @@ import {
 import type {
   UpdateProfileInput,
 } from './user.types.js';
+import { prisma } from '../../config/database.js';
 
 type UserRepository =
   ReturnType<
@@ -95,36 +96,15 @@ updateStatus: async (
     updatedUser,
   );
 },
-
-
-
+    updateDefaultCountry: async (userId: string, countryCode: string) => {
+      const country = await prisma.country.findFirst({
+        where: { code: countryCode, isActive: true },
+        select: { code: true },
+      });
+      if (!country) {
+        throw new AppError('COUNTRY_NOT_SUPPORTED', 'The selected country is not supported.', 400);
+      }
+      return userRepository.updateDefaultCountry(userId, countryCode);
+    },
   };
 };
-
-export async updateDefaultCountry(
-  userId: string,
-  countryCode: string,
-) {
-  const country = await prisma.country.findFirst({
-    where: {
-      code: countryCode,
-      isActive: true,
-    },
-    select: {
-      code: true,
-    },
-  });
-
-  if (!country) {
-    throw new AppError(
-      'COUNTRY_NOT_SUPPORTED',
-      'The selected country is not supported.',
-      400,
-    );
-  }
-
-  return this.repository.updateDefaultCountry(
-    userId,
-    countryCode,
-  );
-}

@@ -108,8 +108,8 @@ export class ProductVariantService {
     }
   }
 
-  async create(input: CreateProductVariantInput) {
-    const product = await this.productRepository.findById(input.productId);
+  async create(tenantId: string, input: CreateProductVariantInput) {
+    const product = await this.productRepository.findById(input.productId, tenantId);
 
     if (!product) {
       throw new AppError('Product not found', 404, 'PRODUCT_NOT_FOUND');
@@ -119,6 +119,7 @@ export class ProductVariantService {
 
     const attributeValues =
       await this.productRepository.findAttributeValuesByIds(
+        tenantId,
         input.productId,
         attributeValueIds,
       );
@@ -130,6 +131,7 @@ export class ProductVariantService {
     const combinationKey = buildCombinationKey(attributeValueIds);
 
     const existingCombination = await this.repository.findByCombination(
+      tenantId,
       input.productId,
       combinationKey,
     );
@@ -154,6 +156,7 @@ export class ProductVariantService {
 
     try {
       const variant = await this.repository.create({
+        tenantId,
         productId: input.productId,
 
         sku: input.sku,
@@ -195,8 +198,8 @@ export class ProductVariantService {
     }
   }
 
-  async getById(id: string) {
-    const variant = await this.repository.findById(id);
+  async getById(tenantId: string, id: string) {
+    const variant = await this.repository.findById(tenantId, id);
 
     if (!variant) {
       throw new AppError(
@@ -209,8 +212,8 @@ export class ProductVariantService {
     return toProductVariantResponse(variant);
   }
 
-  async update(id: string, input: UpdateProductVariantInput) {
-    const existing = await this.repository.findById(id);
+  async update(tenantId: string, id: string, input: UpdateProductVariantInput) {
+    const existing = await this.repository.findById(tenantId, id);
 
     if (!existing) {
       throw new AppError(
@@ -231,6 +234,7 @@ export class ProductVariantService {
 
       const attributeValues =
         await this.productRepository.findAttributeValuesByIds(
+          tenantId,
           existing.productId,
           attributeValueIds,
         );
@@ -240,6 +244,7 @@ export class ProductVariantService {
       combinationKey = buildCombinationKey(attributeValueIds);
 
       const duplicate = await this.repository.findByCombination(
+        tenantId,
         existing.productId,
         combinationKey,
       );
@@ -266,7 +271,7 @@ export class ProductVariantService {
     }
 
     try {
-      const updated = await this.repository.update(id, {
+      const updated = await this.repository.update(tenantId, id, {
         ...(input.sku !== undefined ? { sku: input.sku } : {}),
         ...(input.price !== undefined ? { price: input.price } : {}),
         ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
@@ -296,8 +301,8 @@ export class ProductVariantService {
     }
   }
 
-  async delete(id: string) {
-    const existing = await this.repository.findById(id);
+  async delete(tenantId: string, id: string) {
+    const existing = await this.repository.findById(tenantId, id);
 
     if (!existing) {
       throw new AppError(
@@ -315,6 +320,6 @@ export class ProductVariantService {
      * stronger rule around deleting variants.
      */
 
-    await this.repository.delete(id);
+    await this.repository.delete(tenantId, id);
   }
 }

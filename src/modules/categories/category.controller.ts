@@ -34,6 +34,7 @@ export const categoryController = {
   ): Promise<void> => {
     const category =
       await categoryService.create(
+        req.tenant!.tenantId,
         req.body,
       );
 
@@ -50,6 +51,7 @@ export const categoryController = {
   ): Promise<void> => {
     const category =
       await categoryService.getById(
+        req.tenant!.tenantId,
         getCategoryId(req),
       );
 
@@ -61,11 +63,11 @@ export const categoryController = {
   },
 
   getAll: async (
-    _req: Request,
+    req: Request,
     res: Response,
   ): Promise<void> => {
     const categories =
-      await categoryService.getAll();
+        await categoryService.getAll(req.tenant!.tenantId);
 
     res.status(200).json({
       success: true,
@@ -75,11 +77,11 @@ export const categoryController = {
   },
 
   getActive: async (
-    _req: Request,
+    req: Request,
     res: Response,
   ): Promise<void> => {
     const categories =
-      await categoryService.getActive();
+        await categoryService.getActive(req.tenant!.tenantId);
 
     res.status(200).json({
       success: true,
@@ -94,6 +96,7 @@ export const categoryController = {
   ): Promise<void> => {
     const categories =
       await categoryService.getChildren(
+        req.tenant!.tenantId,
         getCategoryId(req),
       );
 
@@ -110,6 +113,7 @@ export const categoryController = {
   ): Promise<void> => {
     const category =
       await categoryService.update(
+        req.tenant!.tenantId,
         getCategoryId(req),
         req.body,
       );
@@ -127,6 +131,7 @@ export const categoryController = {
   ): Promise<void> => {
     const category =
       await categoryService.updateStatus(
+        req.tenant!.tenantId,
         getCategoryId(req),
         req.body.isActive,
       );
@@ -155,6 +160,7 @@ export const categoryController = {
 
     const category =
       await categoryService.uploadImage(
+        req.tenant!.tenantId,
         getCategoryId(req),
         {
           file: file.buffer,
@@ -175,6 +181,7 @@ export const categoryController = {
     res: Response,
   ): Promise<void> => {
     await categoryService.deleteImage(
+      req.tenant!.tenantId,
       getCategoryId(req),
     );
 
@@ -190,6 +197,7 @@ export const categoryController = {
     res: Response,
   ): Promise<void> => {
     await categoryService.delete(
+      req.tenant!.tenantId,
       getCategoryId(req),
     );
 

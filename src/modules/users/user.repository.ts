@@ -101,33 +101,19 @@ export const createUserRepository = (db: PrismaClient) => {
         },
       });
     },
-    
+
+    updateDefaultCountry: async (userId: string, countryCode: string) => {
+      return db.user.update({
+        where: { id: userId },
+        data: { defaultCountryCode: countryCode },
+        select: {
+          id: true,
+          defaultCountryCode: true,
+          defaultCountry: { select: { code: true, name: true, currencyCode: true } },
+        },
+      });
+    },
   };
 };
-
- export  async updateDefaultCountry(
-  userId: string,
-  countryCode: string,
-) {
-  return prisma.user.update({
-    where: {
-      id: userId,
-    },
-    data: {
-      defaultCountryCode: countryCode,
-    },
-    select: {
-      id: true,
-      defaultCountryCode: true,
-      defaultCountry: {
-        select: {
-          code: true,
-          name: true,
-          currencyCode: true,
-        },
-      },
-    },
-  });
-} ;
 
 

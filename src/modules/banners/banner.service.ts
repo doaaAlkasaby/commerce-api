@@ -18,23 +18,23 @@ export class BannerService {
     private readonly repository: BannerRepository,
   ) {}
 
-  async listBanners() {
+  async listBanners(tenantId: string) {
     const banners =
-      await this.repository.findMany();
+      await this.repository.findMany(tenantId);
 
     return banners.map(mapBanner);
   }
 
-  async listActiveBanners() {
+  async listActiveBanners(tenantId: string) {
     const banners =
-      await this.repository.findActive();
+      await this.repository.findActive(tenantId);
 
     return banners.map(mapBanner);
   }
 
-  async getBanner(id: string) {
+  async getBanner(tenantId: string, id: string) {
     const banner =
-      await this.repository.findById(id);
+      await this.repository.findById(tenantId, id);
 
     if (!banner) {
       throw new AppError(
@@ -48,6 +48,7 @@ export class BannerService {
   }
 
   async createBanner(
+    tenantId: string,
     input: CreateBannerInput,
   ) {
     this.validateDateRange(
@@ -56,23 +57,25 @@ export class BannerService {
     );
 
     await this.validateTarget(
+      tenantId,
       input.targetType ?? 'NONE',
       input.targetId ?? null,
       input.actionUrl ?? null,
     );
 
     const banner =
-      await this.repository.create(input);
+      await this.repository.create(tenantId, input);
 
     return mapBanner(banner);
   }
 
   async updateBanner(
+    tenantId: string,
     id: string,
     input: UpdateBannerInput,
   ) {
     const existing =
-      await this.repository.findById(id);
+      await this.repository.findById(tenantId, id);
 
     if (!existing) {
       throw new AppError(
@@ -112,6 +115,7 @@ export class BannerService {
     );
 
     await this.validateTarget(
+      tenantId,
       targetType,
       targetId,
       actionUrl,
@@ -119,6 +123,7 @@ export class BannerService {
 
     const banner =
       await this.repository.update(
+        tenantId,
         id,
         input,
       );
@@ -126,9 +131,9 @@ export class BannerService {
     return mapBanner(banner);
   }
 
-  async deleteBanner(id: string) {
+  async deleteBanner(tenantId: string, id: string) {
     const existing =
-      await this.repository.findById(id);
+      await this.repository.findById(tenantId, id);
 
     if (!existing) {
       throw new AppError(
@@ -138,7 +143,7 @@ export class BannerService {
       );
     }
 
-    await this.repository.delete(id);
+    await this.repository.delete(tenantId, id);
 
     return null;
   }
@@ -161,6 +166,7 @@ export class BannerService {
   }
 
   private async validateTarget(
+    tenantId: string,
     targetType: BannerTargetType,
     targetId: string | null,
     actionUrl: string | null,
@@ -188,6 +194,7 @@ export class BannerService {
 
         if (
           !(await this.repository.productExists(
+            tenantId,
             targetId,
           ))
         ) {
@@ -211,6 +218,7 @@ export class BannerService {
 
         if (
           !(await this.repository.categoryExists(
+            tenantId,
             targetId,
           ))
         ) {
@@ -234,6 +242,7 @@ export class BannerService {
 
         if (
           !(await this.repository.collectionExists(
+            tenantId,
             targetId,
           ))
         ) {

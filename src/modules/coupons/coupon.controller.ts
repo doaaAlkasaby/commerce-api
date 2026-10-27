@@ -21,6 +21,7 @@ export class CouponController {
     try {
       const coupon =
         await couponService.create(
+          req.tenant!.tenantId,
           req.validatedBody as any,
         );
 
@@ -37,13 +38,13 @@ export class CouponController {
   }
 
   async findAll(
-    _req: Request,
+    req: Request,
     res: Response,
     next: NextFunction,
   ): Promise<void> {
     try {
       const coupons =
-        await couponService.findAll();
+        await couponService.findAll(req.tenant!.tenantId);
 
       res.status(200).json({
         success: true,
@@ -69,7 +70,7 @@ export class CouponController {
         };
 
       const coupon =
-        await couponService.findById(id);
+        await couponService.findById(req.tenant!.tenantId, id);
 
       res.status(200).json({
         success: true,
@@ -96,6 +97,7 @@ export class CouponController {
 
       const coupon =
         await couponService.update(
+          req.tenant!.tenantId,
           id,
           req.validatedBody as any,
         );
@@ -123,7 +125,7 @@ export class CouponController {
           id: string;
         };
 
-      await couponService.delete(id);
+      await couponService.delete(req.tenant!.tenantId, id);
 
       res.status(204).send();
     } catch (error) {
@@ -158,7 +160,7 @@ export class CouponController {
         };
 
       const result =
-        await couponService.validate({
+        await couponService.validate(req.tenant!.tenantId, {
           code: body.code,
           subtotal: body.subtotal,
           userId,

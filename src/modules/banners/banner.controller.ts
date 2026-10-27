@@ -58,13 +58,13 @@ const getValidatedBody = <T>(
 };
 
 export const listBanners = async (
-  _req: Request,
+  req: Request,
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
   try {
     const data =
-      await bannerService.listBanners();
+      await bannerService.listBanners(req.tenant!.tenantId);
 
     res.status(200).json({
       success: true,
@@ -77,13 +77,13 @@ export const listBanners = async (
 };
 
 export const listActiveBanners = async (
-  _req: Request,
+  req: Request,
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
   try {
     const data =
-      await bannerService.listActiveBanners();
+      await bannerService.listActiveBanners(req.tenant!.tenantId);
 
     res.status(200).json({
       success: true,
@@ -103,6 +103,7 @@ export const getBanner = async (
   try {
     const data =
       await bannerService.getBanner(
+        req.tenant!.tenantId,
         getBannerId(req),
       );
 
@@ -124,6 +125,7 @@ export const createBanner = async (
   try {
     const data =
       await bannerService.createBanner(
+        req.tenant!.tenantId,
         getValidatedBody(
           req,
           createBannerSchema,
@@ -148,6 +150,7 @@ export const updateBanner = async (
   try {
     const data =
       await bannerService.updateBanner(
+        req.tenant!.tenantId,
         getBannerId(req),
         getValidatedBody(
           req,
@@ -172,6 +175,7 @@ export const deleteBanner = async (
 ): Promise<void> => {
   try {
     await bannerService.deleteBanner(
+      req.tenant!.tenantId,
       getBannerId(req),
     );
 

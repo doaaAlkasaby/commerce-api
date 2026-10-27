@@ -37,6 +37,7 @@ export class CartController {
 
       const cart =
         await cartService.getCart(
+          req.tenant!.tenantId,
           req.user.userId,
         );
 
@@ -72,6 +73,7 @@ export class CartController {
 
       const cart =
         await cartService.addItem(
+          req.tenant!.tenantId,
           req.user.userId,
           input,
         );
@@ -114,6 +116,7 @@ export class CartController {
 
       const cart =
         await cartService.updateItem(
+          req.tenant!.tenantId,
           req.user.userId,
           params.variantId,
           input,
@@ -154,6 +157,7 @@ export class CartController {
 
       const cart =
         await cartService.removeItem(
+          req.tenant!.tenantId,
           req.user.userId,
           params.variantId,
         );
@@ -188,6 +192,7 @@ export class CartController {
 
       const cart =
         await cartService.clearCart(
+          req.tenant!.tenantId,
           req.user.userId,
         );
 

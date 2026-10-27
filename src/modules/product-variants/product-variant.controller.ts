@@ -17,6 +17,7 @@ export class ProductVariantController {
     try {
       const result =
         await productVariantService.create(
+          req.tenant!.tenantId,
           req.validatedBody as {
             productId: string;
             sku: string;
@@ -58,6 +59,7 @@ export class ProductVariantController {
 
       const result =
         await productVariantService.getById(
+          req.tenant!.tenantId,
           id,
         );
 
@@ -84,6 +86,7 @@ export class ProductVariantController {
 
       const result =
         await productVariantService.update(
+          req.tenant!.tenantId,
           id,
           req.validatedBody as {
             sku?: string;
@@ -124,6 +127,7 @@ export class ProductVariantController {
         };
 
       await productVariantService.delete(
+        req.tenant!.tenantId,
         id,
       );
 

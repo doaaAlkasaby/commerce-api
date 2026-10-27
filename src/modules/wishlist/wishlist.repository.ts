@@ -5,38 +5,42 @@ export class WishlistRepository {
     private readonly prisma: PrismaClient,
   ) {}
 
-  async findByUserId(userId: string) {
+  async findByUserId(tenantId: string, userId: string) {
     return this.prisma.wishlist.findUnique({
       where: {
-        userId,
+        tenantId_userId: { tenantId, userId },
       },
     });
   }
 
-  async createForUser(userId: string) {
+  async createForUser(tenantId: string, userId: string) {
     return this.prisma.wishlist.create({
       data: {
+        tenantId,
         userId,
       },
     });
   }
 
-  async findOrCreateForUser(userId: string) {
+  async findOrCreateForUser(tenantId: string, userId: string) {
     return this.prisma.wishlist.upsert({
       where: {
-        userId,
+        tenantId_userId: { tenantId, userId },
       },
       create: {
+        tenantId,
         userId,
       },
       update: {},
     });
   }
 
-  async findItems(wishlistId: string) {
+  async findItems(tenantId: string, wishlistId: string) {
     return this.prisma.wishlistItem.findMany({
       where: {
         wishlistId,
+        wishlist: { tenantId },
+        product: { tenantId },
       },
       orderBy: {
         createdAt: 'desc',
@@ -58,23 +62,25 @@ export class WishlistRepository {
   }
 
   async findItem(
+    tenantId: string,
     wishlistId: string,
     productId: string,
   ) {
-    return this.prisma.wishlistItem.findUnique({
-      where: {
-        wishlistId_productId: {
-          wishlistId,
-          productId,
-        },
-      },
+    return this.prisma.wishlistItem.findFirst({
+      where: { wishlistId, productId, wishlist: { tenantId }, product: { tenantId } },
     });
   }
 
   async addItem(
+    tenantId: string,
     wishlistId: string,
     productId: string,
   ) {
+    const [wishlist, product] = await Promise.all([
+      this.prisma.wishlist.findFirst({ where: { id: wishlistId, tenantId }, select: { id: true } }),
+      this.prisma.product.findFirst({ where: { id: productId, tenantId }, select: { id: true } }),
+    ]);
+    if (!wishlist || !product) throw new Error('Wishlist or product does not belong to this tenant');
     return this.prisma.wishlistItem.create({
       data: {
         wishlistId,
@@ -84,23 +90,20 @@ export class WishlistRepository {
   }
 
   async removeItem(
+    tenantId: string,
     wishlistId: string,
     productId: string,
   ) {
-    return this.prisma.wishlistItem.delete({
-      where: {
-        wishlistId_productId: {
-          wishlistId,
-          productId,
-        },
-      },
+    return this.prisma.wishlistItem.deleteMany({
+      where: { wishlistId, productId, wishlist: { tenantId }, product: { tenantId } },
     });
   }
 
-  async findProduct(productId: string) {
-    return this.prisma.product.findUnique({
+  async findProduct(tenantId: string, productId: string) {
+    return this.prisma.product.findFirst({
       where: {
         id: productId,
+        tenantId,
       },
       select: {
         id: true,
@@ -112,6 +115,7 @@ export class WishlistRepository {
   }
 
   async findProductIdsByUser(
+  tenantId: string,
   userId: string,
   productIds: string[],
 ): Promise<string[]> {
@@ -122,8 +126,10 @@ export class WishlistRepository {
   const items = await this.prisma.wishlistItem.findMany({
     where: {
       wishlist: {
+        tenantId,
         userId,
       },
+      product: { tenantId },
       productId: {
         in: productIds,
       },

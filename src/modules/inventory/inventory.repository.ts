@@ -12,6 +12,7 @@ export const inventoryInclude = {
       product: {
         select: {
           id: true,
+          tenantId: true,
           name: true,
           slug: true,
           status: true,
@@ -58,7 +59,9 @@ export type InventoryWithVariant = Prisma.InventoryGetPayload<{
 export class InventoryRepository {
   constructor(private readonly prisma: PrismaExecutor) {}
 
-  async create(variantId: string, quantity = 0) {
+  async create(tenantId: string, variantId: string, quantity = 0) {
+    const variant = await this.prisma.productVariant.findFirst({ where: { id: variantId, product: { tenantId } }, select: { id: true } });
+    if (!variant) throw new Error('Variant does not belong to this tenant');
     return this.prisma.inventory.create({
       data: {
         variantId,
@@ -69,28 +72,31 @@ export class InventoryRepository {
     });
   }
 
-  async findById(id: string) {
-    return this.prisma.inventory.findUnique({
+  async findById(tenantId: string, id: string) {
+    return this.prisma.inventory.findFirst({
       where: {
         id,
+        variant: { product: { tenantId } },
       },
       include: inventoryInclude,
     });
   }
 
-  async findByVariantId(variantId: string) {
-    return this.prisma.inventory.findUnique({
+  async findByVariantId(tenantId: string, variantId: string) {
+    return this.prisma.inventory.findFirst({
       where: {
         variantId,
+        variant: { product: { tenantId } },
       },
       include: inventoryInclude,
     });
   }
 
-  async existsByVariantId(variantId: string): Promise<boolean> {
-    const inventory = await this.prisma.inventory.findUnique({
+  async existsByVariantId(tenantId: string, variantId: string): Promise<boolean> {
+    const inventory = await this.prisma.inventory.findFirst({
       where: {
         variantId,
+        variant: { product: { tenantId } },
       },
       select: {
         id: true,
@@ -100,15 +106,16 @@ export class InventoryRepository {
     return inventory !== null;
   }
 
-  async delete(id: string): Promise<void> {
-    await this.prisma.inventory.delete({
+  async delete(tenantId: string, id: string): Promise<void> {
+    await this.prisma.inventory.deleteMany({
       where: {
         id,
+        variant: { product: { tenantId } },
       },
     });
   }
 
-  async findMany(params: {
+  async findMany(tenantId: string, params: {
     page: number;
     limit: number;
     variantId?: string;
@@ -116,7 +123,7 @@ export class InventoryRepository {
   }) {
     const { page, limit, variantId, lowStock } = params;
 
-    const where: Prisma.InventoryWhereInput = {};
+    const where: Prisma.InventoryWhereInput = { variant: { product: { tenantId } } };
 
     if (variantId) {
       where.variantId = variantId;
@@ -168,7 +175,7 @@ export class InventoryRepository {
      *
      * We first obtain matching inventory IDs.
      */
-    const ids = await this.findLowStockIds(lowStock, variantId);
+    const ids = await this.findLowStockIds(tenantId, lowStock, variantId);
 
     const total = ids.length;
 
@@ -186,6 +193,7 @@ export class InventoryRepository {
         id: {
           in: pagedIds,
         },
+        variant: { product: { tenantId } },
       },
       include: inventoryInclude,
       orderBy: {
@@ -200,6 +208,7 @@ export class InventoryRepository {
   }
 
   private async findLowStockIds(
+    tenantId: string,
     lowStock: number,
     variantId?: string,
   ): Promise<string[]> {
@@ -207,7 +216,10 @@ export class InventoryRepository {
       return this.prisma.$queryRaw<Array<{ id: string }>>`
         SELECT i."id"
         FROM "Inventory" i
+        JOIN "ProductVariant" pv ON pv."id" = i."variantId"
+        JOIN "Product" p ON p."id" = pv."productId"
         WHERE i."variantId" = ${variantId}
+          AND p."tenantId" = ${tenantId}
           AND (
             i."quantity" -
             i."reservedQuantity"
@@ -219,10 +231,13 @@ export class InventoryRepository {
     return this.prisma.$queryRaw<Array<{ id: string }>>`
       SELECT i."id"
       FROM "Inventory" i
+      JOIN "ProductVariant" pv ON pv."id" = i."variantId"
+      JOIN "Product" p ON p."id" = pv."productId"
       WHERE (
         i."quantity" -
         i."reservedQuantity"
       ) <= ${lowStock}
+        AND p."tenantId" = ${tenantId}
       ORDER BY i."updatedAt" DESC
     `.then((rows) => rows.map((row) => row.id));
   }
@@ -233,7 +248,7 @@ export class InventoryRepository {
    * --------------------------------------------------
    */
 
-  async stockIn(inventoryId: string, quantity: number): Promise<number> {
+  async stockIn(tenantId: string, inventoryId: string, quantity: number): Promise<number> {
     return this.prisma.$executeRaw`
       UPDATE "Inventory"
       SET
@@ -241,6 +256,7 @@ export class InventoryRepository {
           "quantity" + ${quantity},
         "updatedAt" = CURRENT_TIMESTAMP
       WHERE "id" = ${inventoryId}
+        AND EXISTS (SELECT 1 FROM "ProductVariant" pv JOIN "Product" p ON p."id" = pv."productId" WHERE pv."id" = "Inventory"."variantId" AND p."tenantId" = ${tenantId})
     `;
   }
 
@@ -254,7 +270,7 @@ export class InventoryRepository {
    * --------------------------------------------------
    */
 
-  async stockOut(inventoryId: string, quantity: number): Promise<number> {
+  async stockOut(tenantId: string, inventoryId: string, quantity: number): Promise<number> {
     return this.prisma.$executeRaw`
       UPDATE "Inventory"
       SET
@@ -262,6 +278,7 @@ export class InventoryRepository {
           "quantity" - ${quantity},
         "updatedAt" = CURRENT_TIMESTAMP
       WHERE "id" = ${inventoryId}
+        AND EXISTS (SELECT 1 FROM "ProductVariant" pv JOIN "Product" p ON p."id" = pv."productId" WHERE pv."id" = "Inventory"."variantId" AND p."tenantId" = ${tenantId})
         AND (
           "quantity" -
           "reservedQuantity"
@@ -284,7 +301,7 @@ export class InventoryRepository {
    * --------------------------------------------------
    */
 
-  async adjustment(inventoryId: string, quantity: number): Promise<number> {
+  async adjustment(tenantId: string, inventoryId: string, quantity: number): Promise<number> {
     return this.prisma.$executeRaw`
       UPDATE "Inventory"
       SET
@@ -292,6 +309,7 @@ export class InventoryRepository {
           "quantity" + ${quantity},
         "updatedAt" = CURRENT_TIMESTAMP
       WHERE "id" = ${inventoryId}
+        AND EXISTS (SELECT 1 FROM "ProductVariant" pv JOIN "Product" p ON p."id" = pv."productId" WHERE pv."id" = "Inventory"."variantId" AND p."tenantId" = ${tenantId})
         AND (
           "quantity" + ${quantity}
         ) >= "reservedQuantity"
@@ -309,7 +327,7 @@ export class InventoryRepository {
    * --------------------------------------------------
    */
 
-  async reserve(inventoryId: string, quantity: number): Promise<number> {
+  async reserve(tenantId: string, inventoryId: string, quantity: number): Promise<number> {
     return this.prisma.$executeRaw`
       UPDATE "Inventory"
       SET
@@ -317,6 +335,7 @@ export class InventoryRepository {
           "reservedQuantity" + ${quantity},
         "updatedAt" = CURRENT_TIMESTAMP
       WHERE "id" = ${inventoryId}
+        AND EXISTS (SELECT 1 FROM "ProductVariant" pv JOIN "Product" p ON p."id" = pv."productId" WHERE pv."id" = "Inventory"."variantId" AND p."tenantId" = ${tenantId})
         AND (
           "quantity" -
           "reservedQuantity"
@@ -332,7 +351,7 @@ export class InventoryRepository {
    * --------------------------------------------------
    */
 
-  async release(inventoryId: string, quantity: number): Promise<number> {
+  async release(tenantId: string, inventoryId: string, quantity: number): Promise<number> {
     return this.prisma.$executeRaw`
       UPDATE "Inventory"
       SET
@@ -340,6 +359,7 @@ export class InventoryRepository {
           "reservedQuantity" - ${quantity},
         "updatedAt" = CURRENT_TIMESTAMP
       WHERE "id" = ${inventoryId}
+        AND EXISTS (SELECT 1 FROM "ProductVariant" pv JOIN "Product" p ON p."id" = pv."productId" WHERE pv."id" = "Inventory"."variantId" AND p."tenantId" = ${tenantId})
         AND "reservedQuantity" >= ${quantity}
     `;
   }
@@ -365,7 +385,7 @@ export class InventoryRepository {
    * --------------------------------------------------
    */
 
-  async sale(inventoryId: string, quantity: number): Promise<number> {
+  async sale(tenantId: string, inventoryId: string, quantity: number): Promise<number> {
     return this.prisma.$executeRaw`
       UPDATE "Inventory"
       SET
@@ -378,6 +398,7 @@ export class InventoryRepository {
         "updatedAt" = CURRENT_TIMESTAMP
 
       WHERE "id" = ${inventoryId}
+        AND EXISTS (SELECT 1 FROM "ProductVariant" pv JOIN "Product" p ON p."id" = pv."productId" WHERE pv."id" = "Inventory"."variantId" AND p."tenantId" = ${tenantId})
 
         AND "quantity" >= ${quantity}
 
@@ -391,13 +412,15 @@ export class InventoryRepository {
    * --------------------------------------------------
    */
 
-  async createTransaction(data: {
+  async createTransaction(tenantId: string, data: {
     inventoryId: string;
     type: InventoryTransactionType;
     quantity: number;
     referenceId?: string | null;
     reason?: string | null;
   }) {
+    const inventory = await this.prisma.inventory.findFirst({ where: { id: data.inventoryId, variant: { product: { tenantId } } }, select: { id: true } });
+    if (!inventory) throw new Error('Inventory does not belong to this tenant');
     return this.prisma.inventoryTransaction.create({
       data: {
         inventoryId: data.inventoryId,
@@ -414,6 +437,7 @@ export class InventoryRepository {
   }
 
   async findTransactionByReference(
+    tenantId: string,
     inventoryId: string,
     type: InventoryTransactionType,
     referenceId: string,
@@ -421,6 +445,7 @@ export class InventoryRepository {
     return this.prisma.inventoryTransaction.findFirst({
       where: {
         inventoryId,
+        inventory: { variant: { product: { tenantId } } },
         type,
         referenceId,
       },
@@ -428,6 +453,7 @@ export class InventoryRepository {
   }
 
   async findTransactions(
+    tenantId: string,
     inventoryId: string,
     params: {
       page: number;
@@ -438,6 +464,7 @@ export class InventoryRepository {
 
     const where = {
       inventoryId,
+      inventory: { variant: { product: { tenantId } } },
     };
 
     const [items, total] = await Promise.all([

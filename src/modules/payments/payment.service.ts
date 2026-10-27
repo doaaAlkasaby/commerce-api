@@ -26,10 +26,11 @@ export class PaymentService {
     private readonly providerRegistry = new PaymentProviderRegistry(),
   ) {}
 
-  async createPayment(input: CreatePaymentInput) {
-    const order = await prisma.order.findUnique({
+  async createPayment(tenantId: string, input: CreatePaymentInput) {
+    const order = await prisma.order.findFirst({
       where: {
         id: input.orderId,
+        tenantId,
       },
     });
 
@@ -85,7 +86,7 @@ export class PaymentService {
       );
     }
 
-    const payment = await this.repository.create({
+    const payment = await this.repository.create(tenantId, {
       ...input,
       provider,
     });
@@ -106,6 +107,7 @@ export class PaymentService {
         const updatedPayment = await tx.payment.update({
           where: {
             id: payment.id,
+            order: { tenantId },
           },
 
           data: {
@@ -138,6 +140,7 @@ export class PaymentService {
         });
 
         const paymentStatus = await this.calculateOrderPaymentStatus(
+          tenantId,
           input.orderId,
           tx,
         );
@@ -145,6 +148,7 @@ export class PaymentService {
         await tx.order.update({
           where: {
             id: input.orderId,
+            tenantId,
           },
 
           data: {
@@ -155,14 +159,14 @@ export class PaymentService {
         return updatedPayment;
       });
     } catch (error) {
-      await this.markPaymentAsFailed(payment.id, error);
+      await this.markPaymentAsFailed(tenantId, payment.id, error);
 
       throw error;
     }
   }
 
-  async getPayment(paymentId: string) {
-    const payment = await this.repository.findById(paymentId);
+  async getPayment(tenantId: string, paymentId: string) {
+    const payment = await this.repository.findById(tenantId, paymentId);
 
     if (!payment) {
       throw new AppError('Payment not found', 404, 'PAYMENT_NOT_FOUND');
@@ -171,8 +175,8 @@ export class PaymentService {
     return payment;
   }
 
-  async getPaymentForOrder(paymentId: string, orderId: string) {
-    const payment = await this.repository.findByIdForOrder(paymentId, orderId);
+  async getPaymentForOrder(tenantId: string, paymentId: string, orderId: string) {
+    const payment = await this.repository.findByIdForOrder(tenantId, paymentId, orderId);
 
     if (!payment) {
       throw new AppError('Payment not found', 404, 'PAYMENT_NOT_FOUND');
@@ -181,14 +185,15 @@ export class PaymentService {
     return payment;
   }
 
-  async getPayments(filters: PaymentFilterInput) {
-    return this.repository.findMany(filters);
+  async getPayments(tenantId: string, filters: PaymentFilterInput) {
+    return this.repository.findMany(tenantId, filters);
   }
 
-  async getOrderPayments(orderId: string) {
-    const order = await prisma.order.findUnique({
+  async getOrderPayments(tenantId: string, orderId: string) {
+    const order = await prisma.order.findFirst({
       where: {
         id: orderId,
+        tenantId,
       },
     });
 
@@ -196,16 +201,17 @@ export class PaymentService {
       throw new AppError('Order not found', 404, 'ORDER_NOT_FOUND');
     }
 
-    return this.repository.findMany({
+    return this.repository.findMany(tenantId, {
       orderId,
     });
   }
 
   async updatePaymentStatus(
+    tenantId: string,
     paymentId: string,
     input: UpdatePaymentStatusInput,
   ) {
-    const payment = await this.repository.findById(paymentId);
+    const payment = await this.repository.findById(tenantId, paymentId);
 
     if (!payment) {
       throw new AppError('Payment not found', 404, 'PAYMENT_NOT_FOUND');
@@ -215,12 +221,14 @@ export class PaymentService {
 
     const updated = await prisma.$transaction(async (tx) => {
       const result = await this.repository.updateStatusWithClient(
+        tenantId,
         paymentId,
         input,
         tx,
       );
 
       const paymentStatus = await this.calculateOrderPaymentStatus(
+        tenantId,
         payment.orderId,
         tx,
       );
@@ -228,6 +236,7 @@ export class PaymentService {
       await tx.order.update({
         where: {
           id: payment.orderId,
+          tenantId,
         },
 
         data: {
@@ -241,8 +250,8 @@ export class PaymentService {
     return updated;
   }
 
-  async cancelPayment(paymentId: string) {
-    const payment = await this.repository.findById(paymentId);
+  async cancelPayment(tenantId: string, paymentId: string) {
+    const payment = await this.repository.findById(tenantId, paymentId);
 
     if (!payment) {
       throw new AppError('Payment not found', 404, 'PAYMENT_NOT_FOUND');
@@ -261,7 +270,7 @@ export class PaymentService {
     }
 
     if (!payment.providerPaymentId) {
-      return this.updatePaymentStatus(payment.id, {
+      return this.updatePaymentStatus(tenantId, payment.id, {
         status: PaymentStatus.CANCELLED,
       });
     }
@@ -270,13 +279,13 @@ export class PaymentService {
 
     const result = await provider.cancelPayment(payment.providerPaymentId);
 
-    return this.updatePaymentStatus(payment.id, {
+    return this.updatePaymentStatus(tenantId, payment.id, {
       status: result.status,
     });
   }
 
-  async refundPayment(paymentId: string, amount?: string) {
-    const payment = await this.repository.findById(paymentId);
+  async refundPayment(tenantId: string, paymentId: string, amount?: string) {
+    const payment = await this.repository.findById(tenantId, paymentId);
 
     if (!payment) {
       throw new AppError('Payment not found', 404, 'PAYMENT_NOT_FOUND');
@@ -318,7 +327,7 @@ export class PaymentService {
       refundAmount,
     );
 
-    return this.updatePaymentStatus(payment.id, {
+    return this.updatePaymentStatus(tenantId, payment.id, {
       status: result.status,
 
       ...(result.providerTransactionId === undefined
@@ -330,12 +339,14 @@ export class PaymentService {
   }
 
   private async calculateOrderPaymentStatus(
+    tenantId: string,
     orderId: string,
     tx: Prisma.TransactionClient,
   ): Promise<PaymentStatus> {
     const payments = await tx.payment.findMany({
       where: {
         orderId,
+        order: { tenantId },
       },
       orderBy: {
         createdAt: 'desc',
@@ -356,9 +367,10 @@ export class PaymentService {
         new Prisma.Decimal(0),
       );
 
-      const order = await tx.order.findUnique({
+      const order = await tx.order.findFirst({
         where: {
           id: orderId,
+          tenantId,
         },
         select: {
           totalAmount: true,
@@ -478,11 +490,12 @@ export class PaymentService {
   }
 
   private async markPaymentAsFailed(
+    tenantId: string,
     paymentId: string,
     error: unknown,
   ): Promise<void> {
     try {
-      await this.repository.updateStatus(paymentId, {
+      await this.repository.updateStatus(tenantId, paymentId, {
         status: PaymentStatus.FAILED,
 
         failureCode: 'PAYMENT_PROVIDER_ERROR',

@@ -72,7 +72,7 @@ export class CheckoutService {
     input: CheckoutInput,
     context: CheckoutContext,
   ): Promise<CheckoutResult> {
-    const { userId, idempotencyKey } = context;
+    const { tenantId, userId, idempotencyKey } = context;
 
     /*
      * ---------------------------------------------------------
@@ -86,7 +86,7 @@ export class CheckoutService {
         idempotencyKey,
       );
 
-    if (existingRequest?.order) {
+    if (existingRequest?.order?.tenantId === tenantId) {
       const order = existingRequest.order;
 
       const payment =
@@ -132,7 +132,7 @@ export class CheckoutService {
 
         const cart = await tx.cart.findUnique({
           where: {
-            userId,
+            tenantId_userId: { tenantId, userId },
           },
           include: {
             items: {
@@ -436,7 +436,7 @@ export class CheckoutService {
         if (couponCode) {
           coupon = await tx.coupon.findUnique({
             where: {
-              code: couponCode,
+              tenantId_code: { tenantId, code: couponCode },
             },
           });
 
@@ -714,6 +714,7 @@ export class CheckoutService {
 
         const order = await tx.order.create({
           data: {
+            tenantId,
             orderNumber,
             userId,
             couponId: coupon?.id ?? null,
@@ -966,6 +967,7 @@ export class CheckoutService {
           await tx.coupon.update({
             where: {
               id: coupon.id,
+              tenantId,
             },
             data: {
               usageCount: {

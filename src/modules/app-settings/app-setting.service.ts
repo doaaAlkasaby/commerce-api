@@ -12,20 +12,20 @@ import type {
 import { appSettingRepository } from './app-setting.repository.instance.js';
 
 export class AppSettingService {
-  async getPublicSettings() {
-    const settings = await appSettingRepository.findPublicSettings();
+  async getPublicSettings(tenantId: string) {
+    const settings = await appSettingRepository.findPublicSettings(tenantId);
 
     return mapPublicSettings(settings);
   }
 
-  async getAllSettings() {
-    const settings = await appSettingRepository.findAll();
+  async getAllSettings(tenantId: string) {
+    const settings = await appSettingRepository.findAll(tenantId);
 
     return settings.map(mapAppSetting);
   }
 
-  async getSetting(key: string) {
-    const setting = await appSettingRepository.findByKey(key);
+  async getSetting(tenantId: string, key: string) {
+    const setting = await appSettingRepository.findByKey(tenantId, key);
 
     if (!setting) {
       throw new AppError('Setting not found', 404, 'SETTING_NOT_FOUND');
@@ -34,8 +34,8 @@ export class AppSettingService {
     return mapAppSetting(setting);
   }
 
-  async createSetting(input: CreateAppSettingRequest) {
-    const existing = await appSettingRepository.findByKey(input.key);
+  async createSetting(tenantId: string, input: CreateAppSettingRequest) {
+    const existing = await appSettingRepository.findByKey(tenantId, input.key);
 
     if (existing) {
       throw new AppError(
@@ -47,7 +47,7 @@ export class AppSettingService {
 
     let setting;
     try {
-      setting = await appSettingRepository.create(input);
+      setting = await appSettingRepository.create(tenantId, input);
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -66,8 +66,8 @@ export class AppSettingService {
     return mapAppSetting(setting);
   }
 
-  async updateSetting(key: string, input: UpdateAppSettingRequest) {
-    const existing = await appSettingRepository.findByKey(key);
+  async updateSetting(tenantId: string, key: string, input: UpdateAppSettingRequest) {
+    const existing = await appSettingRepository.findByKey(tenantId, key);
 
     if (!existing) {
       throw new AppError('Setting not found', 404, 'SETTING_NOT_FOUND');
@@ -75,7 +75,7 @@ export class AppSettingService {
 
     let setting;
     try {
-      setting = await appSettingRepository.update(key, input);
+      setting = await appSettingRepository.update(tenantId, key, input);
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -90,15 +90,15 @@ export class AppSettingService {
     return mapAppSetting(setting);
   }
 
-  async deleteSetting(key: string) {
-    const existing = await appSettingRepository.findByKey(key);
+  async deleteSetting(tenantId: string, key: string) {
+    const existing = await appSettingRepository.findByKey(tenantId, key);
 
     if (!existing) {
       throw new AppError('Setting not found', 404, 'SETTING_NOT_FOUND');
     }
 
     try {
-      await appSettingRepository.delete(key);
+      await appSettingRepository.delete(tenantId, key);
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&

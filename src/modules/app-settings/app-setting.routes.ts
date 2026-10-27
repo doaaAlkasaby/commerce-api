@@ -12,6 +12,8 @@ import {
 } from './app-setting.schemas.js';
 
 export const appSettingRouter = Router();
+import { tenantMiddleware } from '../../middleware/tenant.middleware.js';
+appSettingRouter.use(tenantMiddleware);
 
 appSettingRouter.get('/', (req, res, next) =>
   appSettingController.getPublicSettings(req, res, next),

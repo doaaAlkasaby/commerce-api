@@ -21,6 +21,7 @@ export interface ProductEnrichmentMap {
 export class ProductEnrichmentService {
   async enrichProducts<T extends { id: string }>(
     products: T[],
+    tenantId: string,
     userId?: string,
   ): Promise<
     Array<
@@ -41,11 +42,13 @@ export class ProductEnrichmentService {
     const [ratingRows, wishlistProductIds] =
       await Promise.all([
         productReviewRepository.getRatingSummaries(
+          tenantId,
           productIds,
         ),
 
         userId
           ? wishlistRepository.findProductIdsByUser(
+              tenantId,
               userId,
               productIds,
             )

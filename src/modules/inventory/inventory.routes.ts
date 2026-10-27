@@ -9,6 +9,7 @@ import {
 import {
   authenticate,
 } from '../../middleware/auth.middleware.js';
+import { tenantMiddleware } from '../../middleware/tenant.middleware.js';
 
 import {
   authorize,
@@ -38,6 +39,7 @@ import {
 
 const router =
   Router();
+router.use(tenantMiddleware);
 
 /*
  * ==================================================

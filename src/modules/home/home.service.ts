@@ -14,18 +14,20 @@ import { productEnrichmentService } from '../products/product-enrichment.service
 
 export class HomeService {
   private async enrichProductPage<T extends { id: string }>(
+    tenantId: string,
     productPage: Promise<{ items: T[]; total: number }>,
     userId?: string,
   ) {
     const { items, total } = await productPage;
 
     return {
-      items: await productEnrichmentService.enrichProducts(items, userId),
+      items: await productEnrichmentService.enrichProducts(items, tenantId, userId),
       total,
     };
   }
 
   async getHome(
+    tenantId: string,
     platform: HomePlatform,
     userId?: string,
   ): Promise<HomeResponse> {
@@ -33,7 +35,7 @@ export class HomeService {
 
     // Find the public Featured collection first.
     const featuredCollection =
-      await productCollectionRepository.findPublicBySlug('featured');
+      await productCollectionRepository.findPublicBySlug(tenantId, 'featured');
 
     const [
       banners,
@@ -44,28 +46,33 @@ export class HomeService {
       featuredProducts,
       brands,
     ] = await Promise.all([
-      homeRepository.findBanners(limits.banners),
+      homeRepository.findBanners(tenantId, limits.banners),
 
-      homeRepository.findCategories(limits.categories),
+      homeRepository.findCategories(tenantId, limits.categories),
 
       this.enrichProductPage(
-        productRepository.findBestSellers(0, limits.bestSellers),
+        tenantId,
+        productRepository.findBestSellers(tenantId, 0, limits.bestSellers),
         userId,
       ),
 
       this.enrichProductPage(
-        productRepository.findOffers(0, limits.specialOffers),
+        tenantId,
+        productRepository.findOffers(tenantId, 0, limits.specialOffers),
         userId,
       ),
 
       this.enrichProductPage(
-        productRepository.findNewArrivals(0, limits.newArrivals),
+        tenantId,
+        productRepository.findNewArrivals(tenantId, 0, limits.newArrivals),
         userId,
       ),
 
       featuredCollection
         ? this.enrichProductPage(
+            tenantId,
             productRepository.findCollectionProducts(
+              tenantId,
               featuredCollection.id,
               0,
               limits.featuredProducts,
@@ -77,7 +84,7 @@ export class HomeService {
             total: 0,
           }),
 
-      homeRepository.findBrands(limits.brands),
+      homeRepository.findBrands(tenantId, limits.brands),
     ]);
 
     const sections: HomeSection[] = [

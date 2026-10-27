@@ -40,6 +40,7 @@ export const getWishlist = async (
   try {
     const data =
       await wishlistService.getWishlist(
+        req.tenant!.tenantId,
         req.user!.userId,
       );
 
@@ -66,6 +67,7 @@ export const addProduct = async (
 
     const data =
       await wishlistService.addProduct(
+        req.tenant!.tenantId,
         req.user!.userId,
         productId,
       );
@@ -87,6 +89,7 @@ export const removeProduct = async (
 ): Promise<void> => {
   try {
     await wishlistService.removeProduct(
+      req.tenant!.tenantId,
       req.user!.userId,
       getWishlistProductId(req),
     );
@@ -110,6 +113,7 @@ export const checkProduct = async (
   try {
     const data =
       await wishlistService.isProductInWishlist(
+        req.tenant!.tenantId,
         req.user!.userId,
         getWishlistProductId(req),
       );

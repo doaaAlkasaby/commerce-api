@@ -36,12 +36,12 @@ const getSettingKey = (req: Request): string =>
 
 export class AppSettingController {
   async getPublicSettings(
-    _req: Request,
+    req: Request,
     res: Response,
     next: NextFunction,
   ): Promise<void> {
     try {
-      const settings = await appSettingService.getPublicSettings();
+      const settings = await appSettingService.getPublicSettings(req.tenant!.tenantId);
 
       res.status(200).json({
         success: true,
@@ -54,12 +54,12 @@ export class AppSettingController {
   }
 
   async getAllSettings(
-    _req: Request,
+    req: Request,
     res: Response,
     next: NextFunction,
   ): Promise<void> {
     try {
-      const settings = await appSettingService.getAllSettings();
+      const settings = await appSettingService.getAllSettings(req.tenant!.tenantId);
 
       res.status(200).json({
         success: true,
@@ -77,7 +77,7 @@ export class AppSettingController {
     next: NextFunction,
   ): Promise<void> {
     try {
-      const setting = await appSettingService.getSetting(getSettingKey(req));
+      const setting = await appSettingService.getSetting(req.tenant!.tenantId, getSettingKey(req));
 
       res.status(200).json({
         success: true,
@@ -100,7 +100,7 @@ export class AppSettingController {
         createAppSettingSchema,
         'Invalid setting data',
       );
-      const setting = await appSettingService.createSetting(input);
+      const setting = await appSettingService.createSetting(req.tenant!.tenantId, input);
 
       res.status(201).json({
         success: true,
@@ -124,6 +124,7 @@ export class AppSettingController {
         'Invalid setting data',
       );
       const setting = await appSettingService.updateSetting(
+        req.tenant!.tenantId,
         getSettingKey(req),
         input,
       );
@@ -144,7 +145,7 @@ export class AppSettingController {
     next: NextFunction,
   ): Promise<void> {
     try {
-      await appSettingService.deleteSetting(getSettingKey(req));
+      await appSettingService.deleteSetting(req.tenant!.tenantId, getSettingKey(req));
 
       res.status(200).json({
         success: true,

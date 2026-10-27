@@ -17,9 +17,12 @@ import type {
 
 export class PaymentRepository {
   async create(
+    tenantId: string,
     input: CreatePaymentInput,
     client: Prisma.TransactionClient | typeof prisma = prisma,
   ): Promise<Payment> {
+    const order = await client.order.findFirst({ where: { id: input.orderId, tenantId }, select: { id: true } });
+    if (!order) throw new Error('Order does not belong to this tenant');
     return client.payment.create({
       data: {
         orderId: input.orderId,
@@ -43,45 +46,48 @@ export class PaymentRepository {
     });
   }
 
-  async findById(id: string): Promise<Payment | null> {
-    return prisma.payment.findUnique({
-      where: {
-        id,
-      },
+  async findById(tenantId: string, id: string): Promise<Payment | null> {
+    return prisma.payment.findFirst({
+      where: { id, order: { tenantId } },
     });
   }
 
-  async findByIdForOrder(id: string, orderId: string): Promise<Payment | null> {
+  async findByIdForOrder(tenantId: string, id: string, orderId: string): Promise<Payment | null> {
     return prisma.payment.findFirst({
       where: {
         id,
         orderId,
+        order: { tenantId },
       },
     });
   }
 
   async findByProviderPaymentId(
+    tenantId: string,
     providerPaymentId: string,
   ): Promise<Payment | null> {
     return prisma.payment.findFirst({
       where: {
         providerPaymentId,
+        order: { tenantId },
       },
     });
   }
 
   async findByProviderTransactionId(
+    tenantId: string,
     providerTransactionId: string,
   ): Promise<Payment | null> {
     return prisma.payment.findFirst({
       where: {
         providerTransactionId,
+        order: { tenantId },
       },
     });
   }
 
-  async findMany(filters: PaymentFilterInput = {}): Promise<Payment[]> {
-    const where: Prisma.PaymentWhereInput = {};
+  async findMany(tenantId: string, filters: PaymentFilterInput = {}): Promise<Payment[]> {
+    const where: Prisma.PaymentWhereInput = { order: { tenantId } };
 
     if (filters.orderId !== undefined) {
       where.orderId = filters.orderId;
@@ -109,12 +115,14 @@ export class PaymentRepository {
   }
 
   async updateStatus(
+    tenantId: string,
     id: string,
     input: UpdatePaymentStatusInput,
   ): Promise<Payment> {
     return prisma.payment.update({
       where: {
         id,
+        order: { tenantId },
       },
 
       data: {
@@ -149,6 +157,7 @@ export class PaymentRepository {
   }
 
   async updateStatusWithClient(
+    tenantId: string,
     id: string,
     input: UpdatePaymentStatusInput,
     client: Prisma.TransactionClient,
@@ -156,6 +165,7 @@ export class PaymentRepository {
     return client.payment.update({
       where: {
         id,
+        order: { tenantId },
       },
 
       data: {
@@ -190,6 +200,7 @@ export class PaymentRepository {
   }
 
   async findOrderPayment(
+    tenantId: string,
     orderId: string,
     paymentId: string,
   ): Promise<Payment | null> {
@@ -197,6 +208,7 @@ export class PaymentRepository {
       where: {
         id: paymentId,
         orderId,
+        order: { tenantId },
       },
     });
   }

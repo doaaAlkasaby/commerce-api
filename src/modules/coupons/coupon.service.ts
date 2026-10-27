@@ -20,10 +20,10 @@ import type {
 export class CouponService {
   constructor(private readonly repository: CouponRepository) {}
 
-  async create(input: CreateCouponInput) {
+  async create(tenantId: string, input: CreateCouponInput) {
     const code = input.code.trim().toUpperCase();
 
-    const existing = await this.repository.findByCode(code);
+    const existing = await this.repository.findByCode(tenantId, code);
 
     if (existing) {
       throw new AppError(
@@ -35,14 +35,14 @@ export class CouponService {
 
     this.validateBusinessRules(input);
 
-    return this.repository.create({
+    return this.repository.create(tenantId, {
       ...input,
       code,
     });
   }
 
-  async findById(id: string) {
-    const coupon = await this.repository.findById(id);
+  async findById(tenantId: string, id: string) {
+    const coupon = await this.repository.findById(tenantId, id);
 
     if (!coupon) {
       throw new AppError('Coupon not found', 404, 'COUPON_NOT_FOUND');
@@ -51,12 +51,12 @@ export class CouponService {
     return coupon;
   }
 
-  async findAll() {
-    return this.repository.findAll();
+  async findAll(tenantId: string) {
+    return this.repository.findAll(tenantId);
   }
 
-  async update(id: string, input: UpdateCouponInput) {
-    const existing = await this.repository.findById(id);
+  async update(tenantId: string, id: string, input: UpdateCouponInput) {
+    const existing = await this.repository.findById(tenantId, id);
 
     if (!existing) {
       throw new AppError('Coupon not found', 404, 'COUPON_NOT_FOUND');
@@ -68,7 +68,7 @@ export class CouponService {
         : existing.code;
 
     if (code !== existing.code) {
-      const duplicate = await this.repository.findByCode(code);
+      const duplicate = await this.repository.findByCode(tenantId, code);
 
       if (duplicate) {
         throw new AppError(
@@ -115,14 +115,14 @@ export class CouponService {
 
     this.validateBusinessRules(merged);
 
-    return this.repository.update(id, {
+    return this.repository.update(tenantId, id, {
       ...input,
       code,
     });
   }
 
-  async delete(id: string) {
-    const coupon = await this.repository.findById(id);
+  async delete(tenantId: string, id: string) {
+    const coupon = await this.repository.findById(tenantId, id);
 
     if (!coupon) {
       throw new AppError('Coupon not found', 404, 'COUPON_NOT_FOUND');
@@ -136,13 +136,13 @@ export class CouponService {
       );
     }
 
-    await this.repository.delete(id);
+    await this.repository.delete(tenantId, id);
   }
 
-  async validate(input: ValidateCouponInput): Promise<CouponValidationResult> {
+  async validate(tenantId: string, input: ValidateCouponInput): Promise<CouponValidationResult> {
     const code = input.code.trim().toUpperCase();
 
-    const coupon = await this.repository.findByCode(code);
+    const coupon = await this.repository.findByCode(tenantId, code);
 
     if (!coupon) {
       throw new AppError('Invalid coupon code', 400, 'INVALID_COUPON');
@@ -174,6 +174,7 @@ export class CouponService {
 
     if (coupon.perUserLimit !== null) {
       const userUsage = await this.repository.countUserUsage(
+        tenantId,
         coupon.id,
         input.userId,
       );

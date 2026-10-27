@@ -12,11 +12,12 @@ export class ProductCollectionRepository {
     private readonly prisma: PrismaClient,
   ) {}
 
-  async findMany() {
+  async findMany(tenantId: string) {
     const now = new Date();
 
     return this.prisma.productCollection.findMany({
       where: {
+        tenantId,
         isActive: true,
 
         AND: [
@@ -46,20 +47,21 @@ export class ProductCollectionRepository {
     });
   }
 
-  async findById(id: string) {
+  async findById(tenantId: string, id: string) {
     return this.prisma.productCollection.findUnique({
       where: {
-        id,
+        id, tenantId,
       },
     });
   }
 
-  async findPublicById(id: string) {
+  async findPublicById(tenantId: string, id: string) {
     const now = new Date();
 
     return this.prisma.productCollection.findFirst({
       where: {
         id,
+        tenantId,
         isActive: true,
 
         AND: [
@@ -80,10 +82,10 @@ export class ProductCollectionRepository {
     });
   }
 
-  async findBySlug(slug: string) {
+  async findBySlug(tenantId: string, slug: string) {
     return this.prisma.productCollection.findUnique({
       where: {
-        slug,
+        tenantId_slug: { tenantId, slug },
       },
 
       select: {
@@ -93,10 +95,12 @@ export class ProductCollectionRepository {
   }
 
   async create(
+    tenantId: string,
     input: CreateProductCollectionInput,
   ) {
     return this.prisma.productCollection.create({
       data: {
+        tenantId,
         name: input.name,
         slug: input.slug,
 
@@ -125,12 +129,13 @@ export class ProductCollectionRepository {
   }
 
   async update(
+    tenantId: string,
     id: string,
     input: UpdateProductCollectionInput,
   ) {
     return this.prisma.productCollection.update({
       where: {
-        id,
+        id, tenantId,
       },
 
       data: {
@@ -174,18 +179,19 @@ export class ProductCollectionRepository {
     });
   }
 
-  async delete(id: string) {
+  async delete(tenantId: string, id: string) {
     return this.prisma.productCollection.delete({
       where: {
-        id,
+        id, tenantId,
       },
     });
   }
 
-  async findProduct(productId: string) {
-    return this.prisma.product.findUnique({
+  async findProduct(tenantId: string, productId: string) {
+    return this.prisma.product.findFirst({
       where: {
         id: productId,
+        tenantId,
       },
 
       select: {
@@ -198,23 +204,31 @@ export class ProductCollectionRepository {
   }
 
   async findCollectionProduct(
+    tenantId: string,
     collectionId: string,
     productId: string,
   ) {
-    return this.prisma.productCollectionItem.findUnique({
+    return this.prisma.productCollectionItem.findFirst({
       where: {
-        collectionId_productId: {
-          collectionId,
-          productId,
-        },
+        collectionId, productId,
+        collection: { tenantId },
+        product: { tenantId },
       },
     });
   }
 
   async addProduct(
+    tenantId: string,
     collectionId: string,
     input: AddProductToCollectionInput,
   ) {
+    const [collection, product] = await Promise.all([
+      this.prisma.productCollection.findFirst({ where: { id: collectionId, tenantId }, select: { id: true } }),
+      this.prisma.product.findFirst({ where: { id: input.productId, tenantId }, select: { id: true } }),
+    ]);
+    if (!collection || !product) {
+      throw new Error('Collection or product does not belong to this tenant');
+    }
     return this.prisma.productCollectionItem.create({
       data: {
         collectionId,
@@ -225,44 +239,41 @@ export class ProductCollectionRepository {
   }
 
   async removeProduct(
+    tenantId: string,
     collectionId: string,
     productId: string,
   ) {
-    return this.prisma.productCollectionItem.delete({
-      where: {
-        collectionId_productId: {
-          collectionId,
-          productId,
-        },
-      },
+    return this.prisma.productCollectionItem.deleteMany({
+      where: { collectionId, productId, collection: { tenantId }, product: { tenantId } },
     });
   }
 
   async updateProductOrder(
+    tenantId: string,
     collectionId: string,
     productId: string,
     input: UpdateCollectionProductOrderInput,
   ) {
-    return this.prisma.productCollectionItem.update({
-      where: {
-        collectionId_productId: {
-          collectionId,
-          productId,
-        },
-      },
+    const updated = await this.prisma.productCollectionItem.updateMany({
+      where: { collectionId, productId, collection: { tenantId }, product: { tenantId } },
 
       data: {
         sortOrder: input.sortOrder,
       },
     });
+    if (updated.count === 0) return null;
+    return this.prisma.productCollectionItem.findFirst({
+      where: { collectionId, productId, collection: { tenantId }, product: { tenantId } },
+    });
   }
 
-  async findPublicBySlug(slug: string) {
+  async findPublicBySlug(tenantId: string, slug: string) {
   const now = new Date();
 
   return this.prisma.productCollection.findFirst({
     where: {
       slug,
+      tenantId,
 
       isActive: true,
 

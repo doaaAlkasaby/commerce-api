@@ -153,10 +153,10 @@ export class ProductRepository {
   // FIND PRODUCT BY SLUG
   // ============================================================
 
-  async findBySlug(slug: string) {
+  async findBySlug(slug: string, tenantId: string) {
     return this.prisma.product.findUnique({
       where: {
-        slug,
+        tenantId_slug: { tenantId, slug },
       },
     });
   }
@@ -166,6 +166,7 @@ export class ProductRepository {
   // ============================================================
 
   async findAttributeValuesByIds(
+    tenantId: string,
     productId: string,
     attributeValueIds: string[],
   ) {
@@ -181,6 +182,7 @@ export class ProductRepository {
 
         attribute: {
           productId,
+          product: { tenantId },
         },
       },
 
@@ -197,11 +199,13 @@ export class ProductRepository {
   // ============================================================
 
   async findList(
+    tenantId: string,
     query: ProductListQuery,
     skip: number,
     take: number,
   ) {
     const where = {
+      tenantId,
       status: 'ACTIVE' as const,
 
       ...(query.categoryId
@@ -336,9 +340,16 @@ export class ProductRepository {
   // CREATE PRODUCT
   // ============================================================
 
-  async create(input: CreateProductInput) {
+  async create(tenantId: string, input: CreateProductInput) {
+    if (!(await this.categoryExists(tenantId, input.categoryId))) {
+      throw new Error('Category does not belong to this tenant');
+    }
+    if (input.brandId && !(await this.brandExists(tenantId, input.brandId))) {
+      throw new Error('Brand does not belong to this tenant');
+    }
     return this.prisma.product.create({
       data: {
+        tenantId,
         name: input.name,
         slug: input.slug,
         description: input.description ?? null,
@@ -361,12 +372,20 @@ export class ProductRepository {
   // ============================================================
 
   async update(
+    tenantId: string,
     id: string,
     input: UpdateProductInput,
   ) {
+    if (input.categoryId && !(await this.categoryExists(tenantId, input.categoryId))) {
+      throw new Error('Category does not belong to this tenant');
+    }
+    if (input.brandId && !(await this.brandExists(tenantId, input.brandId))) {
+      throw new Error('Brand does not belong to this tenant');
+    }
     return this.prisma.product.update({
       where: {
         id,
+        tenantId,
       },
 
       data: {
@@ -409,12 +428,14 @@ export class ProductRepository {
   // ============================================================
 
   async updateStatus(
+    tenantId: string,
     id: string,
     status: ProductStatus,
   ) {
     return this.prisma.product.update({
       where: {
         id,
+        tenantId,
       },
 
       data: {
@@ -427,10 +448,11 @@ export class ProductRepository {
   // DELETE PRODUCT
   // ============================================================
 
-  async delete(id: string) {
-    return this.prisma.product.delete({
+  async delete(tenantId: string, id: string) {
+    return this.prisma.product.deleteMany({
       where: {
         id,
+        tenantId,
       },
     });
   }
@@ -440,11 +462,13 @@ export class ProductRepository {
   // ============================================================
 
   async countActiveVariants(
+    tenantId: string,
     productId: string,
   ): Promise<number> {
     return this.prisma.productVariant.count({
       where: {
         productId,
+        product: { tenantId },
         isActive: true,
       },
     });
@@ -455,12 +479,14 @@ export class ProductRepository {
   // ============================================================
 
   async categoryExists(
+    tenantId: string,
     categoryId: string,
   ): Promise<boolean> {
     const category =
       await this.prisma.category.findUnique({
         where: {
           id: categoryId,
+          tenantId,
         },
 
         select: {
@@ -476,12 +502,14 @@ export class ProductRepository {
   // ============================================================
 
   async brandExists(
+    tenantId: string,
     brandId: string,
   ): Promise<boolean> {
     const brand =
       await this.prisma.brand.findUnique({
         where: {
           id: brandId,
+          tenantId,
         },
 
         select: {
@@ -503,12 +531,14 @@ export class ProductRepository {
    * Pagination is performed directly by PostgreSQL.
    */
   async findOffers(
+    tenantId: string,
     skip: number,
     take: number,
   ) {
     const now = new Date();
 
     const where = {
+      tenantId,
       status: 'ACTIVE' as const,
 
       OR: [
@@ -689,6 +719,7 @@ export class ProductRepository {
    * This avoids loading every bestseller into Node.js.
    */
   async findBestSellers(
+    tenantId: string,
     skip: number,
     take: number,
   ) {
@@ -722,6 +753,9 @@ export class ProductRepository {
             ON p."id" = oi."productId"
 
           WHERE
+            o."tenantId" = ${tenantId}
+            AND p."tenantId" = ${tenantId}
+            AND
             o."status" IN (${orderStatuses})
             AND p."status" = 'ACTIVE'
 
@@ -761,6 +795,9 @@ export class ProductRepository {
               ON p."id" = oi."productId"
 
             WHERE
+              o."tenantId" = ${tenantId}
+              AND p."tenantId" = ${tenantId}
+              AND
               o."status" IN (${orderStatuses})
               AND p."status" = 'ACTIVE'
 
@@ -801,6 +838,7 @@ export class ProductRepository {
           id: {
             in: productIds,
           },
+          tenantId,
 
           status: 'ACTIVE',
         },
@@ -870,10 +908,12 @@ export class ProductRepository {
    * Returns active products ordered by creation date.
    */
   async findNewArrivals(
+    tenantId: string,
     skip: number,
     take: number,
   ) {
     const where = {
+      tenantId,
       status: 'ACTIVE' as const,
     };
 
@@ -945,14 +985,17 @@ export class ProductRepository {
    * Pagination is based on collection item ordering.
    */
   async findCollectionProducts(
+    tenantId: string,
     collectionId: string,
     skip: number,
     take: number,
   ) {
     const where = {
       collectionId,
+      collection: { tenantId },
 
       product: {
+        tenantId,
         status: 'ACTIVE' as const,
       },
     };

@@ -19,8 +19,10 @@ import { validate } from '../../common/validation/validate.js';
 
 import { authenticate } from '../../middleware/auth.middleware.js';
 import { authorize } from '../../middleware/authorization.middleware.js';
+import { tenantMiddleware } from '../../middleware/tenant.middleware.js';
 
 const router = Router();
+router.use(tenantMiddleware);
 
 /*
  * Public

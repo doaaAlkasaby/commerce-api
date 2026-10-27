@@ -28,8 +28,11 @@ import {
   updateOrderStatusSchema,
 } from './order.schemas.js';
 
+import { tenantMiddleware } from '../../middleware/tenant.middleware.js';
+
 const router =
   Router();
+router.use(tenantMiddleware);
 
 /*
  * CUSTOMER

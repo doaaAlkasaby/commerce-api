@@ -26,6 +26,7 @@ export class HomeController {
 
       const data =
         await homeService.getHome(
+          req.tenant!.tenantId,
           parsed.platform,
           userId
         );

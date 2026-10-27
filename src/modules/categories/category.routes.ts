@@ -30,7 +30,10 @@ import {
   categoryIdSchema,
 } from './category.schemas.js';
 
+import { tenantMiddleware } from '../../middleware/tenant.middleware.js';
+
 const router = Router();
+router.use(tenantMiddleware);
 
 /*
  * Public

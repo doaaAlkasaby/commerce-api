@@ -142,25 +142,13 @@ export const tenantController = {
     }
   }) as RequestHandler,
 
-  getMyTenants: async (
-  req: Request,
-  res: Response,
-): Promise<void> {
-  if (!req.user) {
-    throw new UnauthorizedError(
-      'Authentication is required',
-    );
-  }
-
-  const memberships =
-    await this.service.listUserMemberships(
-      req.user.userId,
-    );
-
-  res.json({
-    success: true,
-    message: null,
-    data: memberships.map(mapTenantMembership),
-  });
-}
+  getMyTenants: (async (req, res, next) => {
+    try {
+      if (!req.user) throw new UnauthorizedError('Authentication is required');
+      const memberships = await tenantService.listUserMemberships(req.user.userId);
+      res.json({ success: true, message: null, data: memberships.map(mapTenantMembership) });
+    } catch (error) {
+      next(error);
+    }
+  }) as RequestHandler,
 };

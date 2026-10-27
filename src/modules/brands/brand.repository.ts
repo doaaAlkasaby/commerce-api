@@ -12,36 +12,41 @@ export const createBrandRepository = (
 ) => {
   return {
     findById: async (
+      tenantId: string,
       id: string,
     ) => {
       return db.brand.findUnique({
         where: {
           id,
+          tenantId,
         },
       });
     },
 
     findBySlug: async (
+      tenantId: string,
       slug: string,
     ) => {
       return db.brand.findUnique({
         where: {
-          slug,
+          tenantId_slug: { tenantId, slug },
         },
       });
     },
 
-    findAll: async () => {
+    findAll: async (tenantId: string) => {
       return db.brand.findMany({
+        where: { tenantId },
         orderBy: {
           name: 'asc',
         },
       });
     },
 
-    findActive: async () => {
+    findActive: async (tenantId: string) => {
       return db.brand.findMany({
         where: {
+          tenantId,
           isActive: true,
         },
         orderBy: {
@@ -51,32 +56,37 @@ export const createBrandRepository = (
     },
 
     create: async (
+      tenantId: string,
       data: CreateBrandInput,
     ) => {
       return db.brand.create({
-        data,
+        data: { ...data, tenantId },
       });
     },
 
     update: async (
+      tenantId: string,
       id: string,
       data: UpdateBrandInput,
     ) => {
       return db.brand.update({
         where: {
           id,
+          tenantId,
         },
         data,
       });
     },
 
     updateStatus: async (
+      tenantId: string,
       id: string,
       isActive: boolean,
     ) => {
       return db.brand.update({
         where: {
           id,
+          tenantId,
         },
         data: {
           isActive,
@@ -85,6 +95,7 @@ export const createBrandRepository = (
     },
 
     updateImage: async (
+      tenantId: string,
       id: string,
       imageStorageKey: string | null,
       imageUrl: string | null,
@@ -92,6 +103,7 @@ export const createBrandRepository = (
       return db.brand.update({
         where: {
           id,
+          tenantId,
         },
         data: {
           imageStorageKey,
@@ -101,11 +113,13 @@ export const createBrandRepository = (
     },
 
     delete: async (
+      tenantId: string,
       id: string,
     ) => {
       return db.brand.delete({
         where: {
           id,
+          tenantId,
         },
       });
     },

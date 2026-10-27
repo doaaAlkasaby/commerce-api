@@ -15,7 +15,7 @@ export class PaymentController {
         id: string;
       };
 
-      const payment = await paymentService.getPayment(params.id);
+      const payment = await paymentService.getPayment(req.tenant!.tenantId, params.id);
 
       res.status(200).json({
         success: true,
@@ -37,7 +37,7 @@ export class PaymentController {
         orderId: string;
       };
 
-      const payments = await paymentService.getOrderPayments(params.orderId);
+      const payments = await paymentService.getOrderPayments(req.tenant!.tenantId, params.orderId);
 
       res.status(200).json({
         success: true,
@@ -62,7 +62,7 @@ export class PaymentController {
         method?: any;
       };
 
-      const payments = await paymentService.getPayments(filters);
+      const payments = await paymentService.getPayments(req.tenant!.tenantId, filters);
 
       res.status(200).json({
         success: true,
@@ -86,7 +86,7 @@ export class PaymentController {
 
       const body = req.validatedBody as any;
 
-      const payment = await paymentService.updatePaymentStatus(params.id, body);
+      const payment = await paymentService.updatePaymentStatus(req.tenant!.tenantId, params.id, body);
 
       res.status(200).json({
         success: true,
@@ -108,7 +108,7 @@ export class PaymentController {
         id: string;
       };
 
-      const payment = await paymentService.cancelPayment(params.id);
+      const payment = await paymentService.cancelPayment(req.tenant!.tenantId, params.id);
 
       res.status(200).json({
         success: true,
@@ -135,6 +135,7 @@ export class PaymentController {
       };
 
       const payment = await paymentService.refundPayment(
+        req.tenant!.tenantId,
         params.id,
         body.amount,
       );

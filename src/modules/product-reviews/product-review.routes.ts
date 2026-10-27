@@ -1,6 +1,7 @@
 import { Router } from 'express';
 
 import { authenticate } from '../../middleware/auth.middleware.js';
+import { tenantMiddleware } from '../../middleware/tenant.middleware.js';
 import { validate } from '../../common/validation/validate.js';
 
 import {
@@ -14,6 +15,7 @@ import {
 import { productReviewController } from './product-review.controller.js';
 
 export const productReviewRouter = Router();
+productReviewRouter.use(tenantMiddleware);
 
 productReviewRouter.get(
   '/products/:productId/reviews',

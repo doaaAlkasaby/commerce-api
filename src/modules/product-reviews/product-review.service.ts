@@ -20,12 +20,13 @@ import { productRepository } from '../products/product.repository.instance.js';
 
 export class ProductReviewService {
   async createReview(
+    tenantId: string,
     productId: string,
     userId: string,
     input: CreateProductReviewRequest,
   ) {
     // 1. Verify product exists
-    const product = await productRepository.findById(productId);
+    const product = await productRepository.findById(productId, tenantId);
 
     if (!product) {
       throw new AppError('Product not found', 404, 'PRODUCT_NOT_FOUND');
@@ -33,6 +34,7 @@ export class ProductReviewService {
 
     // 2. Verify purchase
     const hasPurchased = await productReviewRepository.hasPurchasedProduct(
+      tenantId,
       productId,
       userId,
     );
@@ -47,6 +49,7 @@ export class ProductReviewService {
 
     // 3. Prevent duplicate review
     const existingReview = await productReviewRepository.findUserReview(
+      tenantId,
       productId,
       userId,
     );
@@ -62,7 +65,7 @@ export class ProductReviewService {
     // 4. Create review
     let review;
     try {
-      review = await productReviewRepository.create({
+      review = await productReviewRepository.create(tenantId, {
         productId,
         userId,
         rating: input.rating,
@@ -87,6 +90,7 @@ export class ProductReviewService {
 
     // 5. Return created review
     const reviewWithUser = await productReviewRepository.findByIdWithUser(
+      tenantId,
       review.id,
     );
 
@@ -102,13 +106,14 @@ export class ProductReviewService {
   }
 
   async updateReview(
+    tenantId: string,
     productId: string,
     reviewId: string,
     userId: string,
     input: UpdateProductReviewRequest,
   ) {
     // 1. Find review
-    const review = await productReviewRepository.findById(reviewId);
+    const review = await productReviewRepository.findById(tenantId, reviewId);
 
     if (!review) {
       throw new AppError('Review not found', 404, 'REVIEW_NOT_FOUND');
@@ -134,7 +139,7 @@ export class ProductReviewService {
 
     // 4. Update
     try {
-      await productReviewRepository.update(reviewId, {
+      await productReviewRepository.update(tenantId, reviewId, {
         ...(input.rating !== undefined ? { rating: input.rating } : {}),
 
         ...(input.title !== undefined ? { title: input.title } : {}),
@@ -154,7 +159,7 @@ export class ProductReviewService {
 
     // 5. Return updated review
     const updatedReview =
-      await productReviewRepository.findByIdWithUser(reviewId);
+      await productReviewRepository.findByIdWithUser(tenantId, reviewId);
 
     if (!updatedReview) {
       throw new AppError(
@@ -167,8 +172,8 @@ export class ProductReviewService {
     return mapProductReview(updatedReview);
   }
 
-  async deleteReview(productId: string, reviewId: string, userId: string) {
-    const review = await productReviewRepository.findById(reviewId);
+  async deleteReview(tenantId: string, productId: string, reviewId: string, userId: string) {
+    const review = await productReviewRepository.findById(tenantId, reviewId);
 
     if (!review) {
       throw new AppError('Review not found', 404, 'REVIEW_NOT_FOUND');
@@ -191,7 +196,7 @@ export class ProductReviewService {
     }
 
     try {
-      await productReviewRepository.delete(reviewId);
+      await productReviewRepository.delete(tenantId, reviewId);
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -207,11 +212,12 @@ export class ProductReviewService {
   }
 
   async getProductReviews(
+    tenantId: string,
     productId: string,
     query: ProductReviewListQuery,
   ): Promise<ProductReviewListResponse> {
     // Verify product exists
-    const product = await productRepository.findById(productId);
+    const product = await productRepository.findById(productId, tenantId);
 
     if (!product) {
       throw new AppError('Product not found', 404, 'PRODUCT_NOT_FOUND');
@@ -221,8 +227,8 @@ export class ProductReviewService {
     const skip = (page - 1) * limit;
 
     const [reviews, total] = await Promise.all([
-      productReviewRepository.findProductReviews(productId, skip, limit),
-      productReviewRepository.countProductReviews(productId),
+      productReviewRepository.findProductReviews(tenantId, productId, skip, limit),
+      productReviewRepository.countProductReviews(tenantId, productId),
     ]);
 
     return {
@@ -234,14 +240,14 @@ export class ProductReviewService {
     };
   }
 
-  async getRatingSummary(productId: string): Promise<ProductRatingSummary> {
-    const product = await productRepository.findById(productId);
+  async getRatingSummary(tenantId: string, productId: string): Promise<ProductRatingSummary> {
+    const product = await productRepository.findById(productId, tenantId);
 
     if (!product) {
       throw new AppError('Product not found', 404, 'PRODUCT_NOT_FOUND');
     }
 
-    const summary = await productReviewRepository.getRatingSummary(productId);
+    const summary = await productReviewRepository.getRatingSummary(tenantId, productId);
 
     return {
       average:

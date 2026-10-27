@@ -8,15 +8,17 @@ export class CartRepository {
   ) {}
 
   async findByUserId(
+    tenantId: string,
     userId: string,
   ) {
     return this.prisma.cart.findUnique({
       where: {
-        userId,
+        tenantId_userId: { tenantId, userId },
       },
 
       include: {
         items: {
+          where: { variant: { product: { tenantId } } },
           orderBy: {
             createdAt: 'asc',
           },
@@ -55,14 +57,16 @@ export class CartRepository {
   }
 
   async getOrCreateCart(
+    tenantId: string,
     userId: string,
   ) {
     return this.prisma.cart.upsert({
       where: {
-        userId,
+        tenantId_userId: { tenantId, userId },
       },
 
       create: {
+        tenantId,
         userId,
       },
 
@@ -71,6 +75,7 @@ export class CartRepository {
   }
 
   async findCartItem(
+    tenantId: string,
     userId: string,
     variantId: string,
   ) {
@@ -79,8 +84,10 @@ export class CartRepository {
         variantId,
 
         cart: {
+          tenantId,
           userId,
         },
+        variant: { product: { tenantId } },
       },
 
       include: {
@@ -91,12 +98,19 @@ export class CartRepository {
   }
 
   async addItem(
+    tenantId: string,
     userId: string,
     variantId: string,
     quantity: number,
   ) {
+    const variant = await this.prisma.productVariant.findFirst({
+      where: { id: variantId, product: { tenantId } },
+      select: { id: true },
+    });
+    if (!variant) throw new Error('Variant does not belong to this tenant');
     const cart =
       await this.getOrCreateCart(
+        tenantId,
         userId,
       );
 
@@ -123,6 +137,7 @@ export class CartRepository {
   }
 
   async updateItem(
+    tenantId: string,
     userId: string,
     variantId: string,
     quantity: number,
@@ -133,8 +148,10 @@ export class CartRepository {
           variantId,
 
           cart: {
+          tenantId,
             userId,
           },
+        variant: { product: { tenantId } },
         },
 
         data: {
@@ -145,6 +162,7 @@ export class CartRepository {
   }
 
   async removeItem(
+    tenantId: string,
     userId: string,
     variantId: string,
   ) {
@@ -154,20 +172,24 @@ export class CartRepository {
           variantId,
 
           cart: {
+          tenantId,
             userId,
           },
+        variant: { product: { tenantId } },
         },
       },
     );
   }
 
   async clearCart(
+    tenantId: string,
     userId: string,
   ) {
     return this.prisma.cartItem.deleteMany(
       {
         where: {
           cart: {
+            tenantId,
             userId,
           },
         },

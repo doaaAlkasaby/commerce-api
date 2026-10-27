@@ -3,6 +3,7 @@ import { Router } from 'express';
 import {
   authenticate,
 } from '../../middleware/auth.middleware.js';
+import { tenantMiddleware } from '../../middleware/tenant.middleware.js';
 
 import {
   authorize,
@@ -24,6 +25,7 @@ import {
 
 const router = Router();
 
+router.use(tenantMiddleware);
 router.use(authenticate);
 
 router.use(

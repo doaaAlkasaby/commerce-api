@@ -67,6 +67,7 @@ export class ProductReviewController {
         'Invalid review data',
       );
       const review = await productReviewService.createReview(
+        req.tenant!.tenantId,
         getProductId(req),
         getUserId(req),
         input,
@@ -95,6 +96,7 @@ export class ProductReviewController {
         'Invalid review data',
       );
       const review = await productReviewService.updateReview(
+        req.tenant!.tenantId,
         params.productId,
         params.reviewId,
         getUserId(req),
@@ -119,6 +121,7 @@ export class ProductReviewController {
     try {
       const params = getReviewParams(req);
       await productReviewService.deleteReview(
+        req.tenant!.tenantId,
         params.productId,
         params.reviewId,
         getUserId(req),
@@ -146,6 +149,7 @@ export class ProductReviewController {
         'Invalid review query',
       );
       const result = await productReviewService.getProductReviews(
+        req.tenant!.tenantId,
         getProductId(req),
         query,
       );
@@ -167,6 +171,7 @@ export class ProductReviewController {
   ): Promise<void> {
     try {
       const summary = await productReviewService.getRatingSummary(
+        req.tenant!.tenantId,
         getProductId(req),
       );
 

@@ -4,10 +4,12 @@ import { validate } from '../../common/validation/validate.js';
 import { homeController } from './home.controller.js';
 import { homeQuerySchema } from './home.schemas.js';
 import { optionalAuthenticate } from '../../middleware/optional-auth.middleware.js';
+import { tenantMiddleware } from '../../middleware/tenant.middleware.js';
 
 
 
 const router = Router();
+router.use(tenantMiddleware);
 
 router.get(
   '/',

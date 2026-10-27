@@ -13,9 +13,10 @@ import type {
 export class AppSettingRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async findPublicSettings(): Promise<AppSetting[]> {
+  async findPublicSettings(tenantId: string): Promise<AppSetting[]> {
     return this.prisma.appSetting.findMany({
       where: {
+        tenantId,
         isPublic: true,
       },
       orderBy: {
@@ -24,25 +25,27 @@ export class AppSettingRepository {
     });
   }
 
-  async findByKey(key: string): Promise<AppSetting | null> {
+  async findByKey(tenantId: string, key: string): Promise<AppSetting | null> {
     return this.prisma.appSetting.findUnique({
       where: {
-        key,
+        tenantId_key: { tenantId, key },
       },
     });
   }
 
-  async findAll(): Promise<AppSetting[]> {
+  async findAll(tenantId: string): Promise<AppSetting[]> {
     return this.prisma.appSetting.findMany({
+      where: { tenantId },
       orderBy: {
         key: 'asc',
       },
     });
   }
 
-  async create(input: CreateAppSettingRequest): Promise<AppSetting> {
+  async create(tenantId: string, input: CreateAppSettingRequest): Promise<AppSetting> {
     return this.prisma.appSetting.create({
       data: {
+        tenantId,
         key: input.key,
         value: input.value === null ? Prisma.JsonNull : input.value,
         description: input.description ?? null,
@@ -52,12 +55,13 @@ export class AppSettingRepository {
   }
 
   async update(
+    tenantId: string,
     key: string,
     input: UpdateAppSettingRequest,
   ): Promise<AppSetting> {
     return this.prisma.appSetting.update({
       where: {
-        key,
+        tenantId_key: { tenantId, key },
       },
       data: {
         ...(input.value !== undefined
@@ -75,10 +79,10 @@ export class AppSettingRepository {
     });
   }
 
-  async delete(key: string): Promise<AppSetting> {
+  async delete(tenantId: string, key: string): Promise<AppSetting> {
     return this.prisma.appSetting.delete({
       where: {
-        key,
+        tenantId_key: { tenantId, key },
       },
     });
   }

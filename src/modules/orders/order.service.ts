@@ -54,11 +54,13 @@ const allowedTransitions: Record<
 
 export class OrderService {
   async getMyOrders(
+    tenantId: string,
     userId: string,
     query: OrderListQuery,
   ) {
     const result =
       await orderRepository.findManyByUserId(
+        tenantId,
         userId,
         query.page,
         query.limit,
@@ -75,11 +77,13 @@ export class OrderService {
   }
 
   async getMyOrder(
+    tenantId: string,
     userId: string,
     orderId: string,
   ) {
     const order =
       await orderRepository.findByIdForUser(
+        tenantId,
         orderId,
         userId,
       );
@@ -96,10 +100,12 @@ export class OrderService {
   }
 
   async getOrder(
+    tenantId: string,
     orderId: string,
   ) {
     const order =
       await orderRepository.findById(
+        tenantId,
         orderId,
       );
 
@@ -115,10 +121,12 @@ export class OrderService {
   }
 
   async getOrders(
+    tenantId: string,
     query: OrderListQuery,
   ) {
     const result =
       await orderRepository.findMany(
+        tenantId,
         query.page,
         query.limit,
         query.status,
@@ -134,11 +142,13 @@ export class OrderService {
   }
 
   async updateStatus(
+    tenantId: string,
     orderId: string,
     input: UpdateOrderStatusInput,
   ) {
     const order =
       await orderRepository.findById(
+        tenantId,
         orderId,
       );
 
@@ -205,6 +215,7 @@ export class OrderService {
 
     const updated =
       await orderRepository.updateStatus(
+        tenantId,
         orderId,
         input.status,
       );

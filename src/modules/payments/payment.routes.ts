@@ -19,12 +19,14 @@ import {
 import {
   authenticate,
 } from '../../middleware/auth.middleware.js';
+import { tenantMiddleware } from '../../middleware/tenant.middleware.js';
 
 import {
   authorize,
 } from '../../middleware/authorization.middleware.js';
 
 const router = Router();
+router.use(tenantMiddleware);
 
 /**
  * Customer / authenticated user

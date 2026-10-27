@@ -16,6 +16,7 @@ export class ProductAttributeController {
   ): Promise<void> {
     try {
       const result = await productAttributeService.createAttribute(
+        req.tenant!.tenantId,
         req.validatedBody as {
           productId: string;
           name: string;
@@ -66,7 +67,7 @@ export class ProductAttributeController {
       };
 
       const result =
-        await productAttributeService.getAttributesByProduct(productId);
+        await productAttributeService.getAttributesByProduct(req.tenant!.tenantId, productId);
 
       res.json({
         success: true,

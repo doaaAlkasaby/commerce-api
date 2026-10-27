@@ -34,6 +34,7 @@ export const brandController = {
   ): Promise<void> => {
     const brand =
       await brandService.create(
+        req.tenant!.tenantId,
         req.body,
       );
 
@@ -50,6 +51,7 @@ export const brandController = {
   ): Promise<void> => {
     const brand =
       await brandService.getById(
+        req.tenant!.tenantId,
         getBrandId(req),
       );
 
@@ -61,11 +63,11 @@ export const brandController = {
   },
 
   getAll: async (
-    _req: Request,
+    req: Request,
     res: Response,
   ): Promise<void> => {
     const brands =
-      await brandService.getAll();
+        await brandService.getAll(req.tenant!.tenantId);
 
     res.status(200).json({
       success: true,
@@ -75,11 +77,11 @@ export const brandController = {
   },
 
   getActive: async (
-    _req: Request,
+    req: Request,
     res: Response,
   ): Promise<void> => {
     const brands =
-      await brandService.getActive();
+        await brandService.getActive(req.tenant!.tenantId);
 
     res.status(200).json({
       success: true,
@@ -94,6 +96,7 @@ export const brandController = {
   ): Promise<void> => {
     const brand =
       await brandService.update(
+        req.tenant!.tenantId,
         getBrandId(req),
         req.body,
       );
@@ -111,6 +114,7 @@ export const brandController = {
   ): Promise<void> => {
     const brand =
       await brandService.updateStatus(
+        req.tenant!.tenantId,
         getBrandId(req),
         req.body.isActive,
       );
@@ -139,6 +143,7 @@ export const brandController = {
 
     const brand =
       await brandService.uploadImage(
+        req.tenant!.tenantId,
         getBrandId(req),
         {
           file: file.buffer,
@@ -159,6 +164,7 @@ export const brandController = {
     res: Response,
   ): Promise<void> => {
     await brandService.deleteImage(
+      req.tenant!.tenantId,
       getBrandId(req),
     );
 
@@ -174,6 +180,7 @@ export const brandController = {
     res: Response,
   ): Promise<void> => {
     await brandService.delete(
+      req.tenant!.tenantId,
       getBrandId(req),
     );
 

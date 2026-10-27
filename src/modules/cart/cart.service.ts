@@ -31,20 +31,24 @@ export class CartService {
    * an empty cart is created.
    */
   async getCart(
+    tenantId: string,
     userId: string,
   ) {
     let cart =
       await cartRepository.findByUserId(
+        tenantId,
         userId,
       );
 
     if (!cart) {
       await cartRepository.getOrCreateCart(
+        tenantId,
         userId,
       );
 
       cart =
         await cartRepository.findByUserId(
+          tenantId,
           userId,
         );
     }
@@ -70,14 +74,16 @@ export class CartService {
    * Inventory is reserved during checkout.
    */
   async addItem(
+    tenantId: string,
     userId: string,
     input: AddCartItemInput,
   ) {
     const variant =
-      await prisma.productVariant.findUnique(
+      await prisma.productVariant.findFirst(
         {
           where: {
             id: input.variantId,
+            product: { tenantId },
           },
 
           include: {
@@ -137,6 +143,7 @@ export class CartService {
      */
     const existingItem =
       await cartRepository.findCartItem(
+        tenantId,
         userId,
         input.variantId,
       );
@@ -173,27 +180,30 @@ export class CartService {
     }
 
     await cartRepository.addItem(
+      tenantId,
       userId,
       input.variantId,
       input.quantity,
     );
 
-    return this.getCart(userId);
+    return this.getCart(tenantId, userId);
   }
 
   /**
    * Set cart item quantity.
    */
   async updateItem(
+    tenantId: string,
     userId: string,
     variantId: string,
     input: UpdateCartItemInput,
   ) {
     const variant =
-      await prisma.productVariant.findUnique(
+      await prisma.productVariant.findFirst(
         {
           where: {
             id: variantId,
+            product: { tenantId },
           },
 
           include: {
@@ -240,6 +250,7 @@ export class CartService {
 
     const existingItem =
       await cartRepository.findCartItem(
+        tenantId,
         userId,
         variantId,
       );
@@ -269,6 +280,7 @@ export class CartService {
 
     const result =
       await cartRepository.updateItem(
+        tenantId,
         userId,
         variantId,
         input.quantity,
@@ -282,18 +294,20 @@ export class CartService {
       );
     }
 
-    return this.getCart(userId);
+    return this.getCart(tenantId, userId);
   }
 
   /**
    * Remove one variant from cart.
    */
   async removeItem(
+    tenantId: string,
     userId: string,
     variantId: string,
   ) {
     const result =
       await cartRepository.removeItem(
+        tenantId,
         userId,
         variantId,
       );
@@ -306,19 +320,21 @@ export class CartService {
       );
     }
 
-    return this.getCart(userId);
+    return this.getCart(tenantId, userId);
   }
 
   /**
    * Clear the complete cart.
    */
   async clearCart(
+    tenantId: string,
     userId: string,
   ) {
     await cartRepository.clearCart(
+      tenantId,
       userId,
     );
 
-    return this.getCart(userId);
+    return this.getCart(tenantId, userId);
   }
 }

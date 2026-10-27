@@ -27,10 +27,12 @@ export class CouponRepository {
   }
 
   async create(
+    tenantId: string,
     data: CreateCouponInput,
   ) {
     return this.prisma.coupon.create({
       data: {
+        tenantId,
         code: data.code,
 
         discountType:
@@ -63,20 +65,21 @@ export class CouponRepository {
     });
   }
 
-  async findById(id: string) {
+  async findById(tenantId: string, id: string) {
     return this.prisma.coupon.findUnique({
-      where: { id },
+      where: { id, tenantId },
     });
   }
 
-  async findByCode(code: string) {
+  async findByCode(tenantId: string, code: string) {
     return this.prisma.coupon.findUnique({
-      where: { code },
+      where: { tenantId_code: { tenantId, code } },
     });
   }
 
-  async findAll() {
+  async findAll(tenantId: string) {
     return this.prisma.coupon.findMany({
+      where: { tenantId },
       orderBy: {
         createdAt: 'desc',
       },
@@ -84,22 +87,24 @@ export class CouponRepository {
   }
 
   async update(
+    tenantId: string,
     id: string,
     data: UpdateCouponInput,
   ) {
     return this.prisma.coupon.update({
-      where: { id },
+      where: { id, tenantId },
       data,
     });
   }
 
-  async delete(id: string) {
-    return this.prisma.coupon.delete({
-      where: { id },
+  async delete(tenantId: string, id: string) {
+    return this.prisma.coupon.deleteMany({
+      where: { id, tenantId },
     });
   }
 
   async countUserUsage(
+    tenantId: string,
     couponId: string,
     userId: string,
   ): Promise<number> {
@@ -107,6 +112,7 @@ export class CouponRepository {
       where: {
         couponId,
         userId,
+        coupon: { tenantId },
       },
     });
   }
@@ -126,11 +132,13 @@ export class CouponRepository {
 
   async incrementUsageCount(
     tx: PrismaTransaction,
+    tenantId: string,
     couponId: string,
   ) {
     return tx.coupon.update({
       where: {
         id: couponId,
+        tenantId,
       },
       data: {
         usageCount: {
