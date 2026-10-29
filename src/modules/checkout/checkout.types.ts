@@ -5,9 +5,6 @@ import type {
   PaymentStatus,
 } from '../../generated/prisma/client.js';
 
-
-
-
 export interface CheckoutInput {
   shippingAddressId: string;
   billingAddressId?: string;
@@ -15,9 +12,11 @@ export interface CheckoutInput {
   couponCode?: string;
 
   shippingMethodId?: string;
+  shippingMethodCode?: string;
 
   paymentMethod: PaymentMethod;
   paymentProvider?: PaymentProvider;
+  /** @deprecated Retained for compatibility; checkout ignores it in favor of Tenant.defaultCurrency. */
   currency?: string;
 }
 
@@ -63,7 +62,6 @@ export interface CheckoutOrderResponse {
   shippingMethodCode: string | null;
   shippingMethodName: string | null;
 
-
   shippingAddress: Record<string, unknown>;
   billingAddress: Record<string, unknown>;
   items: CheckoutOrderItemResponse[];
@@ -84,15 +82,18 @@ export interface CheckoutPaymentResponse {
   clientSecret?: string | null;
 }
 
-export interface CheckoutInput {
-  shippingAddressId: string;
-  billingAddressId?: string;
-  billingSameAsShipping?: boolean;
-  couponCode?: string;
-
-  shippingMethodCode?: string;
-
-  paymentMethod: PaymentMethod;
-  paymentProvider?: PaymentProvider;
-  currency?: string;
-}
+export type CheckoutPreviewInput = Pick<
+  CheckoutInput,
+  | 'shippingAddressId'
+  | 'billingAddressId'
+  | 'billingSameAsShipping'
+  | 'shippingMethodCode'
+  | 'couponCode'
+>;
+export type CheckoutPreviewContext = Pick<
+  CheckoutContext,
+  'tenantId' | 'userId'
+>;
+export type CheckoutPreviewResponse = Awaited<
+  ReturnType<import('./checkout.service.js').CheckoutService['preview']>
+>;

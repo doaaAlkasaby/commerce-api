@@ -1,22 +1,31 @@
-import type {
-  NextFunction,
-  Request,
-  Response,
-} from 'express';
+import { getIdempotencyKey } from './checkout.idempotency.js';
+import type { NextFunction, Request, Response } from 'express';
 
-import {
-  AppError,
-} from '../../common/errors/app-error.js';
+import { AppError } from '../../common/errors/app-error.js';
 
-import {
-  checkoutService,
-} from './checkout.service.instance.js';
+import { checkoutService } from './checkout.service.instance.js';
 
-import type {
-  CheckoutInput,
-} from './checkout.types.js';
+import type { CheckoutInput, CheckoutPreviewInput } from './checkout.types.js';
 
 export class CheckoutController {
+  preview = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    try {
+      if (!req.user)
+        throw new AppError('Authentication required', 401, 'UNAUTHORIZED');
+      const result = await checkoutService.preview(
+        req.validatedBody as CheckoutPreviewInput,
+        { tenantId: req.tenant!.tenantId, userId: req.user.userId },
+      );
+      res.status(200).json({ success: true, message: null, data: result });
+    } catch (error) {
+      next(error);
+    }
+  };
+
   checkout = async (
     req: Request,
     res: Response,
@@ -24,73 +33,31 @@ export class CheckoutController {
   ): Promise<void> => {
     try {
       if (!req.user) {
-        throw new AppError(
-          'Authentication required',
-          401,
-          'UNAUTHORIZED',
-        );
+        throw new AppError('Authentication required', 401, 'UNAUTHORIZED');
       }
 
-      const idempotencyKey =
-        req
-          .header('Idempotency-Key')
-          ?.trim();
+      const idempotencyKey = getIdempotencyKey(req);
 
-      if (!idempotencyKey) {
-        throw new AppError(
-          'Idempotency-Key header is required',
-          400,
-          'IDEMPOTENCY_KEY_REQUIRED',
-        );
-      }
+      const input = req.validatedBody as CheckoutInput;
 
-      if (
-        idempotencyKey.length >
-        255
-      ) {
-        throw new AppError(
-          'Idempotency-Key is too long',
-          400,
-          'INVALID_IDEMPOTENCY_KEY',
-        );
-      }
+      const result = await checkoutService.checkout(input, {
+        tenantId: req.tenant!.tenantId,
+        userId: req.user.userId,
 
-      const input =
-        req.validatedBody as CheckoutInput;
+        idempotencyKey,
+      });
 
-      const result =
-        await checkoutService.checkout(
-          input,
-          {
-            tenantId: req.tenant!.tenantId,
-            userId:
-              req.user.userId,
+      res.status(result.idempotent ? 200 : 201).json({
+        success: true,
 
-            idempotencyKey,
-          },
-        );
+        message: null,
 
-      res
-        .status(
-          result.idempotent
-            ? 200
-            : 201,
-        )
-        .json({
-          success: true,
-
-          message:
-            result.idempotent
-              ? 'Checkout already processed'
-              : 'Checkout completed successfully',
-
-          data: result,
-        });
+        data: result,
+      });
     } catch (error) {
       next(error);
     }
   };
 }
 
-export const checkoutController =
-  new CheckoutController();
+export const checkoutController = new CheckoutController();

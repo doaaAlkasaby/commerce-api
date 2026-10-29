@@ -70,8 +70,10 @@ export const createProductImageRepository = (
       id: string,
       data: UpdateProductImageInput,
     ) => {
+      const owned = await db.productImage.findFirst({ where: { id, product: { tenantId } }, select: { id: true } });
+      if (!owned) return null;
       return db.productImage.update({
-        where: { id, product: { tenantId } },
+        where: { id: owned.id },
         data: {
           ...(data.altText !== undefined
             ? { altText: data.altText }
@@ -90,9 +92,13 @@ export const createProductImageRepository = (
     ) => {
       return db.$transaction(
         async (tx) => {
+          const owned = await tx.productImage.findFirst({
+            where: { id, productId, product: { tenantId } }, select: { id: true, productId: true },
+          });
+          if (!owned) return null;
           await tx.productImage.updateMany({
             where: {
-              productId,
+              productId: owned.productId,
               product: { tenantId },
               isPrimary: true,
             },
@@ -102,7 +108,7 @@ export const createProductImageRepository = (
           });
 
           return tx.productImage.update({
-            where: { id, product: { tenantId } },
+            where: { id: owned.id },
             data: {
               isPrimary: true,
             },

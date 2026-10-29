@@ -1,12 +1,19 @@
 import {
+  checkoutFingerprint,
+  validateIdempotencyKey,
+} from './checkout.idempotency.js';
+import { couponRepository } from '../coupons/coupon.repository.instance.js';
+import { isCurrencyCode } from '../../common/pricing/currency.js';
+import {
   OrderStatus,
   PaymentMethod,
   PaymentProvider,
   PaymentStatus,
   Prisma,
 } from '../../generated/prisma/client.js';
+import type { Address, TaxTreatment } from '../../generated/prisma/client.js';
 
-import { AppError } from '../../common/errors/app.error.js';
+import { AppError } from '../../common/errors/app-error.js';
 import {
   calculateEffectivePrice,
   centsToString,
@@ -16,22 +23,25 @@ import type { DiscountInput } from '../../common/pricing/pricing.types.js';
 
 import { checkoutRepository } from './checkout.repository.instance.js';
 import { mapCheckoutOrder, mapCheckoutPayment } from './checkout.mapper.js';
+import { InventoryRepository } from '../inventory/inventory.repository.js';
 
 import { prisma } from '../../config/database.js';
 
-import { taxService } from '../../common/tax/tax.service.instance.js';
-import { shippingService } from '../../common/shipping/shipping.service.instance.js';
+import { TaxService } from '../../common/tax/tax.service.js';
+import { TaxRepository } from '../../common/tax/tax.repository.js';
+import { calculateTax } from '../../common/tax/tax.calculator.js';
+import { allocateCouponDiscount } from '../../common/tax/tax.allocation.js';
+import { ShippingService } from '../../common/shipping/shipping.service.js';
+import { ShippingRepository } from '../../common/shipping/shipping.repository.js';
 
 import type {
   CheckoutContext,
   CheckoutInput,
-  CheckoutOrderItemResponse,
-  CheckoutOrderResponse,
-  CheckoutPaymentResponse,
   CheckoutResult,
+  CheckoutPreviewInput,
+  CheckoutPreviewContext,
 } from './checkout.types.js';
 
-const DEFAULT_CURRENCY = 'USD';
 const DEFAULT_SCOPE_KEY = 'GLOBAL';
 const ZERO = 0n;
 
@@ -47,59 +57,52 @@ interface CalculatedItem {
   finalUnitPriceCents: bigint;
   totalPriceCents: bigint;
 
-  variantSnapshot: Record<string, unknown>;
+  variantSnapshot: Prisma.InputJsonObject;
 
   taxCategoryId: string;
   taxCategoryCode: string;
   taxRuleId: string;
   taxRateBasisPoints: bigint;
-  taxTreatment: string;
+  taxTreatment: TaxTreatment;
+  pricesIncludeTax: boolean;
+  taxProfileSnapshot: Prisma.InputJsonObject;
+  taxRuleSnapshot: Prisma.InputJsonObject;
   taxableAmountCents: bigint;
   taxAmountCents: bigint;
 }
 
-interface CalculatedShipping {
-  amountCents: bigint;
-  methodId: string;
-  methodCode: string;
-  methodName: string;
-  zoneId: string;
-  zoneCode: string;
-}
+export type CheckoutFailurePoint =
+  | 'after-order-created'
+  | 'after-inventory-reserved'
+  | 'after-coupon-consumed'
+  | 'before-payment-create';
 
 export class CheckoutService {
+  constructor(
+    private readonly failureInjector?: (point: CheckoutFailurePoint) => void,
+  ) {}
+
+  private injectFailure(point: CheckoutFailurePoint): void {
+    this.failureInjector?.(point);
+  }
+
   async checkout(
     input: CheckoutInput,
     context: CheckoutContext,
   ): Promise<CheckoutResult> {
-    const { tenantId, userId, idempotencyKey } = context;
-
-    /*
-     * ---------------------------------------------------------
-     * 1. IDEMPOTENCY CHECK
-     * ---------------------------------------------------------
-     */
-
-    const existingRequest =
-      await checkoutRepository.findByIdempotencyKey(
-        userId,
-        idempotencyKey,
-      );
-
-    if (existingRequest?.order?.tenantId === tenantId) {
-      const order = existingRequest.order;
-
-      const payment =
-        order.payments && order.payments.length > 0
-          ? order.payments[0]
-          : null;
-
-      return {
-        order: mapCheckoutOrder(order),
-        payment: payment ? mapCheckoutPayment(payment) : null,
-        idempotent: true,
+    const { tenantId, userId } = context;
+    const idempotencyKey = validateIdempotencyKey(context.idempotencyKey);
+    input = {
+      ...input,
+      billingSameAsShipping: input.billingSameAsShipping ?? true,
+    };
+    const requestFingerprint = checkoutFingerprint(input);
+    // Preserve checkout's preflight coupon validation before replay/lock handling.
+    if (input.couponCode)
+      input = {
+        ...input,
+        couponCode: this.normalizeCouponCode(input.couponCode),
       };
-    }
 
     /*
      * ---------------------------------------------------------
@@ -107,14 +110,7 @@ export class CheckoutService {
      * ---------------------------------------------------------
      */
 
-    const currency = this.normalizeCurrency(input.currency);
-
-    const couponCode = input.couponCode
-      ? this.normalizeCouponCode(input.couponCode)
-      : undefined;
-
-    const paymentProvider =
-      input.paymentProvider ?? PaymentProvider.NONE;
+    const paymentProvider = input.paymentProvider ?? PaymentProvider.NONE;
 
     /*
      * ---------------------------------------------------------
@@ -122,975 +118,450 @@ export class CheckoutService {
      * ---------------------------------------------------------
      */
 
-    const result = await prisma.$transaction(
-      async (tx) => {
-        /*
-         * -----------------------------------------------------
-         * 3.1 LOAD CART
-         * -----------------------------------------------------
-         */
-
-        const cart = await tx.cart.findUnique({
-          where: {
-            tenantId_userId: { tenantId, userId },
-          },
-          include: {
-            items: {
-              include: {
-                variant: {
-                  include: {
-                    product: {
-                      include: {
-                        category: true,
-                      },
-                    },
-                    inventory: true,
-                    values: {
-                      include: {
-                        attribute: true,
-                      },
-                    },
-                    images: {
-                      orderBy: {
-                        sortOrder: 'asc',
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        });
-
-        if (!cart || cart.items.length === 0) {
-          throw new AppError(
-            'Cart is empty',
-            'CART_EMPTY',
-            400,
-          );
-        }
-
-        /*
-         * -----------------------------------------------------
-         * 3.2 SHIPPING ADDRESS
-         * -----------------------------------------------------
-         */
-
-        const shippingAddress = await tx.address.findFirst({
-          where: {
-            id: input.shippingAddressId,
-            userId,
-          },
-        });
-
-        if (!shippingAddress) {
-          throw new AppError(
-            'Shipping address not found',
-            'SHIPPING_ADDRESS_NOT_FOUND',
-            404,
-          );
-        }
-
-        /*
-         * -----------------------------------------------------
-         * 3.3 BILLING ADDRESS
-         * -----------------------------------------------------
-         */
-
-        let billingAddress = shippingAddress;
-
-        if (!input.billingSameAsShipping) {
-          if (!input.billingAddressId) {
-            throw new AppError(
-              'Billing address is required',
-              'BILLING_ADDRESS_REQUIRED',
-              400,
-            );
-          }
-
-          const foundBillingAddress =
-            await tx.address.findFirst({
-              where: {
-                id: input.billingAddressId,
-                userId,
-              },
-            });
-
-          if (!foundBillingAddress) {
-            throw new AppError(
-              'Billing address not found',
-              'BILLING_ADDRESS_NOT_FOUND',
-              404,
-            );
-          }
-
-          billingAddress = foundBillingAddress;
-        }
-
-        /*
-         * -----------------------------------------------------
-         * 3.4 CALCULATE CART PRICES
-         * -----------------------------------------------------
-         */
-
-        const calculatedItems: CalculatedItem[] = [];
-
-        let subtotalCents = ZERO;
-
-        for (const cartItem of cart.items) {
-          const variant = cartItem.variant;
-          const product = variant.product;
-          const inventory = variant.inventory;
-
-          /*
-           * Product must be active.
-           */
-          if (product.status !== 'ACTIVE') {
-            throw new AppError(
-              `Product "${product.name}" is not available`,
-              'PRODUCT_NOT_AVAILABLE',
-              409,
-            );
-          }
-
-          /*
-           * Variant must be active.
-           */
-          if (!variant.isActive) {
-            throw new AppError(
-              `Product variant "${variant.sku}" is not available`,
-              'VARIANT_NOT_AVAILABLE',
-              409,
-            );
-          }
-
-          /*
-           * Inventory must exist.
-           */
-          if (!inventory) {
-            throw new AppError(
-              `Inventory is not configured for SKU "${variant.sku}"`,
-              'INVENTORY_NOT_CONFIGURED',
-              409,
-            );
-          }
-
-          /*
-           * Available quantity.
-           */
-          const availableQuantity =
-            inventory.quantity - inventory.reservedQuantity;
-
-          if (availableQuantity < cartItem.quantity) {
-            throw new AppError(
-              `Insufficient stock for SKU "${variant.sku}"`,
-              'INSUFFICIENT_STOCK',
-              409,
-            );
-          }
-
-          /*
-           * Variant price overrides product price.
-           */
-          const basePrice =
-            variant.price ?? product.basePrice;
-
-          /*
-           * Pricing service determines:
-           *
-           * - effective price
-           * - active discount
-           * - final price
-           */
-          const discountInput: DiscountInput = {
-            basePrice,
-            productDiscountType: product.discountType,
-            productDiscountValue: product.discountValue,
-            productDiscountStartsAt:
-              product.discountStartsAt,
-            productDiscountEndsAt:
-              product.discountEndsAt,
-            variantDiscountType:
-              variant.discountType,
-            variantDiscountValue:
-              variant.discountValue,
-            variantDiscountStartsAt:
-              variant.discountStartsAt,
-            variantDiscountEndsAt:
-              variant.discountEndsAt,
-          };
-
-          const pricing =
-            calculateEffectivePrice(discountInput);
-
-          const unitPriceCents = toCents(basePrice);
-
-          const finalUnitPriceCents =
-            pricing.finalPriceCents;
-
-          const itemDiscountAmountCents =
-            unitPriceCents - finalUnitPriceCents;
-
-          const totalPriceCents =
-            finalUnitPriceCents *
-            BigInt(cartItem.quantity);
-
-          /*
-           * ---------------------------------------------------
-           * TAX
-           * ---------------------------------------------------
-           *
-           * Tax category resolution:
-           *
-           * Variant category
-           *      ↓
-           * Product category
-           *      ↓
-           * Global default category
-           */
-
-          const taxResult =
-            await taxService.calculateForAmount({
-              amountCents: totalPriceCents,
-              scopeKey: DEFAULT_SCOPE_KEY,
-              countryCode:
-                shippingAddress.country,
-              regionCode:
-                shippingAddress.state,
-              variantTaxCategoryId:
-                variant.taxCategoryId,
-              productTaxCategoryId:
-                product.taxCategoryId,
-            });
-
-          subtotalCents += totalPriceCents;
-
-          /*
-           * Variant snapshot is stored permanently on the order.
-           */
-          const variantSnapshot: Record<
-            string,
-            unknown
-          > = {
-            variantId: variant.id,
-            sku: variant.sku,
-            price: variant.price?.toString() ?? null,
-            productId: product.id,
-            productName: product.name,
-            values: variant.values.map((value) => ({
-              id: value.id,
-              value: value.value,
-              attributeId: value.attributeId,
-              attributeName: value.attribute.name,
-            })),
-            images: variant.images.map((image) => ({
-              id: image.id,
-              url: image.url,
-              altText: image.altText,
-              sortOrder: image.sortOrder,
-              isPrimary: image.isPrimary,
-            })),
-          };
-
-          calculatedItems.push({
-            productId: product.id,
-            variantId: variant.id,
-            productName: product.name,
-            sku: variant.sku,
-            quantity: cartItem.quantity,
-
-            unitPriceCents,
-            itemDiscountAmountCents,
-            finalUnitPriceCents,
-            totalPriceCents,
-
-            variantSnapshot,
-
-            taxCategoryId:
-              taxResult.taxCategoryId,
-            taxCategoryCode:
-              taxResult.taxCategoryCode,
-            taxRuleId:
-              taxResult.taxRuleId,
-            taxRateBasisPoints:
-              taxResult.rateBasisPoints,
-            taxTreatment:
-              taxResult.treatment,
-            taxableAmountCents:
-              taxResult.taxableAmountCents,
-            taxAmountCents:
-              taxResult.taxAmountCents,
-          });
-        }
-
-        /*
-         * -----------------------------------------------------
-         * 3.5 COUPON
-         * -----------------------------------------------------
-         */
-
-        let coupon = null;
-
-        let couponDiscountCents = ZERO;
-
-        if (couponCode) {
-          coupon = await tx.coupon.findUnique({
-            where: {
-              tenantId_code: { tenantId, code: couponCode },
-            },
-          });
-
-          if (!coupon) {
-            throw new AppError(
-              'Coupon not found',
-              'COUPON_NOT_FOUND',
-              400,
-            );
-          }
-
-          if (!coupon.isActive) {
-            throw new AppError(
-              'Coupon is inactive',
-              'COUPON_INACTIVE',
-              400,
-            );
-          }
-
-          const now = new Date();
-
-          if (
-            coupon.startsAt &&
-            coupon.startsAt > now
-          ) {
-            throw new AppError(
-              'Coupon is not active yet',
-              'COUPON_NOT_STARTED',
-              400,
-            );
-          }
-
-          if (
-            coupon.endsAt &&
-            coupon.endsAt < now
-          ) {
-            throw new AppError(
-              'Coupon has expired',
-              'COUPON_EXPIRED',
-              400,
-            );
-          }
-
-          if (
-            coupon.usageLimit !== null &&
-            coupon.usageCount >= coupon.usageLimit
-          ) {
-            throw new AppError(
-              'Coupon usage limit has been reached',
-              'COUPON_USAGE_LIMIT_REACHED',
-              400,
-            );
-          }
-
-          /*
-           * Minimum order amount.
-           */
-          if (
-            coupon.minimumOrderAmount !== null
-          ) {
-            const minimumOrderCents =
-              toCents(coupon.minimumOrderAmount);
-
-            if (
-              subtotalCents <
-              minimumOrderCents
-            ) {
-              throw new AppError(
-                'Order does not meet the minimum amount required for this coupon',
-                'COUPON_MINIMUM_ORDER_NOT_MET',
-                400,
-              );
-            }
-          }
-
-          /*
-           * Per-user usage.
-           */
-          if (
-            coupon.perUserLimit !== null
-          ) {
-            const userUsageCount =
-              await tx.couponUsage.count({
-                where: {
-                  couponId: coupon.id,
-                  userId,
-                },
-              });
-
-            if (
-              userUsageCount >=
-              coupon.perUserLimit
-            ) {
-              throw new AppError(
-                'You have reached the usage limit for this coupon',
-                'COUPON_USER_USAGE_LIMIT_REACHED',
-                400,
-              );
-            }
-          }
-
-          /*
-           * Calculate discount.
-           */
-          const discountValueCents =
-            toCents(coupon.discountValue);
-
-          if (
-            coupon.discountType ===
-            'PERCENTAGE'
-          ) {
-            /*
-             * discountValue is percentage.
-             *
-             * Example:
-             *
-             * subtotal = 10000 cents
-             * discount = 10%
-             *
-             * result = 1000 cents
-             */
-
-            couponDiscountCents =
-              this.calculatePercentageDiscount(
-                subtotalCents,
-                discountValueCents,
-              );
-          } else {
-            couponDiscountCents =
-              discountValueCents;
-          }
-
-          /*
-           * Maximum discount.
-           */
-          if (
-            coupon.maximumDiscountAmount !==
-            null
-          ) {
-            const maximumDiscountCents =
-              toCents(
-                coupon.maximumDiscountAmount,
-              );
-
-            if (
-              couponDiscountCents >
-              maximumDiscountCents
-            ) {
-              couponDiscountCents =
-                maximumDiscountCents;
-            }
-          }
-
-          /*
-           * Never allow discount greater than subtotal.
-           */
-          if (
-            couponDiscountCents >
-            subtotalCents
-          ) {
-            couponDiscountCents =
-              subtotalCents;
-          }
-        }
-
-        /*
-         * -----------------------------------------------------
-         * 3.6 TAX AFTER COUPON
-         * -----------------------------------------------------
-         *
-         * The previous item-level tax calculation was based
-         * on item totals before the order-level coupon.
-         *
-         * For production checkout we recalculate tax after
-         * allocating the coupon proportionally across items.
-         */
-
-        const discountedTaxableItems =
-          await this.recalculateTaxesAfterCoupon({
-            items: calculatedItems,
-            couponDiscountCents,
-            shippingAddress,
-          });
-
-        /*
-         * -----------------------------------------------------
-         * 3.7 SHIPPING
-         * -----------------------------------------------------
-         */
-
-        const amountForShippingCents =
-          subtotalCents -
-          couponDiscountCents;
-
-        const shippingResult =
-          await shippingService.calculate({
-            scopeKey: DEFAULT_SCOPE_KEY,
-            currency,
-            orderAmountCents:
-              amountForShippingCents,
-            address: {
-              countryCode:
-                shippingAddress.country,
-              regionCode:
-                shippingAddress.state,
-              city:
-                shippingAddress.city,
-            },
-            methodCode:
-              input.shippingMethodCode,
-          });
-
-        const shippingCents =
-          shippingResult.amountCents;
-
-        /*
-         * -----------------------------------------------------
-         * 3.8 TOTAL TAX
-         * -----------------------------------------------------
-         */
-
-        const taxCents =
-          discountedTaxableItems.reduce(
-            (sum, item) =>
-              sum + item.taxAmountCents,
-            ZERO,
-          );
-
-        /*
-         * -----------------------------------------------------
-         * 3.9 TOTAL
-         * -----------------------------------------------------
-         */
-
-        const totalCents =
-          subtotalCents -
-          couponDiscountCents +
-          shippingCents +
-          taxCents;
-
-        if (totalCents < ZERO) {
-          throw new AppError(
-            'Invalid order total',
-            'INVALID_ORDER_TOTAL',
-            400,
-          );
-        }
-
-        /*
-         * -----------------------------------------------------
-         * 3.10 ORDER NUMBER
-         * -----------------------------------------------------
-         */
-
-        const orderNumber =
-          await this.generateUniqueOrderNumber(tx);
-
-        /*
-         * -----------------------------------------------------
-         * 3.11 ORDER STATUS
-         * -----------------------------------------------------
-         */
-
-        const orderStatus =
-          input.paymentMethod ===
-          PaymentMethod.CASH_ON_DELIVERY
-            ? OrderStatus.CONFIRMED
-            : OrderStatus.PENDING;
-
-        /*
-         * -----------------------------------------------------
-         * 3.12 CREATE ORDER
-         * -----------------------------------------------------
-         */
-
-        const order = await tx.order.create({
-          data: {
-            tenantId,
-            orderNumber,
-            userId,
-            couponId: coupon?.id ?? null,
-
-            status: orderStatus,
-
-            paymentStatus:
-              PaymentStatus.PENDING,
-
-            currency,
-
-            subtotal:
-              new Prisma.Decimal(
-                centsToString(subtotalCents),
-              ),
-
-            discountAmount:
-              new Prisma.Decimal(
-                centsToString(
-                  couponDiscountCents,
-                ),
-              ),
-
-            shippingAmount:
-              new Prisma.Decimal(
-                centsToString(shippingCents),
-              ),
-
-            taxAmount:
-              new Prisma.Decimal(
-                centsToString(taxCents),
-              ),
-
-            totalAmount:
-              new Prisma.Decimal(
-                centsToString(totalCents),
-              ),
-
-            /*
-             * Tax configuration snapshot.
-             */
-            taxCountryCode:
-              shippingAddress.country,
-
-            taxRegionCode:
-              shippingAddress.state,
-
-            pricesIncludeTax:
-              false,
-
-            taxProfileSnapshot: {
-              scopeKey:
-                DEFAULT_SCOPE_KEY,
-              countryCode:
-                shippingAddress.country,
-              regionCode:
-                shippingAddress.state,
-            },
-
-            /*
-             * Address snapshots.
-             */
-            shippingAddress:
-              this.addressToSnapshot(
-                shippingAddress,
-              ),
-
-            billingAddress:
-              this.addressToSnapshot(
-                billingAddress,
-              ),
-
-            items: {
-              create:
-                discountedTaxableItems.map(
-                  (item) => ({
-                    productId:
-                      item.productId,
-
-                    variantId:
-                      item.variantId,
-
-                    productName:
-                      item.productName,
-
-                    sku:
-                      item.sku,
-
-                    quantity:
-                      item.quantity,
-
-                    unitPrice:
-                      new Prisma.Decimal(
-                        centsToString(
-                          item.unitPriceCents,
-                        ),
-                      ),
-
-                    itemDiscountAmount:
-                      new Prisma.Decimal(
-                        centsToString(
-                          item.itemDiscountAmountCents,
-                        ),
-                      ),
-
-                    finalUnitPrice:
-                      new Prisma.Decimal(
-                        centsToString(
-                          item.finalUnitPriceCents,
-                        ),
-                      ),
-
-                    totalPrice:
-                      new Prisma.Decimal(
-                        centsToString(
-                          item.totalPriceCents,
-                        ),
-                      ),
-
-                    variantSnapshot:
-                      item.variantSnapshot,
-
-                    /*
-                     * Tax snapshot.
-                     */
-                    taxCategoryCode:
-                      item.taxCategoryCode,
-
-                    taxTreatment:
-                      item.taxTreatment as any,
-
-                    taxRate:
-                      new Prisma.Decimal(
-                        (
-                          Number(
-                            item.taxRateBasisPoints,
-                          ) / 100
-                        ).toFixed(2),
-                      ),
-
-                    taxableAmount:
-                      new Prisma.Decimal(
-                        centsToString(
-                          item.taxableAmountCents,
-                        ),
-                      ),
-
-                    taxAmount:
-                      new Prisma.Decimal(
-                        centsToString(
-                          item.taxAmountCents,
-                        ),
-                      ),
-                  }),
-                ),
-            },
-          },
-          include: {
-            items: true,
-            payments: true,
-          },
-        });
-
-        /*
-         * -----------------------------------------------------
-         * 3.13 RESERVE INVENTORY
-         * -----------------------------------------------------
-         */
-
-        for (const item of cart.items) {
-          const inventory =
-            await tx.inventory.findUnique({
-              where: {
-                variantId:
-                  item.variantId,
-              },
-            });
-
-          if (!inventory) {
-            throw new AppError(
-              `Inventory not found for variant ${item.variantId}`,
-              'INVENTORY_NOT_FOUND',
-              409,
-            );
-          }
-
-          /*
-           * Atomic reservation.
-           *
-           * This prevents two concurrent checkouts from
-           * reserving the same stock.
-           */
-          const updatedInventory =
-            await tx.inventory.updateMany({
-              where: {
-                id: inventory.id,
-                quantity: {
-                  gte:
-                    inventory.reservedQuantity +
-                    item.quantity,
-                },
-              },
-              data: {
-                reservedQuantity: {
-                  increment:
-                    item.quantity,
-                },
-              },
-            });
-
-          if (
-            updatedInventory.count !== 1
-          ) {
-            throw new AppError(
-              `Insufficient stock for SKU "${item.variant.sku}"`,
-              'INSUFFICIENT_STOCK',
-              409,
-            );
-          }
-
-          await tx.inventoryTransaction.create({
-            data: {
-              inventoryId:
-                inventory.id,
-
-              type: 'RESERVATION',
-
-              quantity:
-                item.quantity,
-
-              referenceId:
-                order.id,
-
-              reason:
-                `Checkout reservation for order ${order.orderNumber}`,
-            },
-          });
-        }
-
-        /*
-         * -----------------------------------------------------
-         * 3.14 CONSUME COUPON
-         * -----------------------------------------------------
-         */
-
-        if (coupon) {
-          /*
-           * Increment usage count.
-           */
-          await tx.coupon.update({
-            where: {
-              id: coupon.id,
-              tenantId,
-            },
-            data: {
-              usageCount: {
-                increment: 1,
-              },
-            },
-          });
-
-          /*
-           * Record user usage.
-           */
-          await tx.couponUsage.create({
-            data: {
-              couponId:
-                coupon.id,
-
-              userId,
-
-              orderId:
-                order.id,
-            },
-          });
-        }
-
-        /*
-         * -----------------------------------------------------
-         * 3.15 CREATE PAYMENT
-         * -----------------------------------------------------
-         */
-
-        const payment =
-          await tx.payment.create({
-            data: {
-              orderId:
-                order.id,
-
-              provider:
-                paymentProvider,
-
-              method:
-                input.paymentMethod,
-
-              status:
-                PaymentStatus.PENDING,
-
-              amount:
-                new Prisma.Decimal(
-                  centsToString(
-                    totalCents,
-                  ),
-                ),
-
-              currency,
-
-              metadata: {
-                shippingMethod:
-                  shippingResult.methodCode,
-
-                shippingMethodName:
-                  shippingResult.methodName,
-
-                shippingZone:
-                  shippingResult.zoneCode,
-
-                shippingAmount:
-                  centsToString(
-                    shippingCents,
-                  ),
-              },
-            },
-          });
-
-        /*
-         * -----------------------------------------------------
-         * 3.16 CLEAR CART
-         * -----------------------------------------------------
-         */
-
-        await tx.cartItem.deleteMany({
-          where: {
-            cartId:
-              cart.id,
-          },
-        });
-
-        /*
-         * -----------------------------------------------------
-         * 3.17 CHECKOUT REQUEST
-         * -----------------------------------------------------
-         */
-
-        await checkoutRepository.createRequest(
+    const result = await prisma.$transaction(async (tx) => {
+      // Scoped transaction lock precedes coupon, order and inventory locks.
+      // No durable claim survives a rollback; another instance may safely retry.
+      if (
+        !(await checkoutRepository.tryLockRequest(
           tx,
-          {
-            userId,
-            idempotencyKey,
-            orderId: order.id,
+          tenantId,
+          userId,
+          idempotencyKey,
+        ))
+      ) {
+        throw new AppError(
+          'Checkout is processing; retry with the same key and input',
+          409,
+          'CHECKOUT_IN_PROGRESS',
+        );
+      }
+      const existingRequest = await checkoutRepository.findByIdempotencyKey(
+        tx,
+        tenantId,
+        userId,
+        idempotencyKey,
+      );
+      if (existingRequest) {
+        if (!existingRequest.requestFingerprint) {
+          throw new AppError(
+            'Legacy checkout intent cannot be verified; use a new key for a new attempt',
+            409,
+            'IDEMPOTENCY_LEGACY_REQUEST',
+          );
+        }
+        if (existingRequest.requestFingerprint !== requestFingerprint) {
+          throw new AppError(
+            'Idempotency key was already used for a different checkout intent',
+            409,
+            'IDEMPOTENCY_KEY_CONFLICT',
+          );
+        }
+        if (
+          !existingRequest.order ||
+          existingRequest.order.tenantId !== tenantId ||
+          existingRequest.order.userId !== userId
+        ) {
+          throw new AppError(
+            'Original checkout result is unavailable',
+            409,
+            'CHECKOUT_RESULT_UNAVAILABLE',
+          );
+        }
+        return {
+          order: existingRequest.order,
+          payment: existingRequest.order.payments[0] ?? null,
+          idempotent: true,
+        };
+      }
+
+      const {
+        currency,
+        cart,
+        shippingAddress,
+        billingAddress,
+        discountedTaxableItems,
+        subtotalCents,
+        coupon,
+        couponDiscountCents,
+        shippingResult,
+        shippingCents,
+        taxCents,
+        totalCents,
+        taxCalculationTime,
+      } = await this.calculateCheckout(tx, input, { tenantId, userId }, true);
+
+      /*
+       * -----------------------------------------------------
+       * 3.10 ORDER NUMBER
+       * -----------------------------------------------------
+       */
+
+      const orderNumber = await this.generateUniqueOrderNumber(tx, tenantId);
+
+      /*
+       * -----------------------------------------------------
+       * 3.11 ORDER STATUS
+       * -----------------------------------------------------
+       */
+
+      const orderStatus =
+        input.paymentMethod === PaymentMethod.CASH_ON_DELIVERY
+          ? OrderStatus.CONFIRMED
+          : OrderStatus.PENDING;
+
+      /*
+       * -----------------------------------------------------
+       * 3.12 CREATE ORDER
+       * -----------------------------------------------------
+       */
+
+      const order = await tx.order.create({
+        data: {
+          tenantId,
+          orderNumber,
+          userId,
+          couponId: coupon?.id ?? null,
+          couponSnapshot: coupon
+            ? {
+                id: coupon.id,
+                code: coupon.code,
+                discountType: coupon.discountType,
+                discountValue: coupon.discountValue.toString(),
+                minimumOrderAmount:
+                  coupon.minimumOrderAmount?.toString() ?? null,
+                maximumDiscountAmount:
+                  coupon.maximumDiscountAmount?.toString() ?? null,
+                discountAmount: centsToString(couponDiscountCents),
+                currency,
+              }
+            : Prisma.DbNull,
+
+          status: orderStatus,
+
+          paymentStatus: PaymentStatus.PENDING,
+
+          currency,
+
+          subtotal: new Prisma.Decimal(centsToString(subtotalCents)),
+
+          discountAmount: new Prisma.Decimal(
+            centsToString(couponDiscountCents),
+          ),
+
+          shippingAmount: new Prisma.Decimal(centsToString(shippingCents)),
+
+          taxAmount: new Prisma.Decimal(centsToString(taxCents)),
+
+          totalAmount: new Prisma.Decimal(centsToString(totalCents)),
+
+          /*
+           * Tax configuration snapshot.
+           */
+          taxCountryCode: shippingAddress.countryCode,
+
+          taxRegionCode: shippingAddress.state,
+
+          shippingMethodId: shippingResult.shippingMethodId,
+          shippingMethodCode: shippingResult.shippingMethodCode,
+          shippingMethodName: shippingResult.shippingMethodName,
+          shippingRuleId: shippingResult.shippingRuleId,
+          shippingDistanceKm:
+            shippingResult.distanceKm === null
+              ? null
+              : new Prisma.Decimal(shippingResult.distanceKm.toFixed(2)),
+
+          shippingProfileSnapshot: {
+            currency: shippingResult.currency,
+            shippingMethodId: shippingResult.shippingMethodId,
+            shippingMethodCode: shippingResult.shippingMethodCode,
+            shippingMethodName: shippingResult.shippingMethodName,
+            shippingRuleId: shippingResult.shippingRuleId,
+            amount: centsToString(shippingCents),
+            distanceKm: shippingResult.distanceKm,
+            eligibleSubtotal: centsToString(shippingResult.orderSubtotalCents),
+            minOrderAmount:
+              shippingResult.minOrderAmountCents === null
+                ? null
+                : centsToString(shippingResult.minOrderAmountCents),
+            maxOrderAmount:
+              shippingResult.maxOrderAmountCents === null
+                ? null
+                : centsToString(shippingResult.maxOrderAmountCents),
+            maxDistanceKm: shippingResult.maxDistanceKm,
           },
+
+          pricesIncludeTax: discountedTaxableItems[0]!.pricesIncludeTax,
+
+          taxProfileSnapshot: {
+            ...discountedTaxableItems[0]!.taxProfileSnapshot,
+            rules: Array.from(
+              new Map(
+                discountedTaxableItems.map((item) => [
+                  item.taxRuleId,
+                  item.taxRuleSnapshot,
+                ]),
+              ).values(),
+            ),
+            roundingPolicy: 'HALF_UP_PER_LINE',
+            couponAllocation: 'PROPORTIONAL_LARGEST_REMAINDER_BY_VARIANT_ID',
+            calculatedAt: taxCalculationTime.toISOString(),
+            currency,
+            pricesIncludeTax: discountedTaxableItems[0]!.pricesIncludeTax,
+            tenantId,
+            countryCode: shippingAddress.countryCode,
+            regionCode: shippingAddress.state,
+          },
+
+          /*
+           * Address snapshots.
+           */
+          shippingAddress: this.addressToSnapshot(shippingAddress),
+
+          billingAddress: this.addressToSnapshot(billingAddress),
+
+          items: {
+            create: discountedTaxableItems.map((item) => ({
+              productId: item.productId,
+
+              variantId: item.variantId,
+
+              productName: item.productName,
+
+              sku: item.sku,
+
+              quantity: item.quantity,
+
+              unitPrice: new Prisma.Decimal(centsToString(item.unitPriceCents)),
+
+              itemDiscountAmount: new Prisma.Decimal(
+                centsToString(item.itemDiscountAmountCents),
+              ),
+
+              finalUnitPrice: new Prisma.Decimal(
+                centsToString(item.finalUnitPriceCents),
+              ),
+
+              totalPrice: new Prisma.Decimal(
+                centsToString(item.totalPriceCents),
+              ),
+
+              variantSnapshot: item.variantSnapshot,
+
+              /*
+               * Tax snapshot.
+               */
+              taxCategoryCode: item.taxCategoryCode,
+
+              taxCategoryId: item.taxCategoryId,
+
+              taxRuleId: item.taxRuleId,
+
+              taxTreatment: item.taxTreatment,
+
+              taxRate: new Prisma.Decimal(
+                centsToString(item.taxRateBasisPoints),
+              ),
+
+              taxableAmount: new Prisma.Decimal(
+                centsToString(item.taxableAmountCents),
+              ),
+
+              taxAmount: new Prisma.Decimal(centsToString(item.taxAmountCents)),
+            })),
+          },
+        },
+        include: {
+          items: true,
+          payments: true,
+        },
+      });
+
+      this.injectFailure('after-order-created');
+
+      /*
+       * -----------------------------------------------------
+       * 3.13 RESERVE INVENTORY
+       * -----------------------------------------------------
+       */
+
+      const inventoryRepository = new InventoryRepository(tx);
+
+      // Every checkout acquires shared inventory rows in the same order, even
+      // when different coupons or differently ordered carts are involved.
+      for (const item of [...cart.items].sort((a, b) =>
+        a.variantId.localeCompare(b.variantId),
+      )) {
+        const inventory = item.variant.inventory;
+
+        if (!inventory) {
+          throw new AppError(
+            `Inventory not found for variant ${item.variantId}`,
+            409,
+            'INVENTORY_NOT_FOUND',
+          );
+        }
+
+        const updatedRows = await inventoryRepository.reserve(
+          tenantId,
+          inventory.id,
+          item.quantity,
         );
 
+        if (updatedRows !== 1) {
+          throw new AppError(
+            `Insufficient stock for SKU "${item.variant.sku}"`,
+            409,
+            'INSUFFICIENT_STOCK',
+          );
+        }
+
+        await inventoryRepository.createTransaction(tenantId, {
+          inventoryId: inventory.id,
+          type: 'RESERVATION',
+          quantity: item.quantity,
+          referenceId: order.id,
+          reason: `Checkout reservation for order ${order.orderNumber}`,
+        });
+      }
+
+      this.injectFailure('after-inventory-reserved');
+
+      /*
+       * -----------------------------------------------------
+       * 3.14 CONSUME COUPON
+       * -----------------------------------------------------
+       */
+
+      if (coupon) {
         /*
-         * -----------------------------------------------------
-         * 3.18 RELOAD COMPLETE ORDER
-         * -----------------------------------------------------
+         * Increment usage count.
          */
-
-        const completeOrder =
-          await tx.order.findUniqueOrThrow({
-            where: {
-              id: order.id,
+        await tx.coupon.update({
+          where: {
+            id: coupon.id,
+            tenantId,
+          },
+          data: {
+            usageCount: {
+              increment: 1,
             },
-            include: {
-              items: true,
-              payments: true,
-            },
-          });
+          },
+        });
 
-        return {
-          order: completeOrder,
-          payment,
-        };
-      },
-    );
+        /*
+         * Record user usage.
+         */
+        const [usageCoupon, usageOrder] = await Promise.all([
+          tx.coupon.findFirst({
+            where: { id: coupon.id, tenantId },
+            select: { id: true },
+          }),
+          tx.order.findFirst({
+            where: { id: order.id, tenantId },
+            select: { id: true },
+          }),
+        ]);
+        if (!usageCoupon || !usageOrder) {
+          throw new AppError(
+            'Coupon usage does not belong to this tenant',
+            404,
+            'COUPON_NOT_FOUND',
+          );
+        }
+        await tx.couponUsage.create({
+          data: {
+            couponId: coupon.id,
+
+            userId,
+
+            orderId: order.id,
+          },
+        });
+
+        this.injectFailure('after-coupon-consumed');
+      }
+
+      /*
+       * -----------------------------------------------------
+       * 3.15 CREATE PAYMENT
+       * -----------------------------------------------------
+       */
+
+      this.injectFailure('before-payment-create');
+
+      const payment = await tx.payment.create({
+        data: {
+          orderId: order.id,
+
+          provider: paymentProvider,
+
+          method: input.paymentMethod,
+
+          status: PaymentStatus.PENDING,
+          initiationState: 'NOT_STARTED',
+
+          amount: new Prisma.Decimal(centsToString(totalCents)),
+
+          currency,
+
+          metadata: {
+            shippingMethod: shippingResult.shippingMethodCode,
+
+            shippingMethodName: shippingResult.shippingMethodName,
+
+            shippingAmount: centsToString(shippingCents),
+          },
+        },
+      });
+
+      /*
+       * -----------------------------------------------------
+       * 3.16 CLEAR CART
+       * -----------------------------------------------------
+       */
+
+      await tx.cartItem.deleteMany({
+        where: {
+          cartId: cart.id,
+        },
+      });
+
+      /*
+       * -----------------------------------------------------
+       * 3.17 CHECKOUT REQUEST
+       * -----------------------------------------------------
+       */
+
+      await checkoutRepository.createRequest(tx, {
+        tenantId,
+        requestFingerprint,
+        userId,
+        idempotencyKey,
+        orderId: order.id,
+      });
+
+      /*
+       * -----------------------------------------------------
+       * 3.18 RELOAD COMPLETE ORDER
+       * -----------------------------------------------------
+       */
+
+      const completeOrder = await tx.order.findUniqueOrThrow({
+        where: {
+          id: order.id,
+        },
+        include: {
+          items: true,
+          payments: true,
+        },
+      });
+
+      return {
+        order: completeOrder,
+        payment,
+        idempotent: false,
+      };
+    });
 
     /*
      * ---------------------------------------------------------
@@ -1099,18 +570,687 @@ export class CheckoutService {
      */
 
     return {
-      order: mapCheckoutOrder(
-        result.order,
-      ),
+      order: mapCheckoutOrder(result.order),
 
-      payment: result.payment
-        ? mapCheckoutPayment(
-            result.payment,
-          )
-        : null,
+      payment: result.payment ? mapCheckoutPayment(result.payment) : null,
 
-      idempotent: false,
+      idempotent: result.idempotent,
     };
+  }
+
+  private async calculateCheckout(
+    tx: Prisma.TransactionClient,
+    input: CheckoutPreviewInput,
+    context: CheckoutPreviewContext,
+    lockCoupon: boolean,
+  ) {
+    const { tenantId, userId } = context;
+    input = {
+      ...input,
+      billingSameAsShipping: input.billingSameAsShipping ?? true,
+    };
+    const couponCode = input.couponCode
+      ? this.normalizeCouponCode(input.couponCode)
+      : undefined;
+    const shippingService = new ShippingService(new ShippingRepository(tx));
+    const tenant = await tx.tenant.findUnique({
+      where: { id: tenantId },
+      select: { defaultCurrency: true },
+    });
+
+    if (!tenant) {
+      throw new AppError('Tenant not found', 404, 'TENANT_NOT_FOUND');
+    }
+
+    const currency = this.resolveTenantCurrency(tenant.defaultCurrency);
+    const taxService = new TaxService(new TaxRepository(tx), true);
+    const taxCalculationTime = new Date();
+
+    /*
+     * -----------------------------------------------------
+     * 3.1 LOAD CART
+     * -----------------------------------------------------
+     */
+
+    const cart = await tx.cart.findUnique({
+      where: {
+        tenantId_userId: { tenantId, userId },
+      },
+      include: {
+        items: {
+          orderBy: { variantId: 'asc' },
+          include: {
+            variant: {
+              include: {
+                product: {
+                  include: {
+                    category: true,
+                    images: { orderBy: { sortOrder: 'asc' } },
+                  },
+                },
+                inventory: true,
+                values: {
+                  include: {
+                    attributeValue: {
+                      include: {
+                        attribute: true,
+                      },
+                    },
+                  },
+                },
+                images: {
+                  orderBy: {
+                    sortOrder: 'asc',
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!cart || cart.items.length === 0) {
+      throw new AppError('Cart is empty', 400, 'CART_EMPTY');
+    }
+
+    if (cart.items.some((item) => item.variant.product.tenantId !== tenantId)) {
+      throw new AppError(
+        'Cart contains an item outside this tenant',
+        409,
+        'CART_TENANT_MISMATCH',
+      );
+    }
+
+    /*
+     * -----------------------------------------------------
+     * 3.2 SHIPPING ADDRESS
+     * -----------------------------------------------------
+     */
+
+    const shippingAddress = await tx.address.findFirst({
+      where: {
+        id: input.shippingAddressId,
+        userId,
+      },
+    });
+
+    if (!shippingAddress) {
+      throw new AppError(
+        'Shipping address not found',
+        404,
+        'SHIPPING_ADDRESS_NOT_FOUND',
+      );
+    }
+
+    /*
+     * -----------------------------------------------------
+     * 3.3 BILLING ADDRESS
+     * -----------------------------------------------------
+     */
+
+    let billingAddress = shippingAddress;
+
+    if (!input.billingSameAsShipping) {
+      if (!input.billingAddressId) {
+        throw new AppError(
+          'Billing address is required',
+          400,
+          'BILLING_ADDRESS_REQUIRED',
+        );
+      }
+
+      const foundBillingAddress = await tx.address.findFirst({
+        where: {
+          id: input.billingAddressId,
+          userId,
+        },
+      });
+
+      if (!foundBillingAddress) {
+        throw new AppError(
+          'Billing address not found',
+          404,
+          'BILLING_ADDRESS_NOT_FOUND',
+        );
+      }
+
+      billingAddress = foundBillingAddress;
+    }
+
+    /*
+     * -----------------------------------------------------
+     * 3.4 CALCULATE CART PRICES
+     * -----------------------------------------------------
+     */
+
+    const calculatedItems: CalculatedItem[] = [];
+
+    let subtotalCents = ZERO;
+
+    for (const cartItem of cart.items) {
+      const variant = cartItem.variant;
+      const product = variant.product;
+      const inventory = variant.inventory;
+
+      /*
+       * Product must be active.
+       */
+      if (product.status !== 'ACTIVE') {
+        throw new AppError(
+          `Product "${product.name}" is not available`,
+          409,
+          'PRODUCT_NOT_AVAILABLE',
+        );
+      }
+
+      /*
+       * Variant must be active.
+       */
+      if (!variant.isActive) {
+        throw new AppError(
+          `Product variant "${variant.sku}" is not available`,
+          409,
+          'VARIANT_NOT_AVAILABLE',
+        );
+      }
+
+      /*
+       * Inventory must exist.
+       */
+      if (!inventory) {
+        throw new AppError(
+          `Inventory is not configured for SKU "${variant.sku}"`,
+          409,
+          'INVENTORY_NOT_CONFIGURED',
+        );
+      }
+
+      /*
+       * Available quantity.
+       */
+      const availableQuantity = inventory.quantity - inventory.reservedQuantity;
+
+      if (availableQuantity < cartItem.quantity) {
+        throw new AppError(
+          `Insufficient stock for SKU "${variant.sku}"`,
+          409,
+          'INSUFFICIENT_STOCK',
+        );
+      }
+
+      /*
+       * Variant price overrides product price.
+       */
+      const basePrice = variant.price ?? product.basePrice;
+
+      /*
+       * Pricing service determines:
+       *
+       * - effective price
+       * - active discount
+       * - final price
+       */
+      const productDiscount: DiscountInput = {
+        type: product.discountType,
+        value: product.discountValue?.toString() ?? null,
+        startsAt: product.discountStartsAt,
+        endsAt: product.discountEndsAt,
+      };
+      const variantDiscount: DiscountInput = {
+        type: variant.discountType,
+        value: variant.discountValue?.toString() ?? null,
+        startsAt: variant.discountStartsAt,
+        endsAt: variant.discountEndsAt,
+      };
+
+      const pricing = calculateEffectivePrice(
+        basePrice.toString(),
+        productDiscount,
+        variantDiscount,
+      );
+
+      const unitPriceCents = toCents(basePrice.toString());
+
+      const finalUnitPriceCents = toCents(pricing.finalPrice);
+
+      const itemDiscountAmountCents = toCents(pricing.discountAmount);
+
+      const totalPriceCents = finalUnitPriceCents * BigInt(cartItem.quantity);
+
+      /*
+       * ---------------------------------------------------
+       * TAX
+       * ---------------------------------------------------
+       *
+       * Tax category resolution:
+       *
+       * Variant category
+       *      ↓
+       * Product category
+       *      ↓
+       * Global default category
+       */
+
+      const taxResult = await taxService.calculateForAmount({
+        tenantId,
+        currency,
+        amountCents: totalPriceCents,
+        now: taxCalculationTime,
+        scopeKey: DEFAULT_SCOPE_KEY,
+        address: {
+          countryCode: shippingAddress.countryCode,
+          regionCode: shippingAddress.state,
+        },
+        category: {
+          variantTaxCategoryId: variant.taxCategoryId,
+          productTaxCategoryId: product.taxCategoryId,
+        },
+      });
+
+      subtotalCents += totalPriceCents;
+
+      /*
+       * Variant snapshot is stored permanently on the order.
+       */
+      const variantSnapshot: Prisma.InputJsonObject = {
+        variantId: variant.id,
+        sku: variant.sku,
+        price: variant.price?.toString() ?? null,
+        productId: product.id,
+        productName: product.name,
+        values: variant.values.map((variantValue) => ({
+          id: variantValue.attributeValueId,
+          value: variantValue.attributeValue.value,
+          attributeId: variantValue.attributeValue.attributeId,
+          attributeName: variantValue.attributeValue.attribute.name,
+          imageUrl: variantValue.attributeValue.imageUrl,
+        })),
+        images: (variant.images.length ? variant.images : product.images).map(
+          (image) => ({
+            id: image.id,
+            url: image.url,
+            altText: image.altText,
+            sortOrder: image.sortOrder,
+            isPrimary: image.isPrimary,
+          }),
+        ),
+      };
+
+      calculatedItems.push({
+        productId: product.id,
+        variantId: variant.id,
+        productName: product.name,
+        sku: variant.sku,
+        quantity: cartItem.quantity,
+
+        unitPriceCents,
+        itemDiscountAmountCents,
+        finalUnitPriceCents,
+        totalPriceCents,
+
+        variantSnapshot,
+
+        taxCategoryId: taxResult.taxCategoryId,
+        taxCategoryCode: taxResult.taxCategoryCode,
+        taxRuleId: taxResult.taxRuleId,
+        taxRateBasisPoints: taxResult.rateBasisPoints,
+        taxTreatment: taxResult.treatment,
+        pricesIncludeTax: taxResult.pricesIncludeTax,
+        taxProfileSnapshot: taxResult.profileSnapshot,
+        taxRuleSnapshot: taxResult.ruleSnapshot,
+        taxableAmountCents: taxResult.taxableAmountCents,
+        taxAmountCents: taxResult.taxAmountCents,
+      });
+    }
+
+    /*
+     * -----------------------------------------------------
+     * 3.5 COUPON
+     * -----------------------------------------------------
+     */
+
+    let coupon = null;
+
+    let couponDiscountCents = ZERO;
+
+    if (couponCode) {
+      // Lock before all eligibility checks, order creation, and inventory locks.
+      // Global/per-user usage and coupon terms remain protected until commit.
+      coupon = lockCoupon
+        ? await couponRepository.findByCodeForUpdate(tx, tenantId, couponCode)
+        : await couponRepository.findByCodeWithClient(tx, tenantId, couponCode);
+
+      if (!coupon) {
+        throw new AppError('Coupon not found', 400, 'COUPON_NOT_FOUND');
+      }
+
+      if (!coupon.isActive) {
+        throw new AppError('Coupon is inactive', 400, 'COUPON_INACTIVE');
+      }
+
+      const now = new Date();
+
+      if (coupon.startsAt && coupon.startsAt > now) {
+        throw new AppError(
+          'Coupon is not active yet',
+          400,
+          'COUPON_NOT_STARTED',
+        );
+      }
+
+      if (coupon.endsAt && coupon.endsAt < now) {
+        throw new AppError('Coupon has expired', 400, 'COUPON_EXPIRED');
+      }
+
+      if (
+        coupon.usageLimit !== null &&
+        coupon.usageCount >= coupon.usageLimit
+      ) {
+        throw new AppError(
+          'Coupon usage limit has been reached',
+          400,
+          'COUPON_USAGE_LIMIT_REACHED',
+        );
+      }
+
+      /*
+       * Minimum order amount.
+       */
+      if (coupon.minimumOrderAmount !== null) {
+        const minimumOrderCents = toCents(coupon.minimumOrderAmount.toString());
+
+        if (subtotalCents < minimumOrderCents) {
+          throw new AppError(
+            'Order does not meet the minimum amount required for this coupon',
+            400,
+            'COUPON_MINIMUM_ORDER_NOT_MET',
+          );
+        }
+      }
+
+      /*
+       * Per-user usage.
+       */
+      if (coupon.perUserLimit !== null) {
+        const userUsageCount = await tx.couponUsage.count({
+          where: {
+            couponId: coupon.id,
+            userId,
+            coupon: { tenantId },
+            order: { tenantId },
+          },
+        });
+
+        if (userUsageCount >= coupon.perUserLimit) {
+          throw new AppError(
+            'You have reached the usage limit for this coupon',
+            400,
+            'COUPON_USER_USAGE_LIMIT_REACHED',
+          );
+        }
+      }
+
+      /*
+       * Calculate discount.
+       */
+      const discountValueCents = toCents(coupon.discountValue.toString());
+
+      if (coupon.discountType === 'PERCENTAGE') {
+        /*
+         * discountValue is percentage.
+         *
+         * Example:
+         *
+         * subtotal = 10000 cents
+         * discount = 10%
+         *
+         * result = 1000 cents
+         */
+
+        couponDiscountCents = this.calculatePercentageDiscount(
+          subtotalCents,
+          discountValueCents,
+        );
+      } else {
+        couponDiscountCents = discountValueCents;
+      }
+
+      /*
+       * Maximum discount.
+       */
+      if (coupon.maximumDiscountAmount !== null) {
+        const maximumDiscountCents = toCents(
+          coupon.maximumDiscountAmount.toString(),
+        );
+
+        if (couponDiscountCents > maximumDiscountCents) {
+          couponDiscountCents = maximumDiscountCents;
+        }
+      }
+
+      /*
+       * Never allow discount greater than subtotal.
+       */
+      if (couponDiscountCents > subtotalCents) {
+        couponDiscountCents = subtotalCents;
+      }
+    }
+
+    /*
+     * -----------------------------------------------------
+     * 3.6 TAX AFTER COUPON
+     * -----------------------------------------------------
+     *
+     * The previous item-level tax calculation was based
+     * on item totals before the order-level coupon.
+     *
+     * For production checkout we recalculate tax after
+     * allocating the coupon proportionally across items.
+     */
+
+    const discountedTaxableItems = await this.recalculateTaxesAfterCoupon({
+      tenantId,
+      currency,
+      items: calculatedItems,
+      couponDiscountCents,
+      shippingAddress,
+    });
+
+    /*
+     * -----------------------------------------------------
+     * 3.7 SHIPPING
+     * -----------------------------------------------------
+     */
+
+    // Shipping minimums use discounted merchandise after coupons, before tax
+    // and shipping. Keep this derived from the canonical checkout amounts.
+    const shippingEligibleSubtotalCents = subtotalCents - couponDiscountCents;
+
+    const shippingResult = await shippingService.calculate({
+      tenantId,
+      scopeKey: DEFAULT_SCOPE_KEY,
+      currency,
+      orderSubtotalCents: shippingEligibleSubtotalCents,
+      destination: {
+        countryCode: shippingAddress.countryCode,
+        regionCode: shippingAddress.state,
+        city: shippingAddress.city,
+        latitude:
+          shippingAddress.latitude === null
+            ? null
+            : Number(shippingAddress.latitude),
+        longitude:
+          shippingAddress.longitude === null
+            ? null
+            : Number(shippingAddress.longitude),
+      },
+      ...(input.shippingMethodCode !== undefined
+        ? { methodCode: input.shippingMethodCode }
+        : {}),
+    });
+
+    const shippingCents = shippingResult.amountCents;
+
+    /*
+     * -----------------------------------------------------
+     * 3.8 TOTAL TAX
+     * -----------------------------------------------------
+     */
+
+    const taxCents = discountedTaxableItems.reduce(
+      (sum, item) => sum + item.taxAmountCents,
+      ZERO,
+    );
+
+    /*
+     * -----------------------------------------------------
+     * 3.9 TOTAL
+     * -----------------------------------------------------
+     */
+
+    // Included tax is already in merchandise prices; add only exclusive tax.
+    const totalCents =
+      subtotalCents -
+      couponDiscountCents +
+      shippingCents +
+      discountedTaxableItems.reduce(
+        (sum, item) =>
+          sum + (item.pricesIncludeTax ? ZERO : item.taxAmountCents),
+        ZERO,
+      );
+
+    // All persisted monetary columns use Decimal(12,2). Reject a tax/quantity
+    // overflow before order creation rather than leaking a database error.
+    const maxPersistedCents = 999999999999n;
+    const persistedAmounts = [
+      subtotalCents,
+      couponDiscountCents,
+      shippingCents,
+      taxCents,
+      totalCents,
+      ...discountedTaxableItems.flatMap((item) => [
+        item.unitPriceCents,
+        item.itemDiscountAmountCents,
+        item.finalUnitPriceCents,
+        item.totalPriceCents,
+        item.taxableAmountCents,
+        item.taxAmountCents,
+      ]),
+    ];
+    if (persistedAmounts.some((amount) => amount > maxPersistedCents))
+      throw new AppError(
+        'Checkout amounts exceed supported monetary precision',
+        400,
+        'CHECKOUT_AMOUNT_OUT_OF_RANGE',
+      );
+
+    if (totalCents < ZERO) {
+      throw new AppError('Invalid order total', 400, 'INVALID_ORDER_TOTAL');
+    }
+
+    return {
+      currency,
+      cart,
+      shippingAddress,
+      billingAddress,
+      discountedTaxableItems,
+      subtotalCents,
+      coupon,
+      couponDiscountCents,
+      shippingResult,
+      shippingCents,
+      taxCents,
+      totalCents,
+      taxCalculationTime,
+    };
+  }
+
+  async preview(input: CheckoutPreviewInput, context: CheckoutPreviewContext) {
+    return prisma.$transaction(
+      async (tx) => {
+        // Enforced by PostgreSQL, not merely by avoiding write calls in this method.
+        await tx.$executeRaw`SET TRANSACTION READ ONLY`;
+        const calculated = await this.calculateCheckout(
+          tx,
+          input,
+          context,
+          false,
+        );
+        const money = (cents: bigint) =>
+          new Prisma.Decimal(centsToString(cents)).toString();
+        const {
+          currency,
+          discountedTaxableItems: items,
+          shippingResult,
+          coupon,
+        } = calculated;
+        return {
+          estimated: true,
+          currency,
+          items: items.map((item) => ({
+            productId: item.productId,
+            variantId: item.variantId,
+            productName: item.productName,
+            sku: item.sku,
+            quantity: item.quantity,
+            currency,
+            unitPrice: money(item.unitPriceCents),
+            itemDiscountAmount: money(item.itemDiscountAmountCents),
+            finalUnitPrice: money(item.finalUnitPriceCents),
+            totalPrice: money(item.totalPriceCents),
+            couponDiscount: money(
+              item.totalPriceCents -
+                item.taxableAmountCents -
+                (item.pricesIncludeTax ? item.taxAmountCents : ZERO),
+            ),
+          })),
+          subtotal: money(calculated.subtotalCents),
+          productDiscount: money(
+            items.reduce(
+              (sum, item) =>
+                sum + item.itemDiscountAmountCents * BigInt(item.quantity),
+              ZERO,
+            ),
+          ),
+          couponDiscount: money(calculated.couponDiscountCents),
+          shippingAmount: money(calculated.shippingCents),
+          taxAmount: money(calculated.taxCents),
+          totalAmount: money(calculated.totalCents),
+          pricesIncludeTax: items[0]!.pricesIncludeTax,
+          shipping: {
+            methodCode: shippingResult.shippingMethodCode,
+            methodName: shippingResult.shippingMethodName,
+            currency,
+            amount: money(calculated.shippingCents),
+            distanceKm: shippingResult.distanceKm,
+          },
+          coupon: coupon
+            ? {
+                code: coupon.code,
+                discountType: coupon.discountType,
+                discountValue: coupon.discountValue.toString(),
+                currency,
+                discountAmount: money(calculated.couponDiscountCents),
+              }
+            : null,
+          taxBreakdown: items.map((item) => ({
+            variantId: item.variantId,
+            currency,
+            taxCategoryCode: item.taxCategoryCode,
+            taxTreatment: item.taxTreatment,
+            taxRate: money(item.taxRateBasisPoints),
+            pricesIncludeTax: item.pricesIncludeTax,
+            taxableAmount: money(item.taxableAmountCents),
+            taxAmount: money(item.taxAmountCents),
+          })),
+          warnings: [
+            'This is an estimate. Prices, availability and eligibility may change before checkout. No stock or price is reserved.',
+          ],
+        };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+    );
   }
 
   /*
@@ -1119,35 +1259,34 @@ export class CheckoutService {
    * =========================================================
    */
 
-  private normalizeCurrency(
-    currency?: string,
-  ): string {
-    const normalized =
-      currency?.trim().toUpperCase() ??
-      DEFAULT_CURRENCY;
-
-    if (!/^[A-Z]{3}$/.test(normalized)) {
+  private resolveTenantCurrency(currency: string | null): string {
+    if (!currency || !/^[A-Z]{3}$/.test(currency)) {
       throw new AppError(
-        'Currency must be a valid 3-letter ISO currency code',
-        'INVALID_CURRENCY',
-        400,
+        'Tenant default currency must be configured as an uppercase ISO 4217 code.',
+        500,
+        'TENANT_CURRENCY_NOT_CONFIGURED',
       );
     }
 
-    return normalized;
+    if (!isCurrencyCode(currency)) {
+      throw new AppError(
+        'Tenant default currency is not a valid ISO 4217 code.',
+        500,
+        'TENANT_CURRENCY_INVALID',
+      );
+    }
+
+    return currency;
   }
 
-  private normalizeCouponCode(
-    code: string,
-  ): string {
-    const normalized =
-      code.trim().toUpperCase();
+  private normalizeCouponCode(code: string): string {
+    const normalized = code.trim().toUpperCase();
 
     if (normalized.length === 0) {
       throw new AppError(
         'Coupon code cannot be empty',
-        'INVALID_COUPON_CODE',
         400,
+        'INVALID_COUPON_CODE',
       );
     }
 
@@ -1168,94 +1307,54 @@ export class CheckoutService {
      * divide by 10000.
      */
 
-    return (
-      amountCents *
-      percentageCents /
-      10000n
-    );
+    return (amountCents * percentageCents) / 10000n;
   }
 
-  private addressToSnapshot(
-    address: {
-      id: string;
-      userId: string;
-      label: string | null;
-      firstName: string;
-      lastName: string;
-      company: string | null;
-      addressLine1: string;
-      addressLine2: string | null;
-      city: string;
-      state: string | null;
-      postalCode: string | null;
-      country: string;
-      phone: string | null;
-    },
-  ): Record<string, unknown> {
+  private addressToSnapshot(address: Address): Prisma.InputJsonObject {
     return {
       id: address.id,
       label: address.label,
-      firstName:
-        address.firstName,
-      lastName:
-        address.lastName,
-      company:
-        address.company,
-      addressLine1:
-        address.addressLine1,
-      addressLine2:
-        address.addressLine2,
-      city:
-        address.city,
-      state:
-        address.state,
-      postalCode:
-        address.postalCode,
-      country:
-        address.country,
-      phone:
-        address.phone,
+      firstName: address.firstName,
+      lastName: address.lastName,
+      company: address.company,
+      addressLine1: address.addressLine1,
+      addressLine2: address.addressLine2,
+      city: address.city,
+      state: address.state,
+      postalCode: address.postalCode,
+      country: address.countryCode,
+      countryCode: address.countryCode,
+      phone: address.phone,
+      latitude: address.latitude?.toString() ?? null,
+      longitude: address.longitude?.toString() ?? null,
     };
   }
 
   private async generateUniqueOrderNumber(
     tx: Prisma.TransactionClient,
+    tenantId: string,
   ): Promise<string> {
     for (let attempt = 0; attempt < 10; attempt++) {
       const now = new Date();
 
-      const year =
-        now.getFullYear();
+      const year = now.getFullYear();
 
-      const month =
-        String(
-          now.getMonth() + 1,
-        ).padStart(2, '0');
+      const month = String(now.getMonth() + 1).padStart(2, '0');
 
-      const day =
-        String(
-          now.getDate(),
-        ).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
 
-      const random =
-        Math.floor(
-          100000 +
-            Math.random() *
-              900000,
-        );
+      const random = Math.floor(100000 + Math.random() * 900000);
 
-      const orderNumber =
-        `ORD-${year}${month}${day}-${random}`;
+      const orderNumber = `ORD-${year}${month}${day}-${random}`;
 
-      const existing =
-        await tx.order.findUnique({
-          where: {
-            orderNumber,
-          },
-          select: {
-            id: true,
-          },
-        });
+      const existing = await tx.order.findUnique({
+        where: {
+          tenantId_orderNumber: { tenantId, orderNumber },
+        },
+        select: {
+          id: true,
+        },
+      });
 
       if (!existing) {
         return orderNumber;
@@ -1264,44 +1363,33 @@ export class CheckoutService {
 
     throw new AppError(
       'Could not generate a unique order number',
-      'ORDER_NUMBER_GENERATION_FAILED',
       500,
+      'ORDER_NUMBER_GENERATION_FAILED',
     );
   }
 
-  private async recalculateTaxesAfterCoupon(
-    params: {
-      items: CalculatedItem[];
-      couponDiscountCents: bigint;
-      shippingAddress: {
-        country: string;
-        state: string | null;
-      };
-    },
-  ): Promise<CalculatedItem[]> {
-    const {
-      items,
-      couponDiscountCents,
-      shippingAddress,
-    } = params;
+  private async recalculateTaxesAfterCoupon(params: {
+    tenantId: string;
+    currency: string;
+    items: CalculatedItem[];
+    couponDiscountCents: bigint;
+    shippingAddress: {
+      countryCode: string;
+      state: string | null;
+    };
+  }): Promise<CalculatedItem[]> {
+    const { items, couponDiscountCents } = params;
 
-    if (
-      couponDiscountCents === ZERO
-    ) {
+    if (couponDiscountCents === ZERO) {
       return items;
     }
 
-    const subtotalCents =
-      items.reduce(
-        (sum, item) =>
-          sum +
-          item.totalPriceCents,
-        ZERO,
-      );
+    const subtotalCents = items.reduce(
+      (sum, item) => sum + item.totalPriceCents,
+      ZERO,
+    );
 
-    if (
-      subtotalCents === ZERO
-    ) {
+    if (subtotalCents === ZERO) {
       return items;
     }
 
@@ -1309,91 +1397,43 @@ export class CheckoutService {
      * Allocate coupon discount proportionally
      * across order items.
      */
-    let allocatedDiscount =
-      ZERO;
-
-    return Promise.all(
-      items.map(
-        async (item, index) => {
-          let itemCouponDiscount: bigint;
-
-          if (
-            index ===
-            items.length - 1
-          ) {
-            /*
-             * Last item receives the remaining amount
-             * to guarantee exact total.
-             */
-            itemCouponDiscount =
-              couponDiscountCents -
-              allocatedDiscount;
-          } else {
-            itemCouponDiscount =
-              (
-                item.totalPriceCents *
-                couponDiscountCents
-              ) /
-              subtotalCents;
-
-            allocatedDiscount +=
-              itemCouponDiscount;
-          }
-
-          const taxableAmountCents =
-            item.totalPriceCents -
-            itemCouponDiscount;
-
-          const taxResult =
-            await taxService.calculateForAmount({
-              amountCents:
-                taxableAmountCents,
-
-              scopeKey:
-                DEFAULT_SCOPE_KEY,
-
-              countryCode:
-                shippingAddress.country,
-
-              regionCode:
-                shippingAddress.state,
-
-              variantTaxCategoryId:
-                item.taxCategoryId,
-
-              productTaxCategoryId:
-                null,
-            });
-
-          return {
-            ...item,
-
-            taxableAmountCents:
-              taxResult.taxableAmountCents,
-
-            taxAmountCents:
-              taxResult.taxAmountCents,
-
-            taxRateBasisPoints:
-              taxResult.rateBasisPoints,
-
-            taxTreatment:
-              taxResult.treatment,
-
-            taxCategoryId:
-              taxResult.taxCategoryId,
-
-            taxCategoryCode:
-              taxResult.taxCategoryCode,
-
-            taxRuleId:
-              taxResult.taxRuleId,
-          };
-        },
-      ),
+    const discounts = allocateCouponDiscount(
+      items.map((item) => ({
+        key: item.variantId,
+        amountCents: item.totalPriceCents,
+      })),
+      couponDiscountCents,
     );
+    return items.map((item, index) => {
+      const taxResult = calculateTax({
+        amountCents: item.totalPriceCents - discounts[index]!,
+        pricesIncludeTax: item.pricesIncludeTax,
+        treatment: item.taxTreatment,
+        rateBasisPoints: item.taxRateBasisPoints,
+        taxCategoryId: item.taxCategoryId,
+        taxCategoryCode: item.taxCategoryCode,
+        taxRuleId: item.taxRuleId,
+      });
+      return {
+        ...item,
+
+        taxableAmountCents: taxResult.taxableAmountCents,
+
+        taxAmountCents: taxResult.taxAmountCents,
+
+        taxRateBasisPoints: taxResult.rateBasisPoints,
+
+        taxTreatment: taxResult.treatment,
+        pricesIncludeTax: taxResult.pricesIncludeTax,
+
+        taxCategoryId: taxResult.taxCategoryId,
+
+        taxCategoryCode: taxResult.taxCategoryCode,
+
+        taxRuleId: taxResult.taxRuleId,
+      };
+    });
   }
 }
 
-export const checkoutService =
-  new CheckoutService();
+export const checkoutService = new CheckoutService();

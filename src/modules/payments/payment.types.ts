@@ -35,6 +35,7 @@ export interface PaymentFilterInput {
 }
 
 export interface PaymentProviderCreateInput {
+  idempotencyKey: string;
   paymentId: string;
   orderId: string;
   amount: string;
@@ -62,6 +63,7 @@ export interface PaymentProviderCreateResult {
 }
 
 export interface PaymentResponse {
+  initiationState: string;
   id: string;
 
   orderId: string;

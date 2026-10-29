@@ -1,251 +1,81 @@
 import type { Prisma, PrismaClient } from '../../generated/prisma/client.js';
 
 export const productAttributeDetailsSelect = {
-  id: true,
-  productId: true,
-  name: true,
-  sortOrder: true,
-  values: {
-    orderBy: { sortOrder: 'asc' },
-    select: {
-      id: true,
-      attributeId: true,
-      value: true,
-      sortOrder: true,
-      imageStorageKey: true,
-      imageUrl: true,
-    },
-  },
+  id: true, productId: true, name: true, sortOrder: true,
+  values: { orderBy: { sortOrder: 'asc' }, select: {
+    id: true, attributeId: true, value: true, sortOrder: true,
+    imageStorageKey: true, imageUrl: true,
+  } },
 } satisfies Prisma.ProductAttributeSelect;
 
-export type ProductAttributeDetails = Awaited<
-  ReturnType<ProductAttributeRepository['findById']>
->;
+export type ProductAttributeDetails = Awaited<ReturnType<ProductAttributeRepository['findById']>>;
+const valueSelect = { id: true, attributeId: true, value: true, sortOrder: true, imageStorageKey: true, imageUrl: true } as const;
+const tenantAttribute = (tenantId: string) => ({ product: { tenantId } });
+const tenantValue = (tenantId: string) => ({ attribute: { product: { tenantId } } });
 
 export class ProductAttributeRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async findById(id: string) {
-    return this.prisma.productAttribute.findUnique({
-      where: { id },
-      select: productAttributeDetailsSelect,
-    });
+  async findById(tenantId: string, id: string) {
+    return this.prisma.productAttribute.findFirst({ where: { id, ...tenantAttribute(tenantId) }, select: productAttributeDetailsSelect });
   }
-
-  async findByProductId(productId: string) {
-    return this.prisma.productAttribute.findMany({
-      where: {
-        productId,
-      },
-
-      orderBy: { sortOrder: 'asc' },
-
-      select: productAttributeDetailsSelect,
-    });
+  async findByProductId(tenantId: string, productId: string) {
+    return this.prisma.productAttribute.findMany({ where: { productId, ...tenantAttribute(tenantId) }, orderBy: { sortOrder: 'asc' }, select: productAttributeDetailsSelect });
   }
-
-  async findByProductAndName(productId: string, name: string) {
-    return this.prisma.productAttribute.findUnique({
-      where: {
-        productId_name: {
-          productId,
-          name,
-        },
-      },
-
-      select: productAttributeDetailsSelect,
-    });
+  async findByProductAndName(tenantId: string, productId: string, name: string) {
+    return this.prisma.productAttribute.findFirst({ where: { productId, name, ...tenantAttribute(tenantId) }, select: productAttributeDetailsSelect });
   }
-
-  async create(data: { productId: string; name: string; sortOrder: number }) {
-    return this.prisma.productAttribute.create({
-      data: {
-        productId: data.productId,
-        name: data.name,
-        sortOrder: data.sortOrder,
-      },
-
-      select: productAttributeDetailsSelect,
-    });
+  async create(tenantId: string, data: { productId: string; name: string; sortOrder: number }) {
+    const product = await this.prisma.product.findFirst({ where: { id: data.productId, tenantId }, select: { id: true } });
+    if (!product) return null;
+    return this.prisma.productAttribute.create({ data, select: productAttributeDetailsSelect });
   }
-
-  async update(
-    id: string,
-    data: {
-      name?: string;
-      sortOrder?: number;
-    },
-  ) {
-    return this.prisma.productAttribute.update({
-      where: { id },
-
-      data: {
-        ...(data.name !== undefined ? { name: data.name } : {}),
-
-        ...(data.sortOrder !== undefined ? { sortOrder: data.sortOrder } : {}),
-      },
-
-      select: productAttributeDetailsSelect,
-    });
+  async update(tenantId: string, id: string, data: { name?: string; sortOrder?: number }) {
+    const owned = await this.prisma.productAttribute.findFirst({ where: { id, ...tenantAttribute(tenantId) }, select: { id: true } });
+    if (!owned) return null;
+    return this.prisma.productAttribute.update({ where: { id: owned.id }, data, select: productAttributeDetailsSelect });
   }
-
-  async delete(id: string): Promise<void> {
-    await this.prisma.productAttribute.delete({
-      where: { id },
-    });
+  async delete(tenantId: string, id: string): Promise<boolean> {
+    const result = await this.prisma.productAttribute.deleteMany({ where: { id, ...tenantAttribute(tenantId) } });
+    return result.count > 0;
   }
-
-  async findValueById(valueId: string) {
-    return this.prisma.productAttributeValue.findUnique({
-      where: {
-        id: valueId,
-      },
-
-      select: {
-        id: true,
-        attributeId: true,
-        value: true,
-        sortOrder: true,
-        imageStorageKey: true,
-        imageUrl: true,
-
-        attribute: {
-          select: {
-            id: true,
-            productId: true,
-            name: true,
-          },
-        },
-      },
-    });
+  async findValueById(tenantId: string, valueId: string) {
+    return this.prisma.productAttributeValue.findFirst({ where: { id: valueId, ...tenantValue(tenantId) }, select: {
+      ...valueSelect, attribute: { select: { id: true, productId: true, name: true } },
+    } });
   }
-
-  async findValueByAttributeAndValue(attributeId: string, value: string) {
-    return this.prisma.productAttributeValue.findUnique({
-      where: {
-        attributeId_value: {
-          attributeId,
-          value,
-        },
-      },
-    });
+  async findValueByAttributeAndValue(tenantId: string, attributeId: string, value: string) {
+    return this.prisma.productAttributeValue.findFirst({ where: { attributeId, value, ...tenantValue(tenantId) } });
   }
-
-  async createValue(data: {
-    attributeId: string;
-    value: string;
-    sortOrder: number;
-  }) {
-    return this.prisma.productAttributeValue.create({
-      data: {
-        attributeId: data.attributeId,
-        value: data.value,
-        sortOrder: data.sortOrder,
-      },
-
-      select: {
-        id: true,
-        attributeId: true,
-        value: true,
-        sortOrder: true,
-        imageStorageKey: true,
-        imageUrl: true,
-      },
-    });
+  async createValue(tenantId: string, data: { attributeId: string; value: string; sortOrder: number }) {
+    const attribute = await this.prisma.productAttribute.findFirst({ where: { id: data.attributeId, ...tenantAttribute(tenantId) }, select: { id: true } });
+    if (!attribute) return null;
+    return this.prisma.productAttributeValue.create({ data, select: valueSelect });
   }
-
-  async updateValue(
-    valueId: string,
-    data: {
-      value?: string;
-      sortOrder?: number;
-    },
-  ) {
-    return this.prisma.productAttributeValue.update({
-      where: {
-        id: valueId,
-      },
-
-      data: {
-        ...(data.value !== undefined ? { value: data.value } : {}),
-
-        ...(data.sortOrder !== undefined ? { sortOrder: data.sortOrder } : {}),
-      },
-
-      select: {
-        id: true,
-        attributeId: true,
-        value: true,
-        sortOrder: true,
-        imageStorageKey: true,
-        imageUrl: true,
-      },
-    });
+  async updateValue(tenantId: string, valueId: string, data: { value?: string; sortOrder?: number }) {
+    const owned = await this.prisma.productAttributeValue.findFirst({ where: { id: valueId, ...tenantValue(tenantId) }, select: { id: true } });
+    if (!owned) return null;
+    return this.prisma.productAttributeValue.update({ where: { id: owned.id }, data, select: valueSelect });
   }
-
-  async deleteValue(valueId: string): Promise<void> {
-    await this.prisma.productAttributeValue.delete({
-      where: {
-        id: valueId,
-      },
-    });
+  async deleteValue(tenantId: string, valueId: string): Promise<boolean> {
+    const result = await this.prisma.productAttributeValue.deleteMany({ where: { id: valueId, ...tenantValue(tenantId) } });
+    return result.count > 0;
   }
-
-  async setValueImage(
-    valueId: string,
-    imageStorageKey: string,
-    imageUrl: string,
-  ) {
-    return this.prisma.productAttributeValue.update({
-      where: {
-        id: valueId,
-      },
-
-      data: {
-        imageStorageKey,
-        imageUrl,
-      },
-
-      select: {
-        id: true,
-        attributeId: true,
-        value: true,
-        sortOrder: true,
-        imageStorageKey: true,
-        imageUrl: true,
-      },
-    });
+  async setValueImage(tenantId: string, valueId: string, imageStorageKey: string, imageUrl: string) {
+    const owned = await this.prisma.productAttributeValue.findFirst({ where: { id: valueId, ...tenantValue(tenantId) }, select: { id: true } });
+    if (!owned) return null;
+    return this.prisma.productAttributeValue.update({ where: { id: owned.id }, data: { imageStorageKey, imageUrl }, select: valueSelect });
   }
-
-  async clearValueImage(valueId: string) {
-    return this.prisma.productAttributeValue.update({
-      where: {
-        id: valueId,
-      },
-
-      data: {
-        imageStorageKey: null,
-        imageUrl: null,
-      },
-
-      select: {
-        id: true,
-        attributeId: true,
-        value: true,
-        sortOrder: true,
-        imageStorageKey: true,
-        imageUrl: true,
-      },
-    });
+  async clearValueImage(tenantId: string, valueId: string) {
+    const owned = await this.prisma.productAttributeValue.findFirst({ where: { id: valueId, ...tenantValue(tenantId) }, select: { id: true } });
+    if (!owned) return null;
+    return this.prisma.productAttributeValue.update({ where: { id: owned.id }, data: { imageStorageKey: null, imageUrl: null }, select: valueSelect });
   }
-
-  async countVariantsUsingAttributeValue(
-    attributeValueId: string,
-  ): Promise<number> {
-    return this.prisma.productVariantValue.count({
-      where: {
-        attributeValueId,
-      },
-    });
+  async countVariantsUsingAttributeValue(tenantId: string, attributeValueId: string): Promise<number> {
+    return this.prisma.productVariantValue.count({ where: {
+      attributeValueId,
+      attributeValue: tenantValue(tenantId),
+      variant: { product: { tenantId } },
+    } });
   }
 }

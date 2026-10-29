@@ -29,6 +29,7 @@ export class CartRepository {
                 product: true,
 
                 values: {
+                  where: { attributeValue: { attribute: { product: { tenantId } } } },
                   include: {
                     attributeValue: {
                       include: {
@@ -39,6 +40,7 @@ export class CartRepository {
                 },
 
                 images: {
+                  where: { variant: { product: { tenantId } } },
                   orderBy: [
                     {
                       isPrimary: 'desc',
@@ -148,10 +150,10 @@ export class CartRepository {
           variantId,
 
           cart: {
-          tenantId,
+            tenantId,
             userId,
           },
-        variant: { product: { tenantId } },
+          variant: { product: { tenantId } },
         },
 
         data: {
@@ -172,10 +174,10 @@ export class CartRepository {
           variantId,
 
           cart: {
-          tenantId,
+            tenantId,
             userId,
           },
-        variant: { product: { tenantId } },
+          variant: { product: { tenantId } },
         },
       },
     );
@@ -192,6 +194,7 @@ export class CartRepository {
             tenantId,
             userId,
           },
+          variant: { product: { tenantId } },
         },
       },
     );

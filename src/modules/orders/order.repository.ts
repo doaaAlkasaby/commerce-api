@@ -5,9 +5,7 @@ import type {
 } from '../../generated/prisma/client.js';
 
 export class OrderRepository {
-  constructor(
-    private readonly prisma: PrismaClient,
-  ) {}
+  constructor(private readonly prisma: PrismaClient) {}
 
   private readonly includeRelations = {
     items: {
@@ -23,26 +21,18 @@ export class OrderRepository {
     },
   };
 
-  async findById(
-    tenantId: string,
-    orderId: string,
-  ) {
+  async findById(tenantId: string, orderId: string) {
     return this.prisma.order.findUnique({
       where: {
         id: orderId,
         tenantId,
       },
 
-      include:
-        this.includeRelations,
+      include: this.includeRelations,
     });
   }
 
-  async findByIdForUser(
-    tenantId: string,
-    orderId: string,
-    userId: string,
-  ) {
+  async findByIdForUser(tenantId: string, orderId: string, userId: string) {
     return this.prisma.order.findFirst({
       where: {
         id: orderId,
@@ -50,8 +40,7 @@ export class OrderRepository {
         userId,
       },
 
-      include:
-        this.includeRelations,
+      include: this.includeRelations,
     });
   }
 
@@ -80,29 +69,26 @@ export class OrderRepository {
         : {}),
     };
 
-    const skip =
-      (page - 1) * limit;
+    const skip = (page - 1) * limit;
 
-    const [orders, totalItems] =
-      await Promise.all([
-        this.prisma.order.findMany({
-          where,
+    const [orders, totalItems] = await Promise.all([
+      this.prisma.order.findMany({
+        where,
 
-          skip,
-          take: limit,
+        skip,
+        take: limit,
 
-          orderBy: {
-            createdAt: 'desc',
-          },
+        orderBy: {
+          createdAt: 'desc',
+        },
 
-          include:
-            this.includeRelations,
-        }),
+        include: this.includeRelations,
+      }),
 
-        this.prisma.order.count({
-          where,
-        }),
-      ]);
+      this.prisma.order.count({
+        where,
+      }),
+    ]);
 
     return {
       orders,
@@ -132,29 +118,26 @@ export class OrderRepository {
         : {}),
     };
 
-    const skip =
-      (page - 1) * limit;
+    const skip = (page - 1) * limit;
 
-    const [orders, totalItems] =
-      await Promise.all([
-        this.prisma.order.findMany({
-          where,
+    const [orders, totalItems] = await Promise.all([
+      this.prisma.order.findMany({
+        where,
 
-          skip,
-          take: limit,
+        skip,
+        take: limit,
 
-          orderBy: {
-            createdAt: 'desc',
-          },
+        orderBy: {
+          createdAt: 'desc',
+        },
 
-          include:
-            this.includeRelations,
-        }),
+        include: this.includeRelations,
+      }),
 
-        this.prisma.order.count({
-          where,
-        }),
-      ]);
+      this.prisma.order.count({
+        where,
+      }),
+    ]);
 
     return {
       orders,
@@ -162,23 +145,10 @@ export class OrderRepository {
     };
   }
 
-  async updateStatus(
-    tenantId: string,
-    orderId: string,
-    status: OrderStatus,
-  ) {
-    return this.prisma.order.update({
-      where: {
-        id: orderId,
-        tenantId,
-      },
-
-      data: {
-        status,
-      },
-
-      include:
-        this.includeRelations,
-    });
+  async updateStatus(tenantId: string, orderId: string, status: OrderStatus) {
+    const { OrderService } = await import('./order.service.js');
+    return this.prisma.$transaction((tx) =>
+      new OrderService().applyStatusWithClient(tenantId, orderId, status, tx),
+    );
   }
 }

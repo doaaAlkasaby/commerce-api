@@ -1,3 +1,4 @@
+import { isCurrencyCode } from '../../common/pricing/currency.js';
 import { z } from 'zod';
 
 export const createTenantSchema = z.object({
@@ -45,6 +46,7 @@ export const createTenantSchema = z.object({
     .trim()
     .length(3)
     .toUpperCase()
+    .refine(isCurrencyCode, 'Invalid ISO 4217 currency code.')
     .optional(),
 
   timezone: z
@@ -94,6 +96,7 @@ export const updateTenantSchema = z.object({
     .trim()
     .length(3)
     .toUpperCase()
+    .refine(isCurrencyCode, 'Invalid ISO 4217 currency code.')
     .nullable()
     .optional(),
 

@@ -144,7 +144,7 @@ export class ProductVariantService {
       );
     }
 
-    const existingSku = await this.repository.findBySku(input.sku);
+    const existingSku = await this.repository.findBySku(tenantId, input.sku);
 
     if (existingSku) {
       throw new AppError(
@@ -259,7 +259,7 @@ export class ProductVariantService {
     }
 
     if (input.sku !== undefined && input.sku !== existing.sku) {
-      const duplicate = await this.repository.findBySku(input.sku);
+      const duplicate = await this.repository.findBySku(tenantId, input.sku);
 
       if (duplicate && duplicate.id !== id) {
         throw new AppError(

@@ -1,66 +1,41 @@
-import type {
-  Prisma,
-  PrismaClient,
-} from '../../generated/prisma/client.js';
+import type { Prisma, PrismaClient } from '../../generated/prisma/client.js';
 
-import type {
-  CreateCouponInput,
-  UpdateCouponInput,
-} from './coupon.types.js';
+import type { CreateCouponInput, UpdateCouponInput } from './coupon.types.js';
 
-type PrismaTransaction =
-  Prisma.TransactionClient;
+type PrismaTransaction = Prisma.TransactionClient;
 
 export class CouponRepository {
-  constructor(
-    private readonly prisma: PrismaClient,
-  ) {}
+  constructor(private readonly prisma: PrismaClient) {}
 
   async transaction<T>(
-    callback: (
-      tx: PrismaTransaction,
-    ) => Promise<T>,
+    callback: (tx: PrismaTransaction) => Promise<T>,
   ): Promise<T> {
-    return this.prisma.$transaction(
-      async (tx) => callback(tx),
-    );
+    return this.prisma.$transaction(async (tx) => callback(tx));
   }
 
-  async create(
-    tenantId: string,
-    data: CreateCouponInput,
-  ) {
+  async create(tenantId: string, data: CreateCouponInput) {
     return this.prisma.coupon.create({
       data: {
         tenantId,
         code: data.code,
 
-        discountType:
-          data.discountType,
+        discountType: data.discountType,
 
-        discountValue:
-          data.discountValue,
+        discountValue: data.discountValue,
 
-        minimumOrderAmount:
-          data.minimumOrderAmount ?? null,
+        minimumOrderAmount: data.minimumOrderAmount ?? null,
 
-        maximumDiscountAmount:
-          data.maximumDiscountAmount ?? null,
+        maximumDiscountAmount: data.maximumDiscountAmount ?? null,
 
-        startsAt:
-          data.startsAt ?? null,
+        startsAt: data.startsAt ?? null,
 
-        endsAt:
-          data.endsAt ?? null,
+        endsAt: data.endsAt ?? null,
 
-        usageLimit:
-          data.usageLimit ?? null,
+        usageLimit: data.usageLimit ?? null,
 
-        perUserLimit:
-          data.perUserLimit ?? null,
+        perUserLimit: data.perUserLimit ?? null,
 
-        isActive:
-          data.isActive ?? true,
+        isActive: data.isActive ?? true,
       },
     });
   }
@@ -69,6 +44,32 @@ export class CouponRepository {
     return this.prisma.coupon.findUnique({
       where: { id, tenantId },
     });
+  }
+
+  // Plain MVCC read for informational previews; never acquires a coupon row lock.
+  async findByCodeWithClient(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    code: string,
+  ) {
+    return tx.coupon.findUnique({
+      where: { tenantId_code: { tenantId, code } },
+    });
+  }
+
+  // Hold the lock through checkout commit/rollback and read current eligibility.
+  async findByCodeForUpdate(
+    tx: PrismaTransaction,
+    tenantId: string,
+    code: string,
+  ) {
+    const rows = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id" FROM "Coupon"
+      WHERE "tenantId" = ${tenantId} AND "code" = ${code}
+      FOR UPDATE
+    `;
+    if (!rows[0]) return null;
+    return tx.coupon.findUnique({ where: { id: rows[0].id, tenantId, code } });
   }
 
   async findByCode(tenantId: string, code: string) {
@@ -86,11 +87,7 @@ export class CouponRepository {
     });
   }
 
-  async update(
-    tenantId: string,
-    id: string,
-    data: UpdateCouponInput,
-  ) {
+  async update(tenantId: string, id: string, data: UpdateCouponInput) {
     return this.prisma.coupon.update({
       where: { id, tenantId },
       data,

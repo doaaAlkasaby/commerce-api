@@ -4,7 +4,7 @@ import type {
   Response,
 } from 'express';
 
-import { UnauthorizedError } from '../common/errors/unauthorized.error.js';
+import { AppError } from '../common/errors/app-error.js';
 import { tenantService } from '../modules/tenants/tenant.service.instance.js';
 
 export async function tenantMemberMiddleware(
@@ -14,14 +14,18 @@ export async function tenantMemberMiddleware(
 ): Promise<void> {
   try {
     if (!req.user) {
-      throw new UnauthorizedError(
+      throw new AppError(
         'Authentication is required',
+        401,
+        'UNAUTHORIZED',
       );
     }
 
     if (!req.tenant) {
-      throw new UnauthorizedError(
+      throw new AppError(
         'Tenant context is required',
+        401,
+        'UNAUTHORIZED',
       );
     }
 
@@ -32,14 +36,18 @@ export async function tenantMemberMiddleware(
       );
 
     if (!membership) {
-      throw new UnauthorizedError(
+      throw new AppError(
         'You do not have access to this tenant',
+        401,
+        'UNAUTHORIZED',
       );
     }
 
     if (membership.status !== 'ACTIVE') {
-      throw new UnauthorizedError(
+      throw new AppError(
         'Your tenant membership is not active',
+        401,
+        'UNAUTHORIZED',
       );
     }
 

@@ -1,144 +1,69 @@
+import type { Prisma } from '../../generated/prisma/client.js';
 import {
-  OrderStatus,
-  PaymentStatus,
-} from '../../generated/prisma/client.js';
+  validateOrderTransition,
+  isFinanciallyCommitted,
+} from '../../common/domain/status-transitions.js';
+import { paymentService } from '../payments/payment.service.instance.js';
+import { OrderStatus, PaymentStatus } from '../../generated/prisma/client.js';
 
-import {
-  AppError,
-} from '../../common/errors/app-error.js';
+import { AppError } from '../../common/errors/app-error.js';
 
-import {
-  mapOrder,
-  mapOrders,
-} from './order.mapper.js';
+import { mapOrder, mapOrders } from './order.mapper.js';
+import { prisma } from '../../config/database.js';
+import { inventoryService } from '../inventory/inventory.service.instance.js';
 
-import {
-  orderRepository,
-} from './order.repository.instance.js';
+import { orderRepository } from './order.repository.instance.js';
 
-import type {
-  OrderListQuery,
-  UpdateOrderStatusInput,
-} from './order.types.js';
-
-const allowedTransitions: Record<
-  OrderStatus,
-  OrderStatus[]
-> = {
-  [OrderStatus.PENDING]: [
-    OrderStatus.CONFIRMED,
-    OrderStatus.CANCELLED,
-  ],
-
-  [OrderStatus.CONFIRMED]: [
-    OrderStatus.PROCESSING,
-    OrderStatus.CANCELLED,
-  ],
-
-  [OrderStatus.PROCESSING]: [
-    OrderStatus.SHIPPED,
-  ],
-
-  [OrderStatus.SHIPPED]: [
-    OrderStatus.DELIVERED,
-  ],
-
-  [OrderStatus.DELIVERED]: [
-    OrderStatus.COMPLETED,
-  ],
-
-  [OrderStatus.CANCELLED]: [],
-
-  [OrderStatus.COMPLETED]: [],
-};
+import type { OrderListQuery, UpdateOrderStatusInput } from './order.types.js';
 
 export class OrderService {
-  async getMyOrders(
-    tenantId: string,
-    userId: string,
-    query: OrderListQuery,
-  ) {
-    const result =
-      await orderRepository.findManyByUserId(
-        tenantId,
-        userId,
-        query.page,
-        query.limit,
-        query.status,
-        query.paymentStatus,
-      );
-
-    return mapOrders(
-      result.orders,
+  async getMyOrders(tenantId: string, userId: string, query: OrderListQuery) {
+    const result = await orderRepository.findManyByUserId(
+      tenantId,
+      userId,
       query.page,
       query.limit,
-      result.totalItems,
+      query.status,
+      query.paymentStatus,
     );
+
+    return mapOrders(result.orders, query.page, query.limit, result.totalItems);
   }
 
-  async getMyOrder(
-    tenantId: string,
-    userId: string,
-    orderId: string,
-  ) {
-    const order =
-      await orderRepository.findByIdForUser(
-        tenantId,
-        orderId,
-        userId,
-      );
+  async getMyOrder(tenantId: string, userId: string, orderId: string) {
+    const order = await orderRepository.findByIdForUser(
+      tenantId,
+      orderId,
+      userId,
+    );
 
     if (!order) {
-      throw new AppError(
-        'Order not found',
-        404,
-        'ORDER_NOT_FOUND',
-      );
+      throw new AppError('Order not found', 404, 'ORDER_NOT_FOUND');
     }
 
     return mapOrder(order);
   }
 
-  async getOrder(
-    tenantId: string,
-    orderId: string,
-  ) {
-    const order =
-      await orderRepository.findById(
-        tenantId,
-        orderId,
-      );
+  async getOrder(tenantId: string, orderId: string) {
+    const order = await orderRepository.findById(tenantId, orderId);
 
     if (!order) {
-      throw new AppError(
-        'Order not found',
-        404,
-        'ORDER_NOT_FOUND',
-      );
+      throw new AppError('Order not found', 404, 'ORDER_NOT_FOUND');
     }
 
     return mapOrder(order);
   }
 
-  async getOrders(
-    tenantId: string,
-    query: OrderListQuery,
-  ) {
-    const result =
-      await orderRepository.findMany(
-        tenantId,
-        query.page,
-        query.limit,
-        query.status,
-        query.paymentStatus,
-      );
-
-    return mapOrders(
-      result.orders,
+  async getOrders(tenantId: string, query: OrderListQuery) {
+    const result = await orderRepository.findMany(
+      tenantId,
       query.page,
       query.limit,
-      result.totalItems,
+      query.status,
+      query.paymentStatus,
     );
+
+    return mapOrders(result.orders, query.page, query.limit, result.totalItems);
   }
 
   async updateStatus(
@@ -146,80 +71,117 @@ export class OrderService {
     orderId: string,
     input: UpdateOrderStatusInput,
   ) {
-    const order =
-      await orderRepository.findById(
-        tenantId,
-        orderId,
-      );
+    const order = await prisma.$transaction((tx) =>
+      this.applyStatusWithClient(tenantId, orderId, input.status, tx),
+    );
+    return mapOrder(order);
+  }
 
-    if (!order) {
-      throw new AppError(
-        'Order not found',
-        404,
-        'ORDER_NOT_FOUND',
-      );
-    }
-
+  async applyStatusWithClient(
+    tenantId: string,
+    orderId: string,
+    status: OrderStatus,
+    tx: Prisma.TransactionClient,
+    requirePending = false,
+  ) {
+    const locked = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id" FROM "Order" WHERE "id"=${orderId} AND "tenantId"=${tenantId} FOR UPDATE
+    `;
+    if (!locked.length)
+      throw new AppError('Order not found', 404, 'ORDER_NOT_FOUND');
+    const order = await tx.order.findFirstOrThrow({
+      where: { id: orderId, tenantId },
+      include: { items: true, payments: true },
+    });
+    if (order.status === status) return order; // Duplicate updates are no-ops.
     if (
-      order.status ===
-      input.status
-    ) {
+      requirePending &&
+      (order.status !== 'PENDING' ||
+        isFinanciallyCommitted(order.paymentStatus))
+    )
       throw new AppError(
-        'Order is already in this status',
+        'Only pending unpaid orders can expire',
         409,
-        'ORDER_ALREADY_IN_STATUS',
+        'ORDER_NOT_EXPIRABLE',
       );
-    }
-
-    const allowed =
-      allowedTransitions[
-        order.status
-      ];
-
+    validateOrderTransition(order.status, status);
     if (
-      !allowed.includes(
-        input.status,
+      order.payments.length !== 1 ||
+      order.payments[0]!.status !== order.paymentStatus
+    )
+      throw new AppError(
+        'Legacy order/payment state requires reconciliation',
+        409,
+        'PAYMENT_RECONCILIATION_REQUIRED',
+      );
+    if (status === 'CANCELLED') {
+      if (
+        isFinanciallyCommitted(order.paymentStatus) ||
+        order.payments.some((p) => isFinanciallyCommitted(p.status))
       )
-    ) {
-      throw new AppError(
-        `Cannot change order status from ${order.status} to ${input.status}`,
-        409,
-        'INVALID_ORDER_STATUS_TRANSITION',
-      );
+        throw new AppError(
+          'Paid orders require a refund workflow before cancellation',
+          409,
+          'PAID_ORDER_CANCELLATION_REQUIRES_REFUND',
+        );
+      // Unknown initiation outcomes are not failures. Explicit cancellation or
+      // expiry closes the local reservation; any later success needs reconciliation.
+      for (const payment of [...order.payments].sort((a, b) =>
+        a.id.localeCompare(b.id),
+      )) {
+        if (payment.status !== 'FAILED' && payment.status !== 'CANCELLED')
+          await paymentService.applyPaymentStatusWithClient(
+            tenantId,
+            payment.id,
+            { status: PaymentStatus.CANCELLED },
+            tx,
+          );
+      }
+      await inventoryService.releaseOrderReservation(tenantId, orderId, tx);
+      return tx.order.update({
+        where: { id: orderId, tenantId },
+        data: { status },
+        include: { items: true, payments: true },
+      });
     }
-
-    /*
-     * Payment-dependent protection.
-     *
-     * We should not move an order to
-     * PROCESSING unless its payment is
-     * already authorized/paid.
-     *
-     * CASH_ON_DELIVERY is handled by the
-     * payment module/business flow.
-     */
     if (
-      input.status ===
-        OrderStatus.PROCESSING &&
-      order.paymentStatus !==
-        PaymentStatus.PAID &&
-      order.paymentStatus !==
-        PaymentStatus.AUTHORIZED
-    ) {
+      ['PROCESSING', 'SHIPPED', 'DELIVERED', 'COMPLETED'].includes(status) &&
+      order.paymentStatus !== 'PAID' &&
+      order.paymentStatus !== 'AUTHORIZED'
+    )
       throw new AppError(
-        'Order cannot be processed before payment is authorized or paid',
+        'Payment must be authorized or paid for fulfillment',
         409,
         'PAYMENT_NOT_READY',
       );
-    }
+    if (['FAILED', 'CANCELLED'].includes(order.paymentStatus))
+      throw new AppError(
+        'Order reservation has ended',
+        409,
+        'ORDER_INVENTORY_RESERVATION_RELEASED',
+      );
+    return tx.order.update({
+      where: { id: orderId, tenantId },
+      data: { status },
+      include: { items: true, payments: true },
+    });
+  }
 
-    const updated =
-      await orderRepository.updateStatus(
+  /**
+   * Called by an expiration worker after it has determined that the
+   * pending order's payment deadline has elapsed. No expiry timestamp or
+   * background worker exists in the current schema/application.
+   */
+  async expirePendingOrder(tenantId: string, orderId: string) {
+    const order = await prisma.$transaction((tx) =>
+      this.applyStatusWithClient(
         tenantId,
         orderId,
-        input.status,
-      );
-
-    return mapOrder(updated);
+        OrderStatus.CANCELLED,
+        tx,
+        true,
+      ),
+    );
+    return mapOrder(order);
   }
 }

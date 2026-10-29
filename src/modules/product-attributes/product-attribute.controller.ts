@@ -44,7 +44,7 @@ export class ProductAttributeController {
         id: string;
       };
 
-      const result = await productAttributeService.getAttributeById(id);
+      const result = await productAttributeService.getAttributeById(req.tenant!.tenantId, id);
 
       res.json({
         success: true,
@@ -90,6 +90,7 @@ export class ProductAttributeController {
       };
 
       const result = await productAttributeService.updateAttribute(
+        req.tenant!.tenantId,
         id,
         req.validatedBody as {
           name?: string;
@@ -117,7 +118,7 @@ export class ProductAttributeController {
         id: string;
       };
 
-      await productAttributeService.deleteAttribute(id);
+      await productAttributeService.deleteAttribute(req.tenant!.tenantId, id);
 
       res.status(204).send();
     } catch (error) {
@@ -140,7 +141,7 @@ export class ProductAttributeController {
         sortOrder?: number;
       };
 
-      const result = await productAttributeService.createValue({
+      const result = await productAttributeService.createValue(req.tenant!.tenantId, {
         attributeId,
         value: body.value,
         ...(body.sortOrder !== undefined ? { sortOrder: body.sortOrder } : {}),
@@ -166,7 +167,7 @@ export class ProductAttributeController {
         valueId: string;
       };
 
-      const result = await productAttributeService.getValueById(valueId);
+      const result = await productAttributeService.getValueById(req.tenant!.tenantId, valueId);
 
       res.json({
         success: true,
@@ -189,6 +190,7 @@ export class ProductAttributeController {
       };
 
       const result = await productAttributeService.updateValue(
+        req.tenant!.tenantId,
         valueId,
         req.validatedBody as {
           value?: string;
@@ -216,7 +218,7 @@ export class ProductAttributeController {
         valueId: string;
       };
 
-      await productAttributeService.deleteValue(valueId);
+      await productAttributeService.deleteValue(req.tenant!.tenantId, valueId);
 
       res.status(204).send();
     } catch (error) {
@@ -234,7 +236,7 @@ export class ProductAttributeController {
         valueId: string;
       };
 
-      const result = await productAttributeService.clearValueImage(valueId);
+      const result = await productAttributeService.clearValueImage(req.tenant!.tenantId, valueId);
 
       res.json({
         success: true,
@@ -268,7 +270,7 @@ export class ProductAttributeController {
 
       validateImageBuffer(file.buffer, file.mimetype);
 
-      const previousValue = await productAttributeService.getValueById(valueId);
+      const previousValue = await productAttributeService.getValueById(req.tenant!.tenantId, valueId);
 
       const storedFile = await storageService.upload(
         file.buffer,
@@ -279,6 +281,7 @@ export class ProductAttributeController {
       let result;
       try {
         result = await productAttributeService.setValueImage(
+          req.tenant!.tenantId,
           valueId,
           storedFile.storageKey,
           storedFile.url,

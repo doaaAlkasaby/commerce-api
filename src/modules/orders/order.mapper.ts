@@ -11,15 +11,12 @@ import type {
   PaginatedOrdersResponse,
 } from './order.types.js';
 
-type OrderWithRelations =
-  Order & {
-    items: OrderItem[];
-    payments: Payment[];
-  };
+type OrderWithRelations = Order & {
+  items: OrderItem[];
+  payments: Payment[];
+};
 
-const mapOrderItem = (
-  item: OrderItem,
-): OrderItemResponse => ({
+const mapOrderItem = (item: OrderItem): OrderItemResponse => ({
   id: item.id,
 
   productId: item.productId,
@@ -30,123 +27,97 @@ const mapOrderItem = (
 
   quantity: item.quantity,
 
-  unitPrice:
-    item.unitPrice.toString(),
+  unitPrice: item.unitPrice.toString(),
 
-  itemDiscountAmount:
-    item.itemDiscountAmount.toString(),
+  itemDiscountAmount: item.itemDiscountAmount.toString(),
 
-  finalUnitPrice:
-    item.finalUnitPrice.toString(),
+  finalUnitPrice: item.finalUnitPrice.toString(),
 
-  totalPrice:
-    item.totalPrice.toString(),
+  totalPrice: item.totalPrice.toString(),
 
-  variantSnapshot:
-    item.variantSnapshot as OrderItemResponse['variantSnapshot'],
+  taxCategoryCode: item.taxCategoryCode,
+  taxCategoryId: item.taxCategoryId,
+  taxRuleId: item.taxRuleId,
+  taxTreatment: item.taxTreatment,
+  taxRate: item.taxRate?.toString() ?? null,
+  taxableAmount: item.taxableAmount.toString(),
+  taxAmount: item.taxAmount.toString(),
+  variantSnapshot: item.variantSnapshot as OrderItemResponse['variantSnapshot'],
 
-  createdAt:
-    item.createdAt.toISOString(),
+  createdAt: item.createdAt.toISOString(),
 });
 
-const mapPayment = (
-  payment: Payment,
-): OrderPaymentResponse => ({
+const mapPayment = (payment: Payment): OrderPaymentResponse => ({
   id: payment.id,
 
-  provider:
-    payment.provider,
+  provider: payment.provider,
 
-  method:
-    payment.method,
+  method: payment.method,
 
-  status:
-    payment.status,
+  status: payment.status,
 
-  amount:
-    payment.amount.toString(),
+  amount: payment.amount.toString(),
 
-  currency:
-    payment.currency,
+  currency: payment.currency,
 
-  providerPaymentId:
-    payment.providerPaymentId,
+  providerPaymentId: payment.providerPaymentId,
 
-  providerTransactionId:
-    payment.providerTransactionId,
+  providerTransactionId: payment.providerTransactionId,
 
-  failureCode:
-    payment.failureCode,
+  failureCode: payment.failureCode,
 
-  failureMessage:
-    payment.failureMessage,
+  failureMessage: payment.failureMessage,
 
-  createdAt:
-    payment.createdAt.toISOString(),
+  createdAt: payment.createdAt.toISOString(),
 
-  updatedAt:
-    payment.updatedAt.toISOString(),
+  updatedAt: payment.updatedAt.toISOString(),
 });
 
-export const mapOrder = (
-  order: OrderWithRelations,
-): OrderResponse => ({
+export const mapOrder = (order: OrderWithRelations): OrderResponse => ({
   id: order.id,
 
-  orderNumber:
-    order.orderNumber,
+  orderNumber: order.orderNumber,
 
-  userId:
-    order.userId,
+  userId: order.userId,
 
-  status:
-    order.status,
+  status: order.status,
 
-  paymentStatus:
-    order.paymentStatus,
+  paymentStatus: order.paymentStatus,
 
-  currency:
-    order.currency,
+  currency: order.currency,
 
-  subtotal:
-    order.subtotal.toString(),
+  subtotal: order.subtotal.toString(),
 
-  discountAmount:
-    order.discountAmount.toString(),
+  discountAmount: order.discountAmount.toString(),
 
-  shippingAmount:
-    order.shippingAmount.toString(),
+  shippingAmount: order.shippingAmount.toString(),
 
-  taxAmount:
-    order.taxAmount.toString(),
+  taxAmount: order.taxAmount.toString(),
 
-  totalAmount:
-    order.totalAmount.toString(),
+  totalAmount: order.totalAmount.toString(),
 
-  shippingAddress:
-    order.shippingAddress,
+  couponSnapshot: order.couponSnapshot,
+  shippingProfileSnapshot: order.shippingProfileSnapshot,
+  taxProfileSnapshot: order.taxProfileSnapshot,
+  pricesIncludeTax: order.pricesIncludeTax,
+  shippingMethodId: order.shippingMethodId,
+  shippingMethodCode: order.shippingMethodCode,
+  shippingMethodName: order.shippingMethodName,
+  shippingRuleId: order.shippingRuleId,
+  shippingDistanceKm: order.shippingDistanceKm?.toString() ?? null,
+  shippingAddress: order.shippingAddress,
 
-  billingAddress:
-    order.billingAddress,
+  billingAddress: order.billingAddress,
 
-  items:
-    order.items.map(mapOrderItem),
+  items: order.items.map(mapOrderItem),
 
-  payments:
-    order.payments.map(mapPayment),
+  payments: order.payments.map(mapPayment),
 
-  itemCount:
-    order.items.reduce(
-      (total, item) =>
-        total + item.quantity,
-      0,
-    ),
+  itemCount: order.items.reduce((total, item) => total + item.quantity, 0),
 
-  createdAt:
-    order.createdAt.toISOString(),
+  createdAt: order.createdAt.toISOString(),
 
-  updatedAt:
-    order.updatedAt.toISOString(),
+  updatedAt: order.updatedAt.toISOString(),
 });
 
 export const mapOrders = (
@@ -162,10 +133,7 @@ export const mapOrders = (
       page,
       limit,
       totalItems,
-      totalPages:
-        Math.ceil(
-          totalItems / limit,
-        ),
+      totalPages: Math.ceil(totalItems / limit),
     },
   };
 };

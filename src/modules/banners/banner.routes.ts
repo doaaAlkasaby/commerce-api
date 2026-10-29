@@ -18,8 +18,9 @@ import {
 import { validate } from '../../common/validation/validate.js';
 
 import { authenticate } from '../../middleware/auth.middleware.js';
-import { authorize } from '../../middleware/authorization.middleware.js';
 import { tenantMiddleware } from '../../middleware/tenant.middleware.js';
+import { tenantMemberMiddleware } from '../../middleware/tenant-member.middleware.js';
+import { requireTenantRoles } from '../../middleware/tenant-role.middleware.js';
 
 const router = Router();
 router.use(tenantMiddleware);
@@ -51,14 +52,16 @@ router.get(
 router.get(
   '/admin/all',
   authenticate,
-  authorize('ADMIN', 'MANAGER'),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   listBanners,
 );
 
 router.post(
   '/',
   authenticate,
-  authorize('ADMIN', 'MANAGER'),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(
     createBannerSchema,
     'body',
@@ -69,7 +72,8 @@ router.post(
 router.patch(
   '/:id',
   authenticate,
-  authorize('ADMIN', 'MANAGER'),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(
     bannerIdParamsSchema,
     'params',
@@ -84,7 +88,8 @@ router.patch(
 router.delete(
   '/:id',
   authenticate,
-  authorize('ADMIN', 'MANAGER'),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(
     bannerIdParamsSchema,
     'params',

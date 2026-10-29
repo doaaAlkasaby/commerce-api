@@ -1,8 +1,5 @@
 import { Router } from 'express';
 
-import {
-  UserRole,
-} from '../../generated/prisma/client.js';
 
 import {
   validate,
@@ -12,9 +9,8 @@ import {
   authenticate,
 } from '../../middleware/auth.middleware.js';
 
-import {
-  authorize,
-} from '../../middleware/authorization.middleware.js';
+import { tenantMemberMiddleware } from '../../middleware/tenant-member.middleware.js';
+import { requireTenantRoles } from '../../middleware/tenant-role.middleware.js';
 
 import {
   brandController,
@@ -65,7 +61,8 @@ router.get(
 router.post(
   '/',
   authenticate,
-  authorize(UserRole.ADMIN),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(
     createBrandSchema,
     'body',
@@ -76,7 +73,8 @@ router.post(
 router.patch(
   '/:id',
   authenticate,
-  authorize(UserRole.ADMIN),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(
     brandIdSchema,
     'params',
@@ -91,7 +89,8 @@ router.patch(
 router.patch(
   '/:id/status',
   authenticate,
-  authorize(UserRole.ADMIN),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(
     brandIdSchema,
     'params',
@@ -102,7 +101,8 @@ router.patch(
 router.post(
   '/:id/image',
   authenticate,
-  authorize(UserRole.ADMIN),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(
     brandIdSchema,
     'params',
@@ -114,7 +114,8 @@ router.post(
 router.delete(
   '/:id/image',
   authenticate,
-  authorize(UserRole.ADMIN),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(
     brandIdSchema,
     'params',
@@ -125,7 +126,8 @@ router.delete(
 router.delete(
   '/:id',
   authenticate,
-  authorize(UserRole.ADMIN),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(
     brandIdSchema,
     'params',

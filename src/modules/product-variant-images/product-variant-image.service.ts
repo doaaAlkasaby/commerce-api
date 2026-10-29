@@ -19,12 +19,12 @@ export class ProductVariantImageService {
     private readonly storage: StorageService,
 
     private readonly productVariantRepository: {
-      findById(id: string): Promise<unknown>;
+      findById(tenantId: string, id: string): Promise<unknown>;
     },
   ) {}
 
-  async getById(id: string) {
-    const image = await this.repository.findById(id);
+  async getById(tenantId: string, id: string) {
+    const image = await this.repository.findById(tenantId, id);
 
     if (!image) {
       throw new AppError(
@@ -37,8 +37,8 @@ export class ProductVariantImageService {
     return image;
   }
 
-  async getByVariantId(variantId: string) {
-    const variant = await this.productVariantRepository.findById(variantId);
+  async getByVariantId(tenantId: string, variantId: string) {
+    const variant = await this.productVariantRepository.findById(tenantId, variantId);
 
     if (!variant) {
       throw new AppError(
@@ -48,10 +48,10 @@ export class ProductVariantImageService {
       );
     }
 
-    return this.repository.findByVariantId(variantId);
+    return this.repository.findByVariantId(tenantId, variantId);
   }
 
-  async create(data: {
+  async create(tenantId: string, data: {
     variantId: string;
     storageKey: string;
     url: string;
@@ -60,6 +60,7 @@ export class ProductVariantImageService {
     isPrimary?: boolean;
   }) {
     const variant = await this.productVariantRepository.findById(
+      tenantId,
       data.variantId,
     );
 
@@ -72,6 +73,7 @@ export class ProductVariantImageService {
     }
 
     const existingImages = await this.repository.findByVariantId(
+      tenantId,
       data.variantId,
     );
 
@@ -83,7 +85,7 @@ export class ProductVariantImageService {
     const isPrimary = data.isPrimary ?? existingImages.length === 0;
 
     try {
-      const image = await this.repository.create({
+      const image = await this.repository.create(tenantId, {
         variantId: data.variantId,
 
         storageKey: data.storageKey,
@@ -96,9 +98,10 @@ export class ProductVariantImageService {
 
         isPrimary: false,
       });
+      if (!image) throw new AppError('Product variant not found', 404, 'PRODUCT_VARIANT_NOT_FOUND');
 
       if (isPrimary) {
-        const primaryImage = await this.repository.setPrimary(image.id);
+        const primaryImage = await this.repository.setPrimary(tenantId, image.id);
 
         if (!primaryImage) {
           throw new AppError(
@@ -125,7 +128,7 @@ export class ProductVariantImageService {
     }
   }
 
-  async upload(data: {
+  async upload(tenantId: string, data: {
     variantId: string;
     file: Buffer;
     originalName: string;
@@ -135,6 +138,7 @@ export class ProductVariantImageService {
     isPrimary?: boolean;
   }) {
     const variant = await this.productVariantRepository.findById(
+      tenantId,
       data.variantId,
     );
 
@@ -155,7 +159,7 @@ export class ProductVariantImageService {
     );
 
     try {
-      return await this.create({
+      return await this.create(tenantId, {
         variantId: data.variantId,
         storageKey: storedFile.storageKey,
         url: storedFile.url,
@@ -170,13 +174,14 @@ export class ProductVariantImageService {
   }
 
   async update(
+    tenantId: string,
     id: string,
     data: {
       altText?: string | null;
       sortOrder?: number;
     },
   ) {
-    const image = await this.repository.findById(id);
+    const image = await this.repository.findById(tenantId, id);
 
     if (!image) {
       throw new AppError(
@@ -186,11 +191,13 @@ export class ProductVariantImageService {
       );
     }
 
-    return this.repository.update(id, data);
+    const updated = await this.repository.update(tenantId, id, data);
+    if (!updated) throw new AppError('Product variant image not found', 404, 'PRODUCT_VARIANT_IMAGE_NOT_FOUND');
+    return updated;
   }
 
-  async setPrimary(id: string) {
-    const image = await this.repository.findById(id);
+  async setPrimary(tenantId: string, id: string) {
+    const image = await this.repository.findById(tenantId, id);
 
     if (!image) {
       throw new AppError(
@@ -201,7 +208,7 @@ export class ProductVariantImageService {
     }
 
     try {
-      const primaryImage = await this.repository.setPrimary(id);
+      const primaryImage = await this.repository.setPrimary(tenantId, id);
 
       if (!primaryImage) {
         throw new AppError(
@@ -225,8 +232,8 @@ export class ProductVariantImageService {
     }
   }
 
-  async delete(id: string) {
-    const image = await this.repository.findById(id);
+  async delete(tenantId: string, id: string) {
+    const image = await this.repository.findById(tenantId, id);
 
     if (!image) {
       throw new AppError(
@@ -236,7 +243,8 @@ export class ProductVariantImageService {
       );
     }
 
-    await this.repository.delete(id);
+    const deleted = await this.repository.delete(tenantId, id);
+    if (!deleted) throw new AppError('Product variant image not found', 404, 'PRODUCT_VARIANT_IMAGE_NOT_FOUND');
 
     await this.storage.delete(image.storageKey);
   }

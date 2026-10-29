@@ -1,10 +1,15 @@
-import { prisma } from '../../config/prisma.js';
+import type { Prisma, PrismaClient } from '../../generated/prisma/client.js';
+import { prisma } from '../../config/database.js';
 
 export class ShippingRepository {
-  async findProfile(scopeKey: string) {
-    return prisma.shippingProfile.findFirst({
+  constructor(
+    private readonly client: Prisma.TransactionClient | PrismaClient = prisma,
+  ) {}
+  async findProfile(tenantId: string, countryCode: string) {
+    return this.client.shippingProfile.findFirst({
       where: {
-        scopeKey,
+        tenantId,
+        countryCode,
         isActive: true,
       },
       include: {
@@ -24,7 +29,10 @@ export class ShippingRepository {
                       priority: 'desc',
                     },
                     {
-                      minOrderAmount: 'desc',
+                      minOrderAmount: {
+                        sort: 'desc',
+                        nulls: 'last',
+                      },
                     },
                   ],
                 },

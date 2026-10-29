@@ -1,11 +1,10 @@
 import { Router } from 'express';
 
-import { UserRole } from '../../generated/prisma/client.js';
-
 import { authenticate } from '../../middleware/auth.middleware.js';
-import { authorize } from '../../middleware/authorization.middleware.js';
 import { validate } from '../../common/validation/validate.js';
 import { tenantMiddleware } from '../../middleware/tenant.middleware.js';
+import { tenantMemberMiddleware } from '../../middleware/tenant-member.middleware.js';
+import { requireTenantRoles } from '../../middleware/tenant-role.middleware.js';
 
 import {
   productImageController,
@@ -47,7 +46,8 @@ router.get(
 router.post(
   '/',
   authenticate,
-  authorize(UserRole.ADMIN),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(
     createProductImageSchema,
     'body',
@@ -58,7 +58,8 @@ router.post(
 router.patch(
   '/:id',
   authenticate,
-  authorize(UserRole.ADMIN),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(
     productImageIdSchema,
     'params',
@@ -73,7 +74,8 @@ router.patch(
 router.patch(
   '/:id/primary',
   authenticate,
-  authorize(UserRole.ADMIN),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(
     productImageIdSchema,
     'params',
@@ -84,7 +86,8 @@ router.patch(
 router.delete(
   '/:id',
   authenticate,
-  authorize(UserRole.ADMIN),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(
     productImageIdSchema,
     'params',
@@ -95,7 +98,8 @@ router.delete(
 router.post(
   '/upload',
   authenticate,
-  authorize(UserRole.ADMIN),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   productImageUpload.single('image'),
   productImageController.upload,
 );

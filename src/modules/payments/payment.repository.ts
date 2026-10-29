@@ -1,11 +1,6 @@
 import { Prisma } from '../../generated/prisma/client.js';
 
-import type {
-  Payment,
-  PaymentMethod,
-  PaymentProvider,
-  PaymentStatus,
-} from '../../generated/prisma/client.js';
+import type { Payment } from '../../generated/prisma/client.js';
 
 import { prisma } from '../../config/database.js';
 
@@ -21,7 +16,10 @@ export class PaymentRepository {
     input: CreatePaymentInput,
     client: Prisma.TransactionClient | typeof prisma = prisma,
   ): Promise<Payment> {
-    const order = await client.order.findFirst({ where: { id: input.orderId, tenantId }, select: { id: true } });
+    const order = await client.order.findFirst({
+      where: { id: input.orderId, tenantId },
+      select: { id: true },
+    });
     if (!order) throw new Error('Order does not belong to this tenant');
     return client.payment.create({
       data: {
@@ -36,6 +34,7 @@ export class PaymentRepository {
         provider: input.provider,
 
         status: 'PENDING',
+        initiationState: 'NOT_STARTED',
 
         ...(input.metadata == null
           ? {}
@@ -46,13 +45,56 @@ export class PaymentRepository {
     });
   }
 
+  async findForUser(
+    tenantId: string,
+    userId: string,
+    id: string,
+    client: Prisma.TransactionClient | typeof prisma = prisma,
+  ) {
+    return client.payment.findFirst({
+      where: { id, order: { tenantId, userId } },
+      include: { order: true },
+    });
+  }
+
+  async lockOrderForUser(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    userId: string,
+    paymentId: string,
+  ) {
+    // Match the lifecycle's order-first locking. Only hold locks for local DB work.
+    await tx.$queryRaw`
+      SELECT o."id" FROM "Order" o JOIN "Payment" p ON p."orderId" = o."id"
+      WHERE p."id" = ${paymentId} AND o."tenantId" = ${tenantId} AND o."userId" = ${userId}
+      FOR UPDATE OF o
+    `;
+  }
+
+  async setInitiationState(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    userId: string,
+    id: string,
+    state: 'IN_PROGRESS' | 'INITIATED' | 'UNKNOWN',
+  ) {
+    return tx.payment.update({
+      where: { id, order: { tenantId, userId } },
+      data: { initiationState: state },
+    });
+  }
+
   async findById(tenantId: string, id: string): Promise<Payment | null> {
     return prisma.payment.findFirst({
       where: { id, order: { tenantId } },
     });
   }
 
-  async findByIdForOrder(tenantId: string, id: string, orderId: string): Promise<Payment | null> {
+  async findByIdForOrder(
+    tenantId: string,
+    id: string,
+    orderId: string,
+  ): Promise<Payment | null> {
     return prisma.payment.findFirst({
       where: {
         id,
@@ -86,7 +128,10 @@ export class PaymentRepository {
     });
   }
 
-  async findMany(tenantId: string, filters: PaymentFilterInput = {}): Promise<Payment[]> {
+  async findMany(
+    tenantId: string,
+    filters: PaymentFilterInput = {},
+  ): Promise<Payment[]> {
     const where: Prisma.PaymentWhereInput = { order: { tenantId } };
 
     if (filters.orderId !== undefined) {
@@ -119,41 +164,8 @@ export class PaymentRepository {
     id: string,
     input: UpdatePaymentStatusInput,
   ): Promise<Payment> {
-    return prisma.payment.update({
-      where: {
-        id,
-        order: { tenantId },
-      },
-
-      data: {
-        status: input.status,
-
-        ...(input.providerPaymentId === undefined
-          ? {}
-          : { providerPaymentId: input.providerPaymentId }),
-
-        ...(input.providerTransactionId === undefined
-          ? {}
-          : { providerTransactionId: input.providerTransactionId }),
-
-        ...(input.failureCode === undefined
-          ? {}
-          : { failureCode: input.failureCode }),
-
-        ...(input.failureMessage === undefined
-          ? {}
-          : { failureMessage: input.failureMessage }),
-
-        ...(input.metadata === undefined
-          ? {}
-          : {
-              metadata:
-                input.metadata === null
-                  ? Prisma.DbNull
-                  : (input.metadata as Prisma.InputJsonObject),
-            }),
-      },
-    });
+    const { paymentService } = await import('./payment.service.instance.js');
+    return paymentService.updatePaymentStatus(tenantId, id, input);
   }
 
   async updateStatusWithClient(
@@ -162,41 +174,13 @@ export class PaymentRepository {
     input: UpdatePaymentStatusInput,
     client: Prisma.TransactionClient,
   ): Promise<Payment> {
-    return client.payment.update({
-      where: {
-        id,
-        order: { tenantId },
-      },
-
-      data: {
-        status: input.status,
-
-        ...(input.providerPaymentId === undefined
-          ? {}
-          : { providerPaymentId: input.providerPaymentId }),
-
-        ...(input.providerTransactionId === undefined
-          ? {}
-          : { providerTransactionId: input.providerTransactionId }),
-
-        ...(input.failureCode === undefined
-          ? {}
-          : { failureCode: input.failureCode }),
-
-        ...(input.failureMessage === undefined
-          ? {}
-          : { failureMessage: input.failureMessage }),
-
-        ...(input.metadata === undefined
-          ? {}
-          : {
-              metadata:
-                input.metadata === null
-                  ? Prisma.DbNull
-                  : (input.metadata as Prisma.InputJsonObject),
-            }),
-      },
-    });
+    const { paymentService } = await import('./payment.service.instance.js');
+    return paymentService.applyPaymentStatusWithClient(
+      tenantId,
+      id,
+      input,
+      client,
+    );
   }
 
   async findOrderPayment(

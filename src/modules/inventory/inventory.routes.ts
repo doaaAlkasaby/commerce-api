@@ -2,18 +2,14 @@ import {
   Router,
 } from 'express';
 
-import {
-  UserRole,
-} from '../../generated/prisma/client.js';
 
 import {
   authenticate,
 } from '../../middleware/auth.middleware.js';
 import { tenantMiddleware } from '../../middleware/tenant.middleware.js';
 
-import {
-  authorize,
-} from '../../middleware/authorization.middleware.js';
+import { tenantMemberMiddleware } from '../../middleware/tenant-member.middleware.js';
+import { requireTenantRoles } from '../../middleware/tenant-role.middleware.js';
 
 import {
   validate,
@@ -50,10 +46,8 @@ router.use(tenantMiddleware);
 router.get(
   '/',
   authenticate,
-  authorize(
-    UserRole.ADMIN,
-    UserRole.MANAGER,
-  ),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(
     inventoryListQuerySchema,
     'query',
@@ -72,10 +66,8 @@ router.get(
 router.post(
   '/',
   authenticate,
-  authorize(
-    UserRole.ADMIN,
-    UserRole.MANAGER,
-  ),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(
     createInventorySchema,
     'body',
@@ -94,10 +86,8 @@ router.post(
 router.get(
   '/variant/:variantId',
   authenticate,
-  authorize(
-    UserRole.ADMIN,
-    UserRole.MANAGER,
-  ),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(
     inventoryVariantParamsSchema,
     'params',
@@ -116,10 +106,8 @@ router.get(
 router.get(
   '/:id',
   authenticate,
-  authorize(
-    UserRole.ADMIN,
-    UserRole.MANAGER,
-  ),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(
     inventoryIdParamsSchema,
     'params',
@@ -138,10 +126,8 @@ router.get(
 router.get(
   '/:id/transactions',
   authenticate,
-  authorize(
-    UserRole.ADMIN,
-    UserRole.MANAGER,
-  ),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(
     inventoryIdParamsSchema,
     'params',
@@ -164,10 +150,8 @@ router.get(
 router.post(
   '/:id/stock-in',
   authenticate,
-  authorize(
-    UserRole.ADMIN,
-    UserRole.MANAGER,
-  ),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(
     inventoryIdParamsSchema,
     'params',
@@ -190,10 +174,8 @@ router.post(
 router.post(
   '/:id/stock-out',
   authenticate,
-  authorize(
-    UserRole.ADMIN,
-    UserRole.MANAGER,
-  ),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(
     inventoryIdParamsSchema,
     'params',
@@ -216,10 +198,8 @@ router.post(
 router.post(
   '/:id/adjust',
   authenticate,
-  authorize(
-    UserRole.ADMIN,
-    UserRole.MANAGER,
-  ),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(
     inventoryIdParamsSchema,
     'params',
@@ -242,10 +222,8 @@ router.post(
 router.post(
   '/:id/reserve',
   authenticate,
-  authorize(
-    UserRole.ADMIN,
-    UserRole.MANAGER,
-  ),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(
     inventoryIdParamsSchema,
     'params',
@@ -268,10 +246,8 @@ router.post(
 router.post(
   '/:id/release',
   authenticate,
-  authorize(
-    UserRole.ADMIN,
-    UserRole.MANAGER,
-  ),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(
     inventoryIdParamsSchema,
     'params',
@@ -294,10 +270,8 @@ router.post(
 router.post(
   '/:id/sale',
   authenticate,
-  authorize(
-    UserRole.ADMIN,
-    UserRole.MANAGER,
-  ),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(
     inventoryIdParamsSchema,
     'params',

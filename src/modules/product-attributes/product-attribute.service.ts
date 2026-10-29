@@ -42,6 +42,7 @@ export class ProductAttributeService {
     const name = input.name.trim();
 
     const existing = await this.repository.findByProductAndName(
+      tenantId,
       input.productId,
       name,
     );
@@ -55,11 +56,12 @@ export class ProductAttributeService {
     }
 
     try {
-      const attribute = await this.repository.create({
+      const attribute = await this.repository.create(tenantId, {
         productId: input.productId,
         name,
         sortOrder: input.sortOrder ?? 0,
       });
+      if (!attribute) throw new AppError('Product not found', 404, 'PRODUCT_NOT_FOUND');
 
       return toProductAttributeResponse(attribute);
     } catch (error) {
@@ -75,8 +77,8 @@ export class ProductAttributeService {
     }
   }
 
-  async getAttributeById(id: string) {
-    const attribute = await this.repository.findById(id);
+  async getAttributeById(tenantId: string, id: string) {
+    const attribute = await this.repository.findById(tenantId, id);
 
     if (!attribute) {
       throw new AppError(
@@ -96,13 +98,13 @@ export class ProductAttributeService {
       throw new AppError('Product not found', 404, 'PRODUCT_NOT_FOUND');
     }
 
-    const attributes = await this.repository.findByProductId(productId);
+    const attributes = await this.repository.findByProductId(tenantId, productId);
 
     return attributes.map(toProductAttributeResponse);
   }
 
-  async updateAttribute(id: string, input: UpdateProductAttributeInput) {
-    const attribute = await this.repository.findById(id);
+  async updateAttribute(tenantId: string, id: string, input: UpdateProductAttributeInput) {
+    const attribute = await this.repository.findById(tenantId, id);
 
     if (!attribute) {
       throw new AppError(
@@ -116,6 +118,7 @@ export class ProductAttributeService {
 
     if (name !== undefined && name !== attribute.name) {
       const duplicate = await this.repository.findByProductAndName(
+        tenantId,
         attribute.productId,
         name,
       );
@@ -130,12 +133,13 @@ export class ProductAttributeService {
     }
 
     try {
-      const updated = await this.repository.update(id, {
+      const updated = await this.repository.update(tenantId, id, {
         ...(name !== undefined ? { name } : {}),
         ...(input.sortOrder !== undefined
           ? { sortOrder: input.sortOrder }
           : {}),
       });
+      if (!updated) throw new AppError('Product attribute not found', 404, 'PRODUCT_ATTRIBUTE_NOT_FOUND');
 
       return toProductAttributeResponse(updated);
     } catch (error) {
@@ -151,8 +155,8 @@ export class ProductAttributeService {
     }
   }
 
-  async deleteAttribute(id: string) {
-    const attribute = await this.repository.findById(id);
+  async deleteAttribute(tenantId: string, id: string) {
+    const attribute = await this.repository.findById(tenantId, id);
 
     if (!attribute) {
       throw new AppError(
@@ -174,6 +178,7 @@ export class ProductAttributeService {
 
     for (const value of attribute.values) {
       const count = await this.repository.countVariantsUsingAttributeValue(
+        tenantId,
         value.id,
       );
 
@@ -186,15 +191,15 @@ export class ProductAttributeService {
       }
     }
 
-    await this.repository.delete(id);
+    await this.repository.delete(tenantId, id);
   }
 
   // --------------------------------------------------
   // ATTRIBUTE VALUES
   // --------------------------------------------------
 
-  async createValue(input: CreateProductAttributeValueInput) {
-    const attribute = await this.repository.findById(input.attributeId);
+  async createValue(tenantId: string, input: CreateProductAttributeValueInput) {
+    const attribute = await this.repository.findById(tenantId, input.attributeId);
 
     if (!attribute) {
       throw new AppError(
@@ -207,6 +212,7 @@ export class ProductAttributeService {
     const value = input.value.trim();
 
     const existing = await this.repository.findValueByAttributeAndValue(
+      tenantId,
       input.attributeId,
       value,
     );
@@ -220,11 +226,12 @@ export class ProductAttributeService {
     }
 
     try {
-      const created = await this.repository.createValue({
+      const created = await this.repository.createValue(tenantId, {
         attributeId: input.attributeId,
         value,
         sortOrder: input.sortOrder ?? 0,
       });
+      if (!created) throw new AppError('Product attribute not found', 404, 'PRODUCT_ATTRIBUTE_NOT_FOUND');
 
       return toProductAttributeValueResponse(created);
     } catch (error) {
@@ -240,8 +247,8 @@ export class ProductAttributeService {
     }
   }
 
-  async getValueById(valueId: string) {
-    const value = await this.repository.findValueById(valueId);
+  async getValueById(tenantId: string, valueId: string) {
+    const value = await this.repository.findValueById(tenantId, valueId);
 
     if (!value) {
       throw new AppError(
@@ -262,8 +269,8 @@ export class ProductAttributeService {
     };
   }
 
-  async updateValue(valueId: string, input: UpdateProductAttributeValueInput) {
-    const existing = await this.repository.findValueById(valueId);
+  async updateValue(tenantId: string, valueId: string, input: UpdateProductAttributeValueInput) {
+    const existing = await this.repository.findValueById(tenantId, valueId);
 
     if (!existing) {
       throw new AppError(
@@ -277,6 +284,7 @@ export class ProductAttributeService {
 
     if (value !== undefined && value !== existing.value) {
       const duplicate = await this.repository.findValueByAttributeAndValue(
+        tenantId,
         existing.attributeId,
         value,
       );
@@ -291,12 +299,13 @@ export class ProductAttributeService {
     }
 
     try {
-      const updated = await this.repository.updateValue(valueId, {
+      const updated = await this.repository.updateValue(tenantId, valueId, {
         ...(value !== undefined ? { value } : {}),
         ...(input.sortOrder !== undefined
           ? { sortOrder: input.sortOrder }
           : {}),
       });
+      if (!updated) throw new AppError('Product attribute value not found', 404, 'ATTRIBUTE_VALUE_NOT_FOUND');
 
       return toProductAttributeValueResponse(updated);
     } catch (error) {
@@ -312,8 +321,8 @@ export class ProductAttributeService {
     }
   }
 
-  async deleteValue(valueId: string) {
-    const existing = await this.repository.findValueById(valueId);
+  async deleteValue(tenantId: string, valueId: string) {
+    const existing = await this.repository.findValueById(tenantId, valueId);
 
     if (!existing) {
       throw new AppError(
@@ -324,7 +333,7 @@ export class ProductAttributeService {
     }
 
     const count =
-      await this.repository.countVariantsUsingAttributeValue(valueId);
+      await this.repository.countVariantsUsingAttributeValue(tenantId, valueId);
 
     if (count > 0) {
       throw new AppError(
@@ -334,15 +343,15 @@ export class ProductAttributeService {
       );
     }
 
-    await this.repository.deleteValue(valueId);
+    await this.repository.deleteValue(tenantId, valueId);
   }
 
   // --------------------------------------------------
   // VALUE IMAGES
   // --------------------------------------------------
 
-  async setValueImage(valueId: string, storageKey: string, url: string) {
-    const existing = await this.repository.findValueById(valueId);
+  async setValueImage(tenantId: string, valueId: string, storageKey: string, url: string) {
+    const existing = await this.repository.findValueById(tenantId, valueId);
 
     if (!existing) {
       throw new AppError(
@@ -353,16 +362,18 @@ export class ProductAttributeService {
     }
 
     const updated = await this.repository.setValueImage(
+      tenantId,
       valueId,
       storageKey,
       url,
     );
+    if (!updated) throw new AppError('Product attribute value not found', 404, 'ATTRIBUTE_VALUE_NOT_FOUND');
 
     return toProductAttributeValueResponse(updated);
   }
 
-  async clearValueImage(valueId: string) {
-    const existing = await this.repository.findValueById(valueId);
+  async clearValueImage(tenantId: string, valueId: string) {
+    const existing = await this.repository.findValueById(tenantId, valueId);
 
     if (!existing) {
       throw new AppError(
@@ -372,7 +383,8 @@ export class ProductAttributeService {
       );
     }
 
-    const updated = await this.repository.clearValueImage(valueId);
+    const updated = await this.repository.clearValueImage(tenantId, valueId);
+    if (!updated) throw new AppError('Product attribute value not found', 404, 'ATTRIBUTE_VALUE_NOT_FOUND');
 
     return toProductAttributeValueResponse(updated);
   }

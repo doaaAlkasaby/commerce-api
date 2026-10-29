@@ -1,14 +1,11 @@
 import { Router } from 'express';
 
-import {
-  paymentController,
-} from './payment.controller.js';
+import { paymentController } from './payment.controller.js';
+
+import { validate } from '../../common/validation/validate.js';
 
 import {
-  validate,
-} from '../../common/validation/validate.js';
-
-import {
+  initiatePaymentSchema,
   paymentIdParamsSchema,
   orderIdParamsSchema,
   paymentListQuerySchema,
@@ -16,17 +13,22 @@ import {
   refundPaymentSchema,
 } from './payment.schemas.js';
 
-import {
-  authenticate,
-} from '../../middleware/auth.middleware.js';
+import { authenticate } from '../../middleware/auth.middleware.js';
 import { tenantMiddleware } from '../../middleware/tenant.middleware.js';
 
-import {
-  authorize,
-} from '../../middleware/authorization.middleware.js';
+import { tenantMemberMiddleware } from '../../middleware/tenant-member.middleware.js';
+import { requireTenantRoles } from '../../middleware/tenant-role.middleware.js';
 
 const router = Router();
 router.use(tenantMiddleware);
+
+router.post(
+  '/:id/initiate',
+  authenticate,
+  validate(paymentIdParamsSchema, 'params'),
+  validate(initiatePaymentSchema, 'body'),
+  paymentController.initiatePayment.bind(paymentController),
+);
 
 /**
  * Customer / authenticated user
@@ -38,14 +40,9 @@ router.get(
 
   authenticate,
 
-  validate(
-    paymentIdParamsSchema,
-    'params',
-  ),
+  validate(paymentIdParamsSchema, 'params'),
 
-  paymentController.getPayment.bind(
-    paymentController,
-  ),
+  paymentController.getPayment.bind(paymentController),
 );
 
 /**
@@ -58,14 +55,9 @@ router.get(
 
   authenticate,
 
-  validate(
-    orderIdParamsSchema,
-    'params',
-  ),
+  validate(orderIdParamsSchema, 'params'),
 
-  paymentController.getOrderPayments.bind(
-    paymentController,
-  ),
+  paymentController.getOrderPayments.bind(paymentController),
 );
 
 /**
@@ -78,19 +70,12 @@ router.get(
 
   authenticate,
 
-  authorize(
-    'ADMIN',
-    'MANAGER',
-  ),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
 
-  validate(
-    paymentListQuerySchema,
-    'query',
-  ),
+  validate(paymentListQuerySchema, 'query'),
 
-  paymentController.listPayments.bind(
-    paymentController,
-  ),
+  paymentController.listPayments.bind(paymentController),
 );
 
 /**
@@ -103,24 +88,14 @@ router.patch(
 
   authenticate,
 
-  authorize(
-    'ADMIN',
-    'MANAGER',
-  ),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
 
-  validate(
-    paymentIdParamsSchema,
-    'params',
-  ),
+  validate(paymentIdParamsSchema, 'params'),
 
-  validate(
-    updatePaymentStatusSchema,
-    'body',
-  ),
+  validate(updatePaymentStatusSchema, 'body'),
 
-  paymentController.updatePaymentStatus.bind(
-    paymentController,
-  ),
+  paymentController.updatePaymentStatus.bind(paymentController),
 );
 
 /**
@@ -133,19 +108,12 @@ router.post(
 
   authenticate,
 
-  authorize(
-    'ADMIN',
-    'MANAGER',
-  ),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
 
-  validate(
-    paymentIdParamsSchema,
-    'params',
-  ),
+  validate(paymentIdParamsSchema, 'params'),
 
-  paymentController.cancelPayment.bind(
-    paymentController,
-  ),
+  paymentController.cancelPayment.bind(paymentController),
 );
 
 /**
@@ -158,23 +126,14 @@ router.post(
 
   authenticate,
 
-  authorize(
-    'ADMIN',
-  ),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN'),
 
-  validate(
-    paymentIdParamsSchema,
-    'params',
-  ),
+  validate(paymentIdParamsSchema, 'params'),
 
-  validate(
-    refundPaymentSchema,
-    'body',
-  ),
+  validate(refundPaymentSchema, 'body'),
 
-  paymentController.refundPayment.bind(
-    paymentController,
-  ),
+  paymentController.refundPayment.bind(paymentController),
 );
 
 export default router;

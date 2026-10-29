@@ -19,9 +19,9 @@ export class ProductVariantRepository {
     });
   }
 
-  async findBySku(sku: string) {
-    return this.prisma.productVariant.findUnique({
-      where: { sku },
+  async findBySku(tenantId: string, sku: string) {
+    return this.prisma.productVariant.findFirst({
+      where: { sku, product: { tenantId } },
       select:
         productVariantDetailsSelect,
     });
@@ -66,6 +66,17 @@ export class ProductVariantRepository {
   }) {
     const product = await this.prisma.product.findFirst({ where: { id: data.productId, tenantId: data.tenantId }, select: { id: true } });
     if (!product) throw new Error('Product does not belong to this tenant');
+    if (data.attributeValueIds.length > 0) {
+      const ownedValues = await this.prisma.productAttributeValue.count({
+        where: {
+          id: { in: data.attributeValueIds },
+          attribute: { productId: product.id, product: { tenantId: data.tenantId } },
+        },
+      });
+      if (ownedValues !== data.attributeValueIds.length) {
+        throw new Error('Attribute values do not belong to this tenant product');
+      }
+    }
     return this.prisma.productVariant.create({
       data: {
         productId:
@@ -138,9 +149,21 @@ export class ProductVariantRepository {
   ) {
     return this.prisma.$transaction(
       async (tx) => {
-        if (
-          data.attributeValueIds
-        ) {
+        const existing = await tx.productVariant.findFirst({
+          where: { id, product: { tenantId } },
+          select: { id: true, productId: true },
+        });
+        if (!existing) throw new Error('Product variant not found');
+        if (data.attributeValueIds) {
+          const valueCount = await tx.productAttributeValue.count({
+            where: {
+              id: { in: data.attributeValueIds },
+              attribute: { productId: existing.productId, product: { tenantId } },
+            },
+          });
+          if (valueCount !== data.attributeValueIds.length) {
+            throw new Error('Attribute values do not belong to this tenant product');
+          }
           await tx.productVariantValue.deleteMany(
             {
               where: {
@@ -151,10 +174,7 @@ export class ProductVariantRepository {
         }
 
         return tx.productVariant.update({
-          where: {
-            id,
-            product: { tenantId },
-          },
+          where: { id: existing.id },
 
           data: {
             ...(data.sku !== undefined

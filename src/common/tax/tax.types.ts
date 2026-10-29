@@ -1,6 +1,4 @@
-import type {
-  TaxTreatment,
-} from '../../generated/prisma/client.js';
+import type { TaxTreatment } from '../../generated/prisma/client.js';
 
 export interface TaxCalculationInput {
   amountCents: bigint;
@@ -76,4 +74,24 @@ export interface TaxRuleResult {
   rateBasisPoints: bigint;
 
   treatment: TaxTreatment;
+}
+export interface TaxProfileSnapshot {
+  [key: string]: string | boolean | null;
+  profileId: string;
+  countryCode: string;
+  profileRegionCode: string | null;
+  currency: string;
+  pricesIncludeTax: boolean;
+  isTaxRegistered: boolean;
+  taxRegistrationNumber: string | null;
+}
+
+export interface TaxRuleSnapshot {
+  [key: string]: string | number | null;
+  id: string;
+  countryCode: string;
+  regionCode: string | null;
+  priority: number;
+  effectiveFrom: string | null;
+  effectiveTo: string | null;
 }

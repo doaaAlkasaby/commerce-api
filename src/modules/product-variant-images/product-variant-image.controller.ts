@@ -20,7 +20,7 @@ export class ProductVariantImageController {
         variantId: string;
       };
 
-      const result = await productVariantImageService.getByVariantId(variantId);
+      const result = await productVariantImageService.getByVariantId(req.tenant!.tenantId, variantId);
 
       res.json({
         success: true,
@@ -42,7 +42,7 @@ export class ProductVariantImageController {
         id: string;
       };
 
-      const result = await productVariantImageService.getById(id);
+      const result = await productVariantImageService.getById(req.tenant!.tenantId, id);
 
       res.json({
         success: true,
@@ -76,7 +76,7 @@ export class ProductVariantImageController {
         );
       }
 
-      const result = await productVariantImageService.upload({
+      const result = await productVariantImageService.upload(req.tenant!.tenantId, {
         variantId: bodyResult.data.variantId,
         file: file.buffer,
         originalName: file.originalname,
@@ -120,7 +120,7 @@ export class ProductVariantImageController {
         );
       }
 
-      const result = await productVariantImageService.update(id, {
+      const result = await productVariantImageService.update(req.tenant!.tenantId, id, {
         ...(bodyResult.data.altText !== undefined
           ? { altText: bodyResult.data.altText }
           : {}),
@@ -149,7 +149,7 @@ export class ProductVariantImageController {
         id: string;
       };
 
-      const result = await productVariantImageService.setPrimary(id);
+      const result = await productVariantImageService.setPrimary(req.tenant!.tenantId, id);
 
       res.json({
         success: true,
@@ -167,7 +167,7 @@ export class ProductVariantImageController {
         id: string;
       };
 
-      await productVariantImageService.delete(id);
+      await productVariantImageService.delete(req.tenant!.tenantId, id);
 
       res.status(204).send();
     } catch (error) {

@@ -4,7 +4,7 @@ import type {
   Response,
 } from 'express';
 
-import { UnauthorizedError } from '../common/errors/unauthorized.error.js';
+import { AppError } from '../common/errors/app-error.js';
 import { tenantService } from '../modules/tenants/tenant.service.instance.js';
 
 export async function tenantMiddleware(
@@ -19,8 +19,10 @@ export async function tenantMiddleware(
       .toLowerCase();
 
     if (!tenantSlug) {
-      throw new UnauthorizedError(
+      throw new AppError(
         'Tenant context is required',
+        401,
+        'UNAUTHORIZED',
       );
     }
 
@@ -30,8 +32,10 @@ export async function tenantMiddleware(
       );
 
     if (tenant.status !== 'ACTIVE') {
-      throw new UnauthorizedError(
+      throw new AppError(
         'Tenant is not active',
+        401,
+        'UNAUTHORIZED',
       );
     }
 

@@ -2,9 +2,36 @@ import type { NextFunction, Request, Response } from 'express';
 
 import { paymentService } from './payment.service.instance.js';
 
+import type {
+  PaymentFilterInput,
+  UpdatePaymentStatusInput,
+} from './payment.types.js';
+
 import { mapPaymentToResponse } from './payment.mapper.js';
 
 export class PaymentController {
+  async initiatePayment(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
+    try {
+      const { id } = req.validatedParams as { id: string };
+      const payment = await paymentService.initiatePayment(
+        req.tenant!.tenantId,
+        req.user!.userId,
+        id,
+      );
+      res.status(200).json({
+        success: true,
+        message: null,
+        data: mapPaymentToResponse(payment),
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getPayment(
     req: Request,
     res: Response,
@@ -15,7 +42,11 @@ export class PaymentController {
         id: string;
       };
 
-      const payment = await paymentService.getPayment(req.tenant!.tenantId, params.id);
+      const payment = await paymentService.getPaymentForUser(
+        req.tenant!.tenantId,
+        req.user!.userId,
+        params.id,
+      );
 
       res.status(200).json({
         success: true,
@@ -37,7 +68,11 @@ export class PaymentController {
         orderId: string;
       };
 
-      const payments = await paymentService.getOrderPayments(req.tenant!.tenantId, params.orderId);
+      const payments = await paymentService.getOrderPaymentsForUser(
+        req.tenant!.tenantId,
+        req.user!.userId,
+        params.orderId,
+      );
 
       res.status(200).json({
         success: true,
@@ -55,14 +90,12 @@ export class PaymentController {
     next: NextFunction,
   ): Promise<void> {
     try {
-      const filters = (req.validatedQuery ?? {}) as {
-        orderId?: string;
-        status?: any;
-        provider?: any;
-        method?: any;
-      };
+      const filters = (req.validatedQuery ?? {}) as PaymentFilterInput;
 
-      const payments = await paymentService.getPayments(req.tenant!.tenantId, filters);
+      const payments = await paymentService.getPayments(
+        req.tenant!.tenantId,
+        filters,
+      );
 
       res.status(200).json({
         success: true,
@@ -84,9 +117,13 @@ export class PaymentController {
         id: string;
       };
 
-      const body = req.validatedBody as any;
+      const body = req.validatedBody as UpdatePaymentStatusInput;
 
-      const payment = await paymentService.updatePaymentStatus(req.tenant!.tenantId, params.id, body);
+      const payment = await paymentService.updatePaymentStatus(
+        req.tenant!.tenantId,
+        params.id,
+        body,
+      );
 
       res.status(200).json({
         success: true,
@@ -108,7 +145,10 @@ export class PaymentController {
         id: string;
       };
 
-      const payment = await paymentService.cancelPayment(req.tenant!.tenantId, params.id);
+      const payment = await paymentService.cancelPayment(
+        req.tenant!.tenantId,
+        params.id,
+      );
 
       res.status(200).json({
         success: true,

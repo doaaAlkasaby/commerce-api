@@ -1,15 +1,15 @@
 import {
-  PaymentMethod,
-  PaymentProvider,
-  PaymentStatus,
-  Prisma,
-} from '../../generated/prisma/client.js';
+  validatePaymentTransition,
+  isFinanciallyCommitted,
+} from '../../common/domain/status-transitions.js';
+import { PaymentStatus, Prisma } from '../../generated/prisma/client.js';
 
 import { prisma } from '../../config/database.js';
 
 import { AppError } from '../../common/errors/app-error.js';
 
 import { paymentRepository } from './payment.repository.instance.js';
+import { inventoryService } from '../inventory/inventory.service.instance.js';
 
 import { PaymentProviderRegistry } from './providers/payment-provider.registry.js';
 
@@ -54,6 +54,17 @@ export class PaymentService {
       );
     }
 
+    if (
+      order.paymentStatus === PaymentStatus.FAILED ||
+      order.paymentStatus === PaymentStatus.CANCELLED
+    ) {
+      throw new AppError(
+        'This order payment ended and its inventory reservation is no longer active',
+        409,
+        'ORDER_INVENTORY_RESERVATION_RELEASED',
+      );
+    }
+
     if (input.currency !== order.currency) {
       throw new AppError(
         'Payment currency does not match order currency',
@@ -74,94 +85,217 @@ export class PaymentService {
       );
     }
 
-    const provider = this.providerRegistry.resolveProviderForMethod(
-      input.method,
-    );
-
-    if (input.provider !== provider) {
+    // Compatibility entry point: initiate the checkout-created payment, never
+    // create another local payment from client-supplied money or method fields.
+    const payment = await this.repository.findMany(tenantId, {
+      orderId: order.id,
+    });
+    const original = payment.at(-1);
+    if (!original)
       throw new AppError(
-        `Payment provider ${input.provider} is invalid for ${input.method}`,
+        'Checkout payment not found',
+        404,
+        'PAYMENT_NOT_FOUND',
+      );
+    if (
+      original.method !== input.method ||
+      original.provider !== input.provider
+    ) {
+      throw new AppError(
+        'Payment configuration does not match checkout',
         400,
-        'INVALID_PAYMENT_PROVIDER',
+        'PAYMENT_CONFIGURATION_MISMATCH',
       );
     }
+    return this.initiatePayment(tenantId, order.userId, original.id);
+  }
 
-    const payment = await this.repository.create(tenantId, {
-      ...input,
-      provider,
+  async getPaymentForUser(tenantId: string, userId: string, paymentId: string) {
+    const payment = await this.repository.findForUser(
+      tenantId,
+      userId,
+      paymentId,
+    );
+    if (!payment)
+      throw new AppError('Payment not found', 404, 'PAYMENT_NOT_FOUND');
+    return payment;
+  }
+
+  async getOrderPaymentsForUser(
+    tenantId: string,
+    userId: string,
+    orderId: string,
+  ) {
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, tenantId, userId },
+      select: { id: true },
     });
+    if (!order) throw new AppError('Order not found', 404, 'ORDER_NOT_FOUND');
+    return this.repository.findMany(tenantId, { orderId });
+  }
 
-    try {
+  async initiatePayment(tenantId: string, userId: string, paymentId: string) {
+    const claim = await prisma.$transaction(async (tx) => {
+      await this.repository.lockOrderForUser(tx, tenantId, userId, paymentId);
+      const payment = await this.repository.findForUser(
+        tenantId,
+        userId,
+        paymentId,
+        tx,
+      );
+      if (!payment)
+        throw new AppError('Payment not found', 404, 'PAYMENT_NOT_FOUND');
+      if (payment.initiationState === 'INITIATED')
+        return { payment, adapter: null };
+      if (payment.initiationState === 'IN_PROGRESS') {
+        throw new AppError(
+          'Payment initiation is in progress; retrieve status before retrying',
+          409,
+          'PAYMENT_INITIATION_IN_PROGRESS',
+        );
+      }
+      const order = payment.order;
+      if (
+        payment.status !== PaymentStatus.PENDING ||
+        order.status === 'CANCELLED' ||
+        order.status === 'COMPLETED' ||
+        order.paymentStatus === PaymentStatus.FAILED ||
+        order.paymentStatus === PaymentStatus.CANCELLED ||
+        order.paymentStatus === PaymentStatus.PAID
+      ) {
+        throw new AppError(
+          'Payment cannot be initiated in its current state',
+          409,
+          'PAYMENT_NOT_INITIABLE',
+        );
+      }
+      if (
+        !payment.amount.equals(order.totalAmount) ||
+        payment.currency !== order.currency
+      ) {
+        throw new AppError(
+          'Local payment does not match the persisted order',
+          409,
+          'PAYMENT_ORDER_MISMATCH',
+        );
+      }
+      const provider = this.providerRegistry.resolveProviderForMethod(
+        payment.method,
+      );
+      if (provider !== payment.provider)
+        throw new AppError(
+          'Payment provider does not match checkout',
+          409,
+          'PAYMENT_CONFIGURATION_MISMATCH',
+        );
       const adapter = this.providerRegistry.getProvider(provider);
+      if (
+        payment.initiationState === 'UNKNOWN' &&
+        !adapter.supportsIdempotentInitiation
+      ) {
+        throw new AppError(
+          'Payment outcome requires provider reconciliation before another initiation',
+          409,
+          'PAYMENT_RECONCILIATION_REQUIRED',
+        );
+      }
+      await this.repository.setInitiationState(
+        tx,
+        tenantId,
+        userId,
+        paymentId,
+        'IN_PROGRESS',
+      );
+      return { payment, adapter };
+    });
+    if (!claim.adapter) return claim.payment;
 
-      const providerResult = await adapter.createPayment({
-        paymentId: payment.id,
-        orderId: payment.orderId,
-        amount: payment.amount.toString(),
-        currency: payment.currency,
-        method: payment.method,
-        metadata: payment.metadata as Record<string, unknown> | null,
+    // This call is deliberately outside every Prisma transaction. The short
+    // claim above has committed, as has the original checkout transaction.
+    try {
+      const result = await claim.adapter.createPayment({
+        idempotencyKey: `payment:${paymentId}`,
+        paymentId,
+        orderId: claim.payment.orderId,
+        amount: claim.payment.order.totalAmount.toString(),
+        currency: claim.payment.order.currency,
+        method: claim.payment.method,
+        metadata: claim.payment.metadata as Record<string, unknown> | null,
       });
-
+      const supported: PaymentStatus[] = [
+        PaymentStatus.PENDING,
+        PaymentStatus.REQUIRES_ACTION,
+        PaymentStatus.AUTHORIZED,
+        PaymentStatus.PAID,
+        PaymentStatus.FAILED,
+        PaymentStatus.CANCELLED,
+      ];
+      if (!supported.includes(result.status))
+        throw new Error('Unsupported provider initiation result');
       return await prisma.$transaction(async (tx) => {
-        const updatedPayment = await tx.payment.update({
-          where: {
-            id: payment.id,
-            order: { tenantId },
-          },
-
-          data: {
-            status: providerResult.status,
-
-            ...(providerResult.providerPaymentId === undefined
-              ? {}
-              : { providerPaymentId: providerResult.providerPaymentId }),
-
-            ...(providerResult.providerTransactionId === undefined
-              ? {}
-              : {
-                  providerTransactionId: providerResult.providerTransactionId,
-                }),
-
-            ...(providerResult.failureCode === undefined
-              ? {}
-              : { failureCode: providerResult.failureCode }),
-
-            ...(providerResult.failureMessage === undefined
-              ? {}
-              : { failureMessage: providerResult.failureMessage }),
-
-            ...(providerResult.metadata == null
-              ? {}
-              : {
-                  metadata: providerResult.metadata as Prisma.InputJsonObject,
-                }),
-          },
-        });
-
-        const paymentStatus = await this.calculateOrderPaymentStatus(
+        await this.applyPaymentStatusWithClient(
           tenantId,
-          input.orderId,
+          paymentId,
+          {
+            status: result.status,
+            ...(result.providerPaymentId === undefined
+              ? {}
+              : { providerPaymentId: result.providerPaymentId }),
+            ...(result.providerTransactionId === undefined
+              ? {}
+              : { providerTransactionId: result.providerTransactionId }),
+            ...(result.failureCode === undefined
+              ? {}
+              : { failureCode: result.failureCode }),
+            ...(result.failureMessage === undefined
+              ? {}
+              : { failureMessage: result.failureMessage }),
+            metadata: {
+              ...(claim.payment.metadata as Record<string, unknown> | null),
+              providerMetadata: result.metadata ?? null,
+              ...(result.checkoutUrl === undefined
+                ? {}
+                : { checkoutUrl: result.checkoutUrl }),
+              ...(result.clientSecret === undefined
+                ? {}
+                : { clientSecret: result.clientSecret }),
+            },
+          },
           tx,
         );
-
-        await tx.order.update({
-          where: {
-            id: input.orderId,
-            tenantId,
-          },
-
-          data: {
-            paymentStatus,
-          },
-        });
-
-        return updatedPayment;
+        return this.repository.setInitiationState(
+          tx,
+          tenantId,
+          userId,
+          paymentId,
+          'INITIATED',
+        );
       });
-    } catch (error) {
-      await this.markPaymentAsFailed(tenantId, payment.id, error);
-
-      throw error;
+    } catch {
+      // A transport error (or failure to persist a provider reply) is not proof
+      // of payment failure. Keep reservation and committed checkout intact.
+      await prisma.$transaction(async (tx) => {
+        await this.repository.lockOrderForUser(tx, tenantId, userId, paymentId);
+        const payment = await this.repository.findForUser(
+          tenantId,
+          userId,
+          paymentId,
+          tx,
+        );
+        if (payment?.initiationState === 'IN_PROGRESS')
+          await this.repository.setInitiationState(
+            tx,
+            tenantId,
+            userId,
+            paymentId,
+            'UNKNOWN',
+          );
+      });
+      throw new AppError(
+        'Payment outcome is unknown; check status and retry only when safe',
+        503,
+        'PAYMENT_INITIATION_UNKNOWN',
+      );
     }
   }
 
@@ -175,8 +309,16 @@ export class PaymentService {
     return payment;
   }
 
-  async getPaymentForOrder(tenantId: string, paymentId: string, orderId: string) {
-    const payment = await this.repository.findByIdForOrder(tenantId, paymentId, orderId);
+  async getPaymentForOrder(
+    tenantId: string,
+    paymentId: string,
+    orderId: string,
+  ) {
+    const payment = await this.repository.findByIdForOrder(
+      tenantId,
+      paymentId,
+      orderId,
+    );
 
     if (!payment) {
       throw new AppError('Payment not found', 404, 'PAYMENT_NOT_FOUND');
@@ -211,43 +353,198 @@ export class PaymentService {
     paymentId: string,
     input: UpdatePaymentStatusInput,
   ) {
-    const payment = await this.repository.findById(tenantId, paymentId);
+    return prisma.$transaction((tx) =>
+      this.applyPaymentStatusWithClient(tenantId, paymentId, input, tx),
+    );
+  }
 
-    if (!payment) {
+  async applyPaymentStatusWithClient(
+    tenantId: string,
+    paymentId: string,
+    input: UpdatePaymentStatusInput,
+    tx: Prisma.TransactionClient,
+  ) {
+    const paymentIdentity = await tx.payment.findFirst({
+      where: { id: paymentId, order: { tenantId } },
+      select: { orderId: true },
+    });
+    if (!paymentIdentity) {
       throw new AppError('Payment not found', 404, 'PAYMENT_NOT_FOUND');
     }
 
-    this.validateStatusTransition(payment.status, input.status);
+    const lockedOrders = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id" FROM "Order"
+      WHERE "id" = ${paymentIdentity.orderId}
+        AND "tenantId" = ${tenantId}
+      FOR UPDATE
+    `;
+    if (lockedOrders.length !== 1) {
+      throw new AppError('Order not found', 404, 'ORDER_NOT_FOUND');
+    }
 
-    const updated = await prisma.$transaction(async (tx) => {
-      const result = await this.repository.updateStatusWithClient(
-        tenantId,
-        paymentId,
-        input,
-        tx,
+    const [payment, order] = await Promise.all([
+      tx.payment.findFirst({
+        where: { id: paymentId, order: { tenantId } },
+      }),
+      tx.order.findFirst({
+        where: { id: paymentIdentity.orderId, tenantId },
+        select: {
+          id: true,
+          userId: true,
+          status: true,
+          paymentStatus: true,
+          totalAmount: true,
+          currency: true,
+        },
+      }),
+    ]);
+    if (!payment) {
+      throw new AppError('Payment not found', 404, 'PAYMENT_NOT_FOUND');
+    }
+    if (!order) {
+      throw new AppError('Order not found', 404, 'ORDER_NOT_FOUND');
+    }
+
+    // Already cancelled negative notifications are harmless, never resurrect state.
+    if (payment.status === 'CANCELLED' && input.status === 'FAILED')
+      return payment;
+    validatePaymentTransition(payment.status, input.status);
+    if (
+      order.status === 'CANCELLED' &&
+      ['PAID', 'AUTHORIZED', 'PENDING', 'REQUIRES_ACTION'].includes(
+        input.status,
+      )
+    )
+      throw new AppError(
+        'Cancelled or expired order requires reconciliation for late payment',
+        409,
+        'ORDER_CANCELLED',
       );
+    const siblings = await tx.payment.findMany({
+      where: { orderId: order.id, order: { tenantId } },
+    });
+    if (siblings.length !== 1 || order.paymentStatus !== payment.status)
+      throw new AppError(
+        'Legacy payment/order state requires reconciliation',
+        409,
+        'PAYMENT_RECONCILIATION_REQUIRED',
+      );
+    if (
+      ['PAID', 'AUTHORIZED'].includes(input.status) &&
+      (!payment.amount.equals(order.totalAmount) ||
+        payment.currency !== order.currency)
+    )
+      throw new AppError(
+        'Payment money does not match order',
+        409,
+        'PAYMENT_ORDER_MISMATCH',
+      );
+    if (
+      ['PAID', 'AUTHORIZED', 'PENDING', 'REQUIRES_ACTION'].includes(
+        input.status,
+      )
+    ) {
+      const released = await tx.inventoryTransaction.findFirst({
+        where: {
+          referenceId: order.id,
+          type: 'RELEASE',
+          inventory: { variant: { product: { tenantId } } },
+        },
+      });
+      if (released)
+        throw new AppError(
+          'Reservation was released; payment requires reconciliation',
+          409,
+          'ORDER_INVENTORY_RESERVATION_RELEASED',
+        );
+    }
+    if (
+      ['FAILED', 'CANCELLED'].includes(input.status) &&
+      !['PENDING', 'CONFIRMED', 'CANCELLED'].includes(order.status)
+    )
+      throw new AppError(
+        'Fulfillment is underway; payment outcome requires reconciliation',
+        409,
+        'PAYMENT_RECONCILIATION_REQUIRED',
+      );
+    if (
+      payment.providerPaymentId &&
+      input.providerPaymentId !== undefined &&
+      payment.providerPaymentId !== input.providerPaymentId
+    )
+      throw new AppError(
+        'Provider reference conflicts with stored payment',
+        409,
+        'PAYMENT_PROVIDER_REFERENCE_CONFLICT',
+      );
+    let updatedPayment = await tx.payment.update({
+      where: { id: paymentId, order: { tenantId } },
+      data: {
+        status: input.status,
+        ...(input.providerPaymentId === undefined
+          ? {}
+          : { providerPaymentId: input.providerPaymentId }),
+        ...(input.providerTransactionId === undefined
+          ? {}
+          : { providerTransactionId: input.providerTransactionId }),
+        ...(input.failureCode === undefined
+          ? {}
+          : { failureCode: input.failureCode }),
+        ...(input.failureMessage === undefined
+          ? {}
+          : { failureMessage: input.failureMessage }),
+        ...(input.metadata === undefined
+          ? {}
+          : {
+              metadata:
+                input.metadata === null
+                  ? Prisma.DbNull
+                  : (input.metadata as Prisma.InputJsonObject),
+            }),
+      },
+    });
+    // A trusted provider/admin confirmation reconciles an uncertain initiation.
+    // Do not reset to NOT_STARTED or call a provider again after confirmation.
+    if (
+      input.status !== PaymentStatus.PENDING &&
+      (payment.initiationState === 'IN_PROGRESS' ||
+        payment.initiationState === 'UNKNOWN')
+    ) {
+      updatedPayment = await this.repository.setInitiationState(
+        tx,
+        tenantId,
+        order.userId,
+        paymentId,
+        ['FAILED', 'CANCELLED'].includes(input.status)
+          ? 'UNKNOWN'
+          : 'INITIATED',
+      );
+    }
+    const paymentStatus = await this.calculateOrderPaymentStatus(
+      tenantId,
+      payment.orderId,
+      tx,
+    );
 
-      const paymentStatus = await this.calculateOrderPaymentStatus(
+    await tx.order.update({
+      where: { id: payment.orderId, tenantId },
+      data: { paymentStatus },
+    });
+
+    if (paymentStatus === PaymentStatus.PAID) {
+      await inventoryService.commitOrderSale(tenantId, payment.orderId, tx);
+    } else if (
+      paymentStatus === PaymentStatus.FAILED ||
+      paymentStatus === PaymentStatus.CANCELLED
+    ) {
+      await inventoryService.releaseOrderReservation(
         tenantId,
         payment.orderId,
         tx,
       );
+    }
 
-      await tx.order.update({
-        where: {
-          id: payment.orderId,
-          tenantId,
-        },
-
-        data: {
-          paymentStatus,
-        },
-      });
-
-      return result;
-    });
-
-    return updated;
+    return updatedPayment;
   }
 
   async cancelPayment(tenantId: string, paymentId: string) {
@@ -257,17 +554,18 @@ export class PaymentService {
       throw new AppError('Payment not found', 404, 'PAYMENT_NOT_FOUND');
     }
 
-    if (
-      payment.status === PaymentStatus.PAID ||
-      payment.status === PaymentStatus.REFUNDED ||
-      payment.status === PaymentStatus.PARTIALLY_REFUNDED
-    ) {
+    if (payment.status === PaymentStatus.CANCELLED) return payment;
+    if (isFinanciallyCommitted(payment.status)) {
       throw new AppError(
-        'A completed payment cannot be cancelled',
-        400,
+        'A financially committed payment cannot be cancelled',
+        409,
         'PAYMENT_CANNOT_BE_CANCELLED',
       );
     }
+    if (payment.status === PaymentStatus.FAILED)
+      return this.updatePaymentStatus(tenantId, payment.id, {
+        status: PaymentStatus.CANCELLED,
+      });
 
     if (!payment.providerPaymentId) {
       return this.updatePaymentStatus(tenantId, payment.id, {
@@ -344,167 +642,14 @@ export class PaymentService {
     tx: Prisma.TransactionClient,
   ): Promise<PaymentStatus> {
     const payments = await tx.payment.findMany({
-      where: {
-        orderId,
-        order: { tenantId },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      where: { orderId, order: { tenantId } },
     });
-
-    if (payments.length === 0) {
-      return PaymentStatus.PENDING;
-    }
-
-    if (payments.some((payment) => payment.status === PaymentStatus.PAID)) {
-      const paidPayments = payments.filter(
-        (payment) => payment.status === PaymentStatus.PAID,
-      );
-
-      const totalPaid = paidPayments.reduce(
-        (total, payment) => total.plus(payment.amount),
-        new Prisma.Decimal(0),
-      );
-
-      const order = await tx.order.findFirst({
-        where: {
-          id: orderId,
-          tenantId,
-        },
-        select: {
-          totalAmount: true,
-        },
-      });
-
-      if (order && totalPaid.gte(order.totalAmount)) {
-        return PaymentStatus.PAID;
-      }
-
-      return PaymentStatus.PARTIALLY_REFUNDED;
-    }
-
-    if (
-      payments.some(
-        (payment) => payment.status === PaymentStatus.REQUIRES_ACTION,
-      )
-    ) {
-      return PaymentStatus.REQUIRES_ACTION;
-    }
-
-    if (
-      payments.some((payment) => payment.status === PaymentStatus.AUTHORIZED)
-    ) {
-      return PaymentStatus.AUTHORIZED;
-    }
-
-    if (
-      payments.some(
-        (payment) => payment.status === PaymentStatus.REFUND_PENDING,
-      )
-    ) {
-      return PaymentStatus.REFUND_PENDING;
-    }
-
-    if (
-      payments.some(
-        (payment) => payment.status === PaymentStatus.PARTIALLY_REFUNDED,
-      )
-    ) {
-      return PaymentStatus.PARTIALLY_REFUNDED;
-    }
-
-    if (
-      payments.every((payment) => payment.status === PaymentStatus.CANCELLED)
-    ) {
-      return PaymentStatus.CANCELLED;
-    }
-
-    if (payments.some((payment) => payment.status === PaymentStatus.FAILED)) {
-      return PaymentStatus.FAILED;
-    }
-
-    return PaymentStatus.PENDING;
-  }
-
-  private validateStatusTransition(
-    current: PaymentStatus,
-    next: PaymentStatus,
-  ): void {
-    if (current === next) {
-      return;
-    }
-
-    const transitions: Record<PaymentStatus, PaymentStatus[]> = {
-      PENDING: [
-        PaymentStatus.REQUIRES_ACTION,
-        PaymentStatus.AUTHORIZED,
-        PaymentStatus.PAID,
-        PaymentStatus.FAILED,
-        PaymentStatus.CANCELLED,
-      ],
-
-      REQUIRES_ACTION: [
-        PaymentStatus.AUTHORIZED,
-        PaymentStatus.PAID,
-        PaymentStatus.FAILED,
-        PaymentStatus.CANCELLED,
-      ],
-
-      AUTHORIZED: [
-        PaymentStatus.PAID,
-        PaymentStatus.FAILED,
-        PaymentStatus.CANCELLED,
-      ],
-
-      PAID: [
-        PaymentStatus.REFUND_PENDING,
-        PaymentStatus.PARTIALLY_REFUNDED,
-        PaymentStatus.REFUNDED,
-      ],
-
-      FAILED: [PaymentStatus.PENDING, PaymentStatus.CANCELLED],
-
-      CANCELLED: [],
-
-      REFUND_PENDING: [
-        PaymentStatus.PARTIALLY_REFUNDED,
-        PaymentStatus.REFUNDED,
-      ],
-
-      PARTIALLY_REFUNDED: [
-        PaymentStatus.REFUND_PENDING,
-        PaymentStatus.REFUNDED,
-      ],
-
-      REFUNDED: [],
-    };
-
-    if (!transitions[current].includes(next)) {
+    if (payments.length !== 1)
       throw new AppError(
-        `Invalid payment status transition from ${current} to ${next}`,
-        400,
-        'INVALID_PAYMENT_STATUS_TRANSITION',
+        'Multiple or missing legacy payments require reconciliation',
+        409,
+        'PAYMENT_RECONCILIATION_REQUIRED',
       );
-    }
-  }
-
-  private async markPaymentAsFailed(
-    tenantId: string,
-    paymentId: string,
-    error: unknown,
-  ): Promise<void> {
-    try {
-      await this.repository.updateStatus(tenantId, paymentId, {
-        status: PaymentStatus.FAILED,
-
-        failureCode: 'PAYMENT_PROVIDER_ERROR',
-
-        failureMessage:
-          error instanceof Error ? error.message : 'Payment provider error',
-      });
-    } catch {
-      // Do not hide the original provider error.
-    }
+    return payments[0]!.status;
   }
 }

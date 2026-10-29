@@ -6,7 +6,7 @@ import type {
 
 import type { TenantMemberRole } from '../generated/prisma/client.js';
 
-import { ForbiddenError } from '../common/errors/forbidden.error.js';
+import { AppError } from '../common/errors/app-error.js';
 
 export function requireTenantRoles(
   ...allowedRoles: TenantMemberRole[]
@@ -20,8 +20,10 @@ export function requireTenantRoles(
 
     if (!role) {
       next(
-        new ForbiddenError(
+        new AppError(
           'Tenant membership is required',
+          403,
+          'FORBIDDEN',
         ),
       );
       return;
@@ -29,8 +31,10 @@ export function requireTenantRoles(
 
     if (!allowedRoles.includes(role)) {
       next(
-        new ForbiddenError(
+        new AppError(
           'You do not have permission to perform this action',
+          403,
+          'FORBIDDEN',
         ),
       );
       return;

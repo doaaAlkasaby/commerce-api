@@ -202,6 +202,7 @@ export const createProductImageService = (
           id,
           data,
         );
+      if (!image) throw new AppError('Product image not found', 404, 'PRODUCT_IMAGE_NOT_FOUND');
 
       return toProductImageResponse(image);
     },
@@ -230,6 +231,7 @@ export const createProductImageService = (
           id,
           existing.productId,
         );
+      if (!image) throw new AppError('Product image not found', 404, 'PRODUCT_IMAGE_NOT_FOUND');
 
       return toProductImageResponse(image);
     },

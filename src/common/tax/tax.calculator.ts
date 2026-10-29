@@ -1,38 +1,26 @@
-import type {
-  TaxCalculationInput,
-  TaxCalculationResult,
-} from './tax.types.js';
+import { AppError } from '../errors/app-error.js';
+import type { TaxCalculationInput, TaxCalculationResult } from './tax.types.js';
 
 const BASIS_POINTS = 10_000n;
 
-export function calculateTax(
-  input: TaxCalculationInput,
-): TaxCalculationResult {
+export function calculateTax(input: TaxCalculationInput): TaxCalculationResult {
   if (input.amountCents < 0n) {
-    throw new Error(
-      'Tax calculation amount cannot be negative.',
+    throw new AppError(
+      'Taxable amount cannot be negative.',
+      500,
+      'INVALID_TAXABLE_AMOUNT',
     );
   }
 
   if (input.rateBasisPoints < 0n) {
-    throw new Error(
-      'Tax rate cannot be negative.',
-    );
+    throw new AppError('Tax rate cannot be negative.', 500, 'INVALID_TAX_RATE');
   }
 
-  if (
-    input.rateBasisPoints >
-    BASIS_POINTS
-  ) {
-    throw new Error(
-      'Tax rate cannot exceed 100%.',
-    );
+  if (input.rateBasisPoints > BASIS_POINTS) {
+    throw new AppError('Tax rate cannot exceed 100%.', 500, 'INVALID_TAX_RATE');
   }
 
-  if (
-    input.treatment === 'ZERO_RATED' ||
-    input.treatment === 'EXEMPT'
-  ) {
+  if (input.treatment === 'ZERO_RATED' || input.treatment === 'EXEMPT') {
     return {
       taxableAmountCents: input.amountCents,
 
@@ -40,22 +28,17 @@ export function calculateTax(
 
       grossAmountCents: input.amountCents,
 
-      rateBasisPoints:
-        input.rateBasisPoints,
+      rateBasisPoints: input.rateBasisPoints,
 
       treatment: input.treatment,
 
-      pricesIncludeTax:
-        input.pricesIncludeTax,
+      pricesIncludeTax: input.pricesIncludeTax,
 
-      taxCategoryId:
-        input.taxCategoryId,
+      taxCategoryId: input.taxCategoryId,
 
-      taxCategoryCode:
-        input.taxCategoryCode,
+      taxCategoryCode: input.taxCategoryCode,
 
-      taxRuleId:
-        input.taxRuleId,
+      taxRuleId: input.taxRuleId,
     };
   }
 
@@ -69,109 +52,77 @@ export function calculateTax(
 function calculateExclusiveTax(
   input: TaxCalculationInput,
 ): TaxCalculationResult {
-  const taxAmountCents =
-    divideHalfUp(
-      input.amountCents *
-        input.rateBasisPoints,
-      BASIS_POINTS,
-    );
+  const taxAmountCents = divideHalfUp(
+    input.amountCents * input.rateBasisPoints,
+    BASIS_POINTS,
+  );
 
-  const grossAmountCents =
-    input.amountCents +
-    taxAmountCents;
+  const grossAmountCents = input.amountCents + taxAmountCents;
 
   return {
-    taxableAmountCents:
-      input.amountCents,
+    taxableAmountCents: input.amountCents,
 
     taxAmountCents,
 
     grossAmountCents,
 
-    rateBasisPoints:
-      input.rateBasisPoints,
+    rateBasisPoints: input.rateBasisPoints,
 
     treatment: input.treatment,
 
-    pricesIncludeTax:
-      input.pricesIncludeTax,
+    pricesIncludeTax: input.pricesIncludeTax,
 
-    taxCategoryId:
-      input.taxCategoryId,
+    taxCategoryId: input.taxCategoryId,
 
-    taxCategoryCode:
-      input.taxCategoryCode,
+    taxCategoryCode: input.taxCategoryCode,
 
-    taxRuleId:
-      input.taxRuleId,
+    taxRuleId: input.taxRuleId,
   };
 }
 
 function calculateInclusiveTax(
   input: TaxCalculationInput,
 ): TaxCalculationResult {
-  const denominator =
-    BASIS_POINTS +
-    input.rateBasisPoints;
+  const denominator = BASIS_POINTS + input.rateBasisPoints;
 
-  const taxAmountCents =
-    divideHalfUp(
-      input.amountCents *
-        input.rateBasisPoints,
-      denominator,
-    );
+  const taxAmountCents = divideHalfUp(
+    input.amountCents * input.rateBasisPoints,
+    denominator,
+  );
 
-  const taxableAmountCents =
-    input.amountCents -
-    taxAmountCents;
+  const taxableAmountCents = input.amountCents - taxAmountCents;
 
   return {
     taxableAmountCents,
 
     taxAmountCents,
 
-    grossAmountCents:
-      input.amountCents,
+    grossAmountCents: input.amountCents,
 
-    rateBasisPoints:
-      input.rateBasisPoints,
+    rateBasisPoints: input.rateBasisPoints,
 
     treatment: input.treatment,
 
-    pricesIncludeTax:
-      input.pricesIncludeTax,
+    pricesIncludeTax: input.pricesIncludeTax,
 
-    taxCategoryId:
-      input.taxCategoryId,
+    taxCategoryId: input.taxCategoryId,
 
-    taxCategoryCode:
-      input.taxCategoryCode,
+    taxCategoryCode: input.taxCategoryCode,
 
-    taxRuleId:
-      input.taxRuleId,
+    taxRuleId: input.taxRuleId,
   };
 }
 
-function divideHalfUp(
-  numerator: bigint,
-  denominator: bigint,
-): bigint {
+function divideHalfUp(numerator: bigint, denominator: bigint): bigint {
   if (denominator <= 0n) {
-    throw new Error(
-      'Tax calculation denominator must be positive.',
-    );
+    throw new Error('Tax calculation denominator must be positive.');
   }
 
-  const quotient =
-    numerator / denominator;
+  const quotient = numerator / denominator;
 
-  const remainder =
-    numerator % denominator;
+  const remainder = numerator % denominator;
 
-  if (
-    remainder * 2n >=
-    denominator
-  ) {
+  if (remainder * 2n >= denominator) {
     return quotient + 1n;
   }
 

@@ -49,6 +49,13 @@ export interface OrderItemResponse {
   finalUnitPrice: string;
   totalPrice: string;
 
+  taxCategoryCode: string | null;
+  taxCategoryId: string | null;
+  taxRuleId: string | null;
+  taxTreatment: string | null;
+  taxRate: string | null;
+  taxableAmount: string;
+  taxAmount: string;
   variantSnapshot: OrderVariantSnapshot;
 
   createdAt: string;
@@ -90,6 +97,15 @@ export interface OrderResponse {
   taxAmount: string;
   totalAmount: string;
 
+  couponSnapshot: unknown | null;
+  shippingProfileSnapshot: unknown | null;
+  taxProfileSnapshot: unknown | null;
+  pricesIncludeTax: boolean;
+  shippingMethodId: string | null;
+  shippingMethodCode: string | null;
+  shippingMethodName: string | null;
+  shippingRuleId: string | null;
+  shippingDistanceKm: string | null;
   shippingAddress: unknown;
   billingAddress: unknown;
 

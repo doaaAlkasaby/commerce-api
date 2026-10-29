@@ -1,4 +1,5 @@
 import { AppError } from '../../common/errors/app-error.js';
+import type { Prisma } from '../../generated/prisma/client.js';
 
 import { prisma } from '../../config/database.js';
 
@@ -26,6 +27,199 @@ const isPrismaUniqueConstraintError = (error: unknown): boolean =>
 
 export class InventoryService {
   constructor(private readonly repository: InventoryRepository) {}
+
+  async commitOrderSale(
+    tenantId: string,
+    orderId: string,
+    tx: Prisma.TransactionClient,
+  ): Promise<void> {
+    const order = await tx.order.findFirst({
+      where: { id: orderId, tenantId },
+      include: { items: true, payments: true },
+    });
+
+    if (!order) {
+      throw new AppError('Order not found', 404, 'ORDER_NOT_FOUND');
+    }
+    if (
+      order.paymentStatus !== 'PAID' ||
+      !order.payments.some((payment) => payment.status === 'PAID')
+    ) {
+      throw new AppError(
+        'Inventory can only be committed for a paid order',
+        409,
+        'ORDER_PAYMENT_NOT_PAID',
+      );
+    }
+
+    const repository = new InventoryRepository(tx);
+    // Match checkout lock ordering across orders sharing multiple variants.
+    for (const item of [...order.items].sort((a, b) =>
+      a.variantId.localeCompare(b.variantId),
+    )) {
+      const inventory = await repository.findByVariantId(
+        tenantId,
+        item.variantId,
+      );
+      if (!inventory) {
+        throw new AppError(
+          `Inventory not found for SKU "${item.sku}"`,
+          409,
+          'INVENTORY_NOT_FOUND',
+        );
+      }
+
+      const existingSale = await repository.findTransactionByReference(
+        tenantId,
+        inventory.id,
+        'SALE',
+        orderId,
+      );
+      if (existingSale) {
+        if (existingSale.quantity !== item.quantity) {
+          throw new AppError(
+            `Committed inventory quantity does not match order SKU "${item.sku}"`,
+            409,
+            'INVENTORY_SALE_QUANTITY_MISMATCH',
+          );
+        }
+        continue;
+      }
+
+      const reservation = await repository.findTransactionByReference(
+        tenantId,
+        inventory.id,
+        'RESERVATION',
+        orderId,
+      );
+      if (!reservation || reservation.quantity !== item.quantity) {
+        throw new AppError(
+          `Active inventory reservation not found for SKU "${item.sku}"`,
+          409,
+          'ORDER_INVENTORY_RESERVATION_NOT_FOUND',
+        );
+      }
+
+      const affectedRows = await repository.sale(
+        tenantId,
+        inventory.id,
+        item.quantity,
+      );
+      if (affectedRows !== 1) {
+        const concurrentSale = await repository.findTransactionByReference(
+          tenantId,
+          inventory.id,
+          'SALE',
+          orderId,
+        );
+        if (concurrentSale?.quantity === item.quantity) continue;
+        throw new AppError(
+          `Cannot commit inventory sale for SKU "${item.sku}"`,
+          409,
+          'INVALID_INVENTORY_SALE',
+        );
+      }
+
+      await repository.createTransaction(tenantId, {
+        inventoryId: inventory.id,
+        type: 'SALE',
+        quantity: item.quantity,
+        referenceId: orderId,
+        reason: `Payment completed for order ${order.orderNumber}`,
+      });
+    }
+  }
+
+  async releaseOrderReservation(
+    tenantId: string,
+    orderId: string,
+    tx: Prisma.TransactionClient,
+  ): Promise<void> {
+    const order = await tx.order.findFirst({
+      where: { id: orderId, tenantId },
+      include: { items: true, payments: true },
+    });
+
+    if (!order) {
+      throw new AppError('Order not found', 404, 'ORDER_NOT_FOUND');
+    }
+    if (
+      order.paymentStatus === 'PAID' ||
+      order.payments.some((payment) => payment.status === 'PAID')
+    ) {
+      return;
+    }
+
+    const repository = new InventoryRepository(tx);
+    // Match checkout lock ordering across orders sharing multiple variants.
+    for (const item of [...order.items].sort((a, b) =>
+      a.variantId.localeCompare(b.variantId),
+    )) {
+      const inventory = await repository.findByVariantId(
+        tenantId,
+        item.variantId,
+      );
+      if (!inventory) continue;
+
+      const existingRelease = await repository.findTransactionByReference(
+        tenantId,
+        inventory.id,
+        'RELEASE',
+        orderId,
+      );
+      if (existingRelease) continue;
+
+      const existingSale = await repository.findTransactionByReference(
+        tenantId,
+        inventory.id,
+        'SALE',
+        orderId,
+      );
+      if (existingSale) continue;
+
+      const reservation = await repository.findTransactionByReference(
+        tenantId,
+        inventory.id,
+        'RESERVATION',
+        orderId,
+      );
+      if (!reservation) continue;
+
+      const affectedRows = await repository.release(
+        tenantId,
+        inventory.id,
+        item.quantity,
+      );
+      if (affectedRows !== 1) {
+        const concurrentRelease = await repository.findTransactionByReference(
+          tenantId,
+          inventory.id,
+          'RELEASE',
+          orderId,
+        );
+        const concurrentSale = await repository.findTransactionByReference(
+          tenantId,
+          inventory.id,
+          'SALE',
+          orderId,
+        );
+        if (concurrentRelease || concurrentSale) continue;
+        throw new AppError(
+          `Cannot release inventory reservation for SKU "${item.sku}"`,
+          409,
+          'INVALID_INVENTORY_RELEASE',
+        );
+      }
+
+      await repository.createTransaction(tenantId, {
+        inventoryId: inventory.id,
+        type: 'RELEASE',
+        quantity: item.quantity,
+        referenceId: orderId,
+        reason: `Reservation released for order ${order.orderNumber}`,
+      });
+    }
+  }
 
   /*
    * ==================================================
@@ -74,7 +268,10 @@ export class InventoryService {
       );
     }
 
-    const exists = await this.repository.existsByVariantId(tenantId, input.variantId);
+    const exists = await this.repository.existsByVariantId(
+      tenantId,
+      input.variantId,
+    );
 
     if (exists) {
       throw new AppError(
@@ -124,7 +321,10 @@ export class InventoryService {
    */
 
   async getByVariantId(tenantId: string, variantId: string) {
-    const inventory = await this.repository.findByVariantId(tenantId, variantId);
+    const inventory = await this.repository.findByVariantId(
+      tenantId,
+      variantId,
+    );
 
     if (!inventory) {
       throw new AppError('Inventory not found', 404, 'INVENTORY_NOT_FOUND');
@@ -253,7 +453,11 @@ export class InventoryService {
    * ==================================================
    */
 
-  async adjustment(tenantId: string, inventoryId: string, input: AdjustmentInput) {
+  async adjustment(
+    tenantId: string,
+    inventoryId: string,
+    input: AdjustmentInput,
+  ) {
     if (!Number.isInteger(input.quantity) || input.quantity === 0) {
       throw new AppError(
         'Adjustment quantity must be a non-zero integer',
@@ -305,7 +509,11 @@ export class InventoryService {
    * ==================================================
    */
 
-  async reserve(tenantId: string, inventoryId: string, input: ReservationInput) {
+  async reserve(
+    tenantId: string,
+    inventoryId: string,
+    input: ReservationInput,
+  ) {
     this.validatePositiveQuantity(input.quantity);
     this.validateReferenceId(input.referenceId);
 

@@ -10,14 +10,15 @@ import type {
 
 export interface PaymentProviderAdapter {
   readonly provider: PrismaPaymentProvider;
+  // Opt in only when repeated createPayment calls with the same stable key are
+  // guaranteed not to create another provider intent. Absent means unsupported.
+  readonly supportsIdempotentInitiation?: boolean;
 
   createPayment(
     input: PaymentProviderCreateInput,
   ): Promise<PaymentProviderCreateResult>;
 
-  cancelPayment(
-    providerPaymentId: string,
-  ): Promise<{
+  cancelPayment(providerPaymentId: string): Promise<{
     status: PaymentStatus;
   }>;
 

@@ -6,8 +6,9 @@ import { validate } from '../../common/validation/validate.js';
 
 import { authenticate } from '../../middleware/auth.middleware.js';
 
-import { authorize } from '../../middleware/authorization.middleware.js';
 import { tenantMiddleware } from '../../middleware/tenant.middleware.js';
+import { tenantMemberMiddleware } from '../../middleware/tenant-member.middleware.js';
+import { requireTenantRoles } from '../../middleware/tenant-role.middleware.js';
 
 import {
   createCouponSchema,
@@ -44,7 +45,8 @@ couponRouter.post(
 
   authenticate,
 
-  authorize('ADMIN', 'MANAGER'),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
 
   validate(createCouponSchema, 'body'),
 
@@ -59,7 +61,8 @@ couponRouter.get(
 
   authenticate,
 
-  authorize('ADMIN', 'MANAGER'),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
 
   couponController.findAll.bind(couponController),
 );
@@ -72,7 +75,8 @@ couponRouter.get(
 
   authenticate,
 
-  authorize('ADMIN', 'MANAGER'),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
 
   validate(couponIdParamsSchema, 'params'),
 
@@ -87,7 +91,8 @@ couponRouter.patch(
 
   authenticate,
 
-  authorize('ADMIN', 'MANAGER'),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
 
   validate(couponIdParamsSchema, 'params'),
 
@@ -104,7 +109,8 @@ couponRouter.delete(
 
   authenticate,
 
-  authorize('ADMIN'),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN'),
 
   validate(couponIdParamsSchema, 'params'),
 

@@ -25,7 +25,8 @@ import {
 import { validate } from '../../common/validation/validate.js';
 
 import { authenticate } from '../../middleware/auth.middleware.js';
-import { authorize } from '../../middleware/authorization.middleware.js';
+import { tenantMemberMiddleware } from '../../middleware/tenant-member.middleware.js';
+import { requireTenantRoles } from '../../middleware/tenant-role.middleware.js';
 import { optionalAuthenticate } from '../../middleware/optional-auth.middleware.js';
 
 
@@ -63,7 +64,8 @@ router.get('/:id',
 router.post(
   '/',
   authenticate,
-  authorize('ADMIN', 'MANAGER'),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(createProductCollectionSchema, 'body'),
   createCollection,
 );
@@ -71,7 +73,8 @@ router.post(
 router.patch(
   '/:id',
   authenticate,
-  authorize('ADMIN', 'MANAGER'),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(collectionIdParamsSchema, 'params'),
   validate(updateProductCollectionSchema, 'body'),
   updateCollection,
@@ -80,7 +83,8 @@ router.patch(
 router.delete(
   '/:id',
   authenticate,
-  authorize('ADMIN', 'MANAGER'),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(collectionIdParamsSchema, 'params'),
   deleteCollection,
 );
@@ -88,7 +92,8 @@ router.delete(
 router.post(
   '/:id/products',
   authenticate,
-  authorize('ADMIN', 'MANAGER'),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(collectionIdParamsSchema, 'params'),
   validate(addProductToCollectionSchema, 'body'),
   addProduct,
@@ -97,7 +102,8 @@ router.post(
 router.delete(
   '/:id/products/:productId',
   authenticate,
-  authorize('ADMIN', 'MANAGER'),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(collectionProductParamsSchema, 'params'),
   removeProduct,
 );
@@ -105,7 +111,8 @@ router.delete(
 router.patch(
   '/:id/products/:productId/order',
   authenticate,
-  authorize('ADMIN', 'MANAGER'),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(collectionProductParamsSchema, 'params'),
   validate(updateCollectionProductOrderSchema, 'body'),
   updateProductOrder,

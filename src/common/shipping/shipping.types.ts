@@ -8,6 +8,7 @@ export interface ShippingAddress {
 }
 
 export interface ShippingCalculationInput {
+  tenantId: string;
   scopeKey: string;
 
   currency: string;

@@ -548,6 +548,9 @@ model Order {
 
   couponId String?
 
+  // Null for legacy orders or checkouts without a coupon.
+  couponSnapshot Json?
+
   status        OrderStatus   @default(PENDING)
   paymentStatus PaymentStatus @default(PENDING)
 
@@ -691,6 +694,13 @@ enum PaymentProvider {
   PAYMOB
 }
 
+enum PaymentInitiationState {
+  NOT_STARTED
+  IN_PROGRESS
+  INITIATED
+  UNKNOWN
+}
+
 model Payment {
   id String @id @default(uuid())
 
@@ -702,6 +712,9 @@ model Payment {
 
   amount   Decimal @db.Decimal(12, 2)
   currency String
+
+  // UNKNOWN protects legacy records whose external outcome cannot be inferred.
+  initiationState PaymentInitiationState @default(UNKNOWN)
 
   providerPaymentId     String?
   providerTransactionId String?
@@ -727,7 +740,7 @@ model ProductCollection {
   id          String  @id @default(uuid())
   tenantId    String
   name        String
-  slug        String  @unique
+  slug        String
   description String?
 
   imageStorageKey String?
@@ -883,6 +896,10 @@ model Address {
 model CheckoutRequest {
   id String @id @default(uuid())
 
+  // Nullable only for legacy records whose tenant cannot be recovered.
+  tenantId String?
+  requestFingerprint String?
+
   userId String
 
   idempotencyKey String
@@ -896,7 +913,9 @@ model CheckoutRequest {
 
   order Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
 
-  @@unique([userId, idempotencyKey])
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, userId, idempotencyKey])
   @@index([orderId])
 }
 
@@ -1163,6 +1182,9 @@ model ShippingMethod {
 
   sortOrder Int @default(0)
 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   zone ShippingZone @relation( fields: [zoneId],  references: [id], onDelete: Cascade)
 
   rules ShippingRule[]
@@ -1275,6 +1297,7 @@ model Tenant {
 
   coupons Coupon[]
   orders Order[]
+  checkoutRequests CheckoutRequest[]
 
   taxCategories TaxCategory[]
   taxProfiles TaxProfile[]

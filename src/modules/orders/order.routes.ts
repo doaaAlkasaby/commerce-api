@@ -2,9 +2,6 @@ import {
   Router,
 } from 'express';
 
-import {
-  UserRole,
-} from '../../generated/prisma/client.js';
 
 import {
   validate,
@@ -14,9 +11,8 @@ import {
   authenticate,
 } from '../../middleware/auth.middleware.js';
 
-import {
-  authorize,
-} from '../../middleware/authorization.middleware.js';
+import { tenantMemberMiddleware } from '../../middleware/tenant-member.middleware.js';
+import { requireTenantRoles } from '../../middleware/tenant-role.middleware.js';
 
 import {
   orderController,
@@ -65,10 +61,8 @@ router.get(
 router.get(
   '/',
   authenticate,
-  authorize(
-    UserRole.ADMIN,
-    UserRole.MANAGER,
-  ),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(
     orderListQuerySchema,
     'query',
@@ -79,10 +73,8 @@ router.get(
 router.get(
   '/:id',
   authenticate,
-  authorize(
-    UserRole.ADMIN,
-    UserRole.MANAGER,
-  ),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(
     orderIdParamsSchema,
     'params',
@@ -93,10 +85,8 @@ router.get(
 router.patch(
   '/:id/status',
   authenticate,
-  authorize(
-    UserRole.ADMIN,
-    UserRole.MANAGER,
-  ),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(
     orderIdParamsSchema,
     'params',

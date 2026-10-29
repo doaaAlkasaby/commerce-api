@@ -2,7 +2,8 @@ import { Router } from 'express';
 
 import { validate } from '../../common/validation/validate.js';
 import { authenticate } from '../../middleware/auth.middleware.js';
-import { authorize } from '../../middleware/authorization.middleware.js';
+import { tenantMemberMiddleware } from '../../middleware/tenant-member.middleware.js';
+import { requireTenantRoles } from '../../middleware/tenant-role.middleware.js';
 
 import { appSettingController } from './app-setting.controller.js';
 import {
@@ -22,14 +23,16 @@ appSettingRouter.get('/', (req, res, next) =>
 appSettingRouter.get(
   '/admin/all',
   authenticate,
-  authorize('ADMIN', 'MANAGER'),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   (req, res, next) => appSettingController.getAllSettings(req, res, next),
 );
 
 appSettingRouter.get(
   '/:key',
   authenticate,
-  authorize('ADMIN', 'MANAGER'),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(appSettingKeyParamSchema, 'params'),
   (req, res, next) => appSettingController.getSetting(req, res, next),
 );
@@ -37,7 +40,8 @@ appSettingRouter.get(
 appSettingRouter.post(
   '/',
   authenticate,
-  authorize('ADMIN', 'MANAGER'),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(createAppSettingSchema, 'body'),
   (req, res, next) => appSettingController.createSetting(req, res, next),
 );
@@ -45,7 +49,8 @@ appSettingRouter.post(
 appSettingRouter.patch(
   '/:key',
   authenticate,
-  authorize('ADMIN', 'MANAGER'),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(appSettingKeyParamSchema, 'params'),
   validate(updateAppSettingSchema, 'body'),
   (req, res, next) => appSettingController.updateSetting(req, res, next),
@@ -54,7 +59,8 @@ appSettingRouter.patch(
 appSettingRouter.delete(
   '/:key',
   authenticate,
-  authorize('ADMIN'),
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN'),
   validate(appSettingKeyParamSchema, 'params'),
   (req, res, next) => appSettingController.deleteSetting(req, res, next),
 );

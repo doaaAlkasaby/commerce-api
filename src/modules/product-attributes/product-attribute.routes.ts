@@ -1,11 +1,11 @@
 import { Router } from 'express';
 
-import { authorize } from '../../middleware/authorization.middleware.js';
-
 import { authenticate } from '../../middleware/auth.middleware.js';
 
 import { validate } from '../../common/validation/validate.js';
 import { tenantMiddleware } from '../../middleware/tenant.middleware.js';
+import { tenantMemberMiddleware } from '../../middleware/tenant-member.middleware.js';
+import { requireTenantRoles } from '../../middleware/tenant-role.middleware.js';
 
 import { productImageUpload } from '../../middleware/upload.middleware.js';
 
@@ -26,7 +26,8 @@ const router = Router();
 router.use(tenantMiddleware);
 
 router.use(authenticate);
-router.use(authorize('ADMIN', 'MANAGER'));
+router.use(tenantMemberMiddleware);
+router.use(requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'));
 
 // --------------------------------------------------
 // ATTRIBUTES

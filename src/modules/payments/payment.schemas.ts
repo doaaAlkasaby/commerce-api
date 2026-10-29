@@ -13,16 +13,11 @@ const paymentProviders = Object.values(PaymentProvider);
 const paymentStatuses = Object.values(PaymentStatus);
 
 export const createPaymentSchema = z.object({
-  orderId: z
-    .string()
-    .uuid(),
+  orderId: z.string().uuid(),
 
   amount: z
     .string()
-    .regex(
-      /^\d+(\.\d{1,2})?$/,
-      'Amount must be a valid monetary value',
-    ),
+    .regex(/^\d+(\.\d{1,2})?$/, 'Amount must be a valid monetary value'),
 
   currency: z
     .string()
@@ -30,56 +25,25 @@ export const createPaymentSchema = z.object({
     .length(3)
     .transform((value) => value.toUpperCase()),
 
-  method: z.enum(paymentMethods as [
-    PaymentMethod,
-    ...PaymentMethod[],
-  ]),
+  method: z.enum(paymentMethods as [PaymentMethod, ...PaymentMethod[]]),
 
-  provider: z.enum(paymentProviders as [
-    PaymentProvider,
-    ...PaymentProvider[],
-  ]),
+  provider: z.enum(paymentProviders as [PaymentProvider, ...PaymentProvider[]]),
 
-  metadata: z
-    .record(z.string(), z.unknown())
-    .nullable()
-    .optional(),
+  metadata: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
 export const updatePaymentStatusSchema = z.object({
-  status: z.enum(paymentStatuses as [
-    PaymentStatus,
-    ...PaymentStatus[],
-  ]),
+  status: z.enum(paymentStatuses as [PaymentStatus, ...PaymentStatus[]]),
 
-  providerPaymentId: z
-    .string()
-    .trim()
-    .nullable()
-    .optional(),
+  providerPaymentId: z.string().trim().nullable().optional(),
 
-  providerTransactionId: z
-    .string()
-    .trim()
-    .nullable()
-    .optional(),
+  providerTransactionId: z.string().trim().nullable().optional(),
 
-  failureCode: z
-    .string()
-    .trim()
-    .nullable()
-    .optional(),
+  failureCode: z.string().trim().nullable().optional(),
 
-  failureMessage: z
-    .string()
-    .trim()
-    .nullable()
-    .optional(),
+  failureMessage: z.string().trim().nullable().optional(),
 
-  metadata: z
-    .record(z.string(), z.unknown())
-    .nullable()
-    .optional(),
+  metadata: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
 export const paymentIdParamsSchema = z.object({
@@ -91,39 +55,26 @@ export const orderIdParamsSchema = z.object({
 });
 
 export const paymentListQuerySchema = z.object({
-  orderId: z
-    .string()
-    .uuid()
-    .optional(),
+  orderId: z.string().uuid().optional(),
 
   status: z
-    .enum(paymentStatuses as [
-      PaymentStatus,
-      ...PaymentStatus[],
-    ])
+    .enum(paymentStatuses as [PaymentStatus, ...PaymentStatus[]])
     .optional(),
 
   provider: z
-    .enum(paymentProviders as [
-      PaymentProvider,
-      ...PaymentProvider[],
-    ])
+    .enum(paymentProviders as [PaymentProvider, ...PaymentProvider[]])
     .optional(),
 
   method: z
-    .enum(paymentMethods as [
-      PaymentMethod,
-      ...PaymentMethod[],
-    ])
+    .enum(paymentMethods as [PaymentMethod, ...PaymentMethod[]])
     .optional(),
 });
 
 export const refundPaymentSchema = z.object({
   amount: z
     .string()
-    .regex(
-      /^\d+(\.\d{1,2})?$/,
-      'Amount must be a valid monetary value',
-    )
+    .regex(/^\d+(\.\d{1,2})?$/, 'Amount must be a valid monetary value')
     .optional(),
 });
+// Initiation accepts no client-supplied amounts, currency, status, or provider.
+export const initiatePaymentSchema = z.object({}).strict();

@@ -90,21 +90,18 @@ export class ProductReviewRepository {
     reviewId: string,
     data: Prisma.ProductReviewUpdateInput,
   ): Promise<ProductReview> {
-    return this.prisma.productReview.update({
-      where: {
-        id: reviewId,
-        product: { tenantId },
-      },
-      data,
+    return this.prisma.$transaction(async (tx) => {
+      const owned = await tx.productReview.findFirst({ where: { id: reviewId, product: { tenantId } }, select: { id: true } });
+      if (!owned) throw new Error('Product review not found');
+      return tx.productReview.update({ where: { id: owned.id }, data });
     });
   }
 
   async delete(tenantId: string, reviewId: string): Promise<ProductReview> {
-    return this.prisma.productReview.delete({
-      where: {
-        id: reviewId,
-        product: { tenantId },
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const owned = await tx.productReview.findFirst({ where: { id: reviewId, product: { tenantId } }, select: { id: true } });
+      if (!owned) throw new Error('Product review not found');
+      return tx.productReview.delete({ where: { id: owned.id } });
     });
   }
 

@@ -3,15 +3,12 @@ import {
   PaymentStatus,
 } from '../../../generated/prisma/client.js';
 
-import type {
-  PaymentProviderAdapter,
-} from './payment-provider.js';
+import type { PaymentProviderAdapter } from './payment-provider.js';
 
-export class CashOnDeliveryProvider
-  implements PaymentProviderAdapter
-{
-  readonly provider =
-    PaymentProvider.NONE;
+export class CashOnDeliveryProvider implements PaymentProviderAdapter {
+  readonly provider = PaymentProvider.NONE;
+
+  readonly supportsIdempotentInitiation = true; // Local no-op; no gateway intent.
 
   async createPayment(): Promise<{
     status: PaymentStatus;
