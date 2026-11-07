@@ -1,24 +1,15 @@
-import {
-  SignJWT,
-  jwtVerify,
-  type JWTPayload,
-} from 'jose';
+import { SignJWT, jwtVerify, type JWTPayload } from 'jose';
 
 import { env } from '../../config/env.js';
 
-const secret = new TextEncoder().encode(
-  env.JWT_ACCESS_SECRET,
-);
+const secret = new TextEncoder().encode(env.JWT_ACCESS_SECRET);
 
-export interface AccessTokenPayload
-  extends JWTPayload {
+export interface AccessTokenPayload extends JWTPayload {
   type: 'access';
 }
 
-export const createAccessToken = async (
-  userId: string,
-): Promise<string> => {
-  return new SignJWT({
+export const createAccessToken = async (userId: string): Promise<string> => {
+  const jwt = new SignJWT({
     type: 'access',
   })
     .setProtectedHeader({
@@ -27,28 +18,30 @@ export const createAccessToken = async (
     })
     .setSubject(userId)
     .setIssuedAt()
-    .setExpirationTime(
-      env.JWT_ACCESS_EXPIRES_IN,
-    )
-    .sign(secret);
+    .setExpirationTime(env.JWT_ACCESS_EXPIRES_IN);
+  if (env.JWT_ISSUER) jwt.setIssuer(env.JWT_ISSUER);
+  if (env.JWT_AUDIENCE) jwt.setAudience(env.JWT_AUDIENCE);
+  return jwt.sign(secret);
 };
 
 export const verifyAccessToken = async (
   token: string,
 ): Promise<AccessTokenPayload> => {
-  const { payload } = await jwtVerify(
-    token,
-    secret,
-    {
-      algorithms: ['HS256'],
-    },
-  );
+  const { payload } = await jwtVerify(token, secret, {
+    algorithms: ['HS256'],
+    requiredClaims: ['sub', 'exp', 'iat'],
+    ...(env.JWT_ISSUER ? { issuer: env.JWT_ISSUER } : {}),
+    ...(env.JWT_AUDIENCE ? { audience: env.JWT_AUDIENCE } : {}),
+  });
 
-  if (payload.type !== 'access') {
-    throw new Error(
-      'Invalid access token type',
-    );
+  if (
+    payload.type !== 'access' ||
+    typeof payload.sub !== 'string' ||
+    payload.sub.length === 0 ||
+    payload.sub.length > 128
+  ) {
+    throw new Error('Invalid access token type');
   }
 
-  return payload as AccessTokenPayload;
+  return { ...payload, type: 'access' };
 };

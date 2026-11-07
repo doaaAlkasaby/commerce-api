@@ -1,3 +1,4 @@
+import { sensitiveRateLimiter } from '../../config/rate-limit.js';
 import { Router } from 'express';
 
 import { paymentController } from './payment.controller.js';
@@ -21,10 +22,19 @@ import { requireTenantRoles } from '../../middleware/tenant-role.middleware.js';
 
 const router = Router();
 router.use(tenantMiddleware);
+router.post(
+  '/:id/verify',
+  authenticate,
+  sensitiveRateLimiter,
+  validate(paymentIdParamsSchema, 'params'),
+  validate(initiatePaymentSchema, 'body'),
+  paymentController.verifyPayment.bind(paymentController),
+);
 
 router.post(
   '/:id/initiate',
   authenticate,
+  sensitiveRateLimiter,
   validate(paymentIdParamsSchema, 'params'),
   validate(initiatePaymentSchema, 'body'),
   paymentController.initiatePayment.bind(paymentController),

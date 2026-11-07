@@ -1,29 +1,25 @@
-import type {
-  PrismaClient,
-} from '../../generated/prisma/client.js';
-
 import {
-  productVariantDetailsSelect,
-} from './product-variant.mapper.js';
+  validateTenantAmounts,
+  validatePercentage,
+} from '../../common/pricing/money.repository.js';
+import type { PrismaClient } from '../../generated/prisma/client.js';
+
+import { productVariantDetailsSelect } from './product-variant.mapper.js';
 
 export class ProductVariantRepository {
-  constructor(
-    private readonly prisma: PrismaClient,
-  ) {}
+  constructor(private readonly prisma: PrismaClient) {}
 
   async findById(tenantId: string, id: string) {
     return this.prisma.productVariant.findFirst({
       where: { id, product: { tenantId } },
-      select:
-        productVariantDetailsSelect,
+      select: productVariantDetailsSelect,
     });
   }
 
   async findBySku(tenantId: string, sku: string) {
     return this.prisma.productVariant.findFirst({
       where: { sku, product: { tenantId } },
-      select:
-        productVariantDetailsSelect,
+      select: productVariantDetailsSelect,
     });
   }
 
@@ -39,8 +35,7 @@ export class ProductVariantRepository {
         product: { tenantId },
       },
 
-      select:
-        productVariantDetailsSelect,
+      select: productVariantDetailsSelect,
     });
   }
 
@@ -51,10 +46,7 @@ export class ProductVariantRepository {
     price?: string | null;
     isActive: boolean;
 
-    discountType?:
-      | 'PERCENTAGE'
-      | 'FIXED_AMOUNT'
-      | null;
+    discountType?: 'PERCENTAGE' | 'FIXED_AMOUNT' | null;
 
     discountValue?: string | null;
     discountStartsAt?: Date | null;
@@ -64,64 +56,69 @@ export class ProductVariantRepository {
 
     attributeValueIds: string[];
   }) {
-    const product = await this.prisma.product.findFirst({ where: { id: data.productId, tenantId: data.tenantId }, select: { id: true } });
+    if (data.discountType === 'PERCENTAGE')
+      validatePercentage(data.discountValue);
+    await validateTenantAmounts(
+      data.tenantId,
+      [
+        data.price,
+        data.discountType === 'FIXED_AMOUNT' ? data.discountValue : undefined,
+      ],
+      this.prisma,
+    );
+    const product = await this.prisma.product.findFirst({
+      where: { id: data.productId, tenantId: data.tenantId },
+      select: { id: true },
+    });
     if (!product) throw new Error('Product does not belong to this tenant');
     if (data.attributeValueIds.length > 0) {
       const ownedValues = await this.prisma.productAttributeValue.count({
         where: {
           id: { in: data.attributeValueIds },
-          attribute: { productId: product.id, product: { tenantId: data.tenantId } },
+          attribute: {
+            productId: product.id,
+            product: { tenantId: data.tenantId },
+          },
         },
       });
       if (ownedValues !== data.attributeValueIds.length) {
-        throw new Error('Attribute values do not belong to this tenant product');
+        throw new Error(
+          'Attribute values do not belong to this tenant product',
+        );
       }
     }
     return this.prisma.productVariant.create({
       data: {
-        productId:
-          data.productId,
+        productId: data.productId,
 
         sku: data.sku,
 
-        price:
-          data.price ?? null,
+        price: data.price ?? null,
 
-        isActive:
-          data.isActive,
+        isActive: data.isActive,
 
-        discountType:
-          data.discountType ?? null,
+        discountType: data.discountType ?? null,
 
-        discountValue:
-          data.discountValue ?? null,
+        discountValue: data.discountValue ?? null,
 
-        discountStartsAt:
-          data.discountStartsAt ?? null,
+        discountStartsAt: data.discountStartsAt ?? null,
 
-        discountEndsAt:
-          data.discountEndsAt ?? null,
+        discountEndsAt: data.discountEndsAt ?? null,
 
-        combinationKey:
-          data.combinationKey,
+        combinationKey: data.combinationKey,
 
         values: {
-          create:
-            data.attributeValueIds.map(
-              (attributeValueId) => ({
-                attributeValue: {
-                  connect: {
-                    id:
-                      attributeValueId,
-                  },
-                },
-              }),
-            ),
+          create: data.attributeValueIds.map((attributeValueId) => ({
+            attributeValue: {
+              connect: {
+                id: attributeValueId,
+              },
+            },
+          })),
         },
       },
 
-      select:
-        productVariantDetailsSelect,
+      select: productVariantDetailsSelect,
     });
   }
 
@@ -133,10 +130,7 @@ export class ProductVariantRepository {
       price?: string | null;
       isActive?: boolean;
 
-      discountType?:
-        | 'PERCENTAGE'
-        | 'FIXED_AMOUNT'
-        | null;
+      discountType?: 'PERCENTAGE' | 'FIXED_AMOUNT' | null;
 
       discountValue?: string | null;
       discountStartsAt?: Date | null;
@@ -147,124 +141,114 @@ export class ProductVariantRepository {
       attributeValueIds?: string[];
     },
   ) {
-    return this.prisma.$transaction(
-      async (tx) => {
-        const existing = await tx.productVariant.findFirst({
-          where: { id, product: { tenantId } },
-          select: { id: true, productId: true },
+    if (data.discountType === 'PERCENTAGE')
+      validatePercentage(data.discountValue);
+    await validateTenantAmounts(
+      tenantId,
+      [
+        data.price,
+        data.discountType === 'FIXED_AMOUNT' ? data.discountValue : undefined,
+      ],
+      this.prisma,
+    );
+    return this.prisma.$transaction(async (tx) => {
+      const existing = await tx.productVariant.findFirst({
+        where: { id, product: { tenantId } },
+        select: { id: true, productId: true },
+      });
+      if (!existing) throw new Error('Product variant not found');
+      if (data.attributeValueIds) {
+        const valueCount = await tx.productAttributeValue.count({
+          where: {
+            id: { in: data.attributeValueIds },
+            attribute: { productId: existing.productId, product: { tenantId } },
+          },
         });
-        if (!existing) throw new Error('Product variant not found');
-        if (data.attributeValueIds) {
-          const valueCount = await tx.productAttributeValue.count({
-            where: {
-              id: { in: data.attributeValueIds },
-              attribute: { productId: existing.productId, product: { tenantId } },
-            },
-          });
-          if (valueCount !== data.attributeValueIds.length) {
-            throw new Error('Attribute values do not belong to this tenant product');
-          }
-          await tx.productVariantValue.deleteMany(
-            {
-              where: {
-                variantId: id,
-              },
-            },
+        if (valueCount !== data.attributeValueIds.length) {
+          throw new Error(
+            'Attribute values do not belong to this tenant product',
           );
         }
-
-        return tx.productVariant.update({
-          where: { id: existing.id },
-
-          data: {
-            ...(data.sku !== undefined
-              ? {
-                  sku:
-                    data.sku,
-                }
-              : {}),
-
-            ...(data.price !== undefined
-              ? {
-                  price:
-                    data.price,
-                }
-              : {}),
-
-            ...(data.isActive !== undefined
-              ? {
-                  isActive:
-                    data.isActive,
-                }
-              : {}),
-
-            ...(data.discountType !== undefined
-              ? {
-                  discountType:
-                    data.discountType,
-                }
-              : {}),
-
-            ...(data.discountValue !== undefined
-              ? {
-                  discountValue:
-                    data.discountValue,
-                }
-              : {}),
-
-            ...(data.discountStartsAt !== undefined
-              ? {
-                  discountStartsAt:
-                    data.discountStartsAt,
-                }
-              : {}),
-
-            ...(data.discountEndsAt !== undefined
-              ? {
-                  discountEndsAt:
-                    data.discountEndsAt,
-                }
-              : {}),
-
-            ...(data.combinationKey !== undefined
-              ? {
-                  combinationKey:
-                    data.combinationKey,
-                }
-              : {}),
-
-            ...(data.attributeValueIds
-              ? {
-                  values: {
-                    create:
-                      data.attributeValueIds.map(
-                        (
-                          attributeValueId,
-                        ) => ({
-                          attributeValue: {
-                            connect: {
-                              id:
-                                attributeValueId,
-                            },
-                          },
-                        }),
-                      ),
-                  },
-                }
-              : {}),
+        await tx.productVariantValue.deleteMany({
+          where: {
+            variantId: id,
           },
-
-          select:
-            productVariantDetailsSelect,
         });
-      },
-    );
+      }
+
+      return tx.productVariant.update({
+        where: { id: existing.id },
+
+        data: {
+          ...(data.sku !== undefined
+            ? {
+                sku: data.sku,
+              }
+            : {}),
+
+          ...(data.price !== undefined
+            ? {
+                price: data.price,
+              }
+            : {}),
+
+          ...(data.isActive !== undefined
+            ? {
+                isActive: data.isActive,
+              }
+            : {}),
+
+          ...(data.discountType !== undefined
+            ? {
+                discountType: data.discountType,
+              }
+            : {}),
+
+          ...(data.discountValue !== undefined
+            ? {
+                discountValue: data.discountValue,
+              }
+            : {}),
+
+          ...(data.discountStartsAt !== undefined
+            ? {
+                discountStartsAt: data.discountStartsAt,
+              }
+            : {}),
+
+          ...(data.discountEndsAt !== undefined
+            ? {
+                discountEndsAt: data.discountEndsAt,
+              }
+            : {}),
+
+          ...(data.combinationKey !== undefined
+            ? {
+                combinationKey: data.combinationKey,
+              }
+            : {}),
+
+          ...(data.attributeValueIds
+            ? {
+                values: {
+                  create: data.attributeValueIds.map((attributeValueId) => ({
+                    attributeValue: {
+                      connect: {
+                        id: attributeValueId,
+                      },
+                    },
+                  })),
+                },
+              }
+            : {}),
+        },
+
+        select: productVariantDetailsSelect,
+      });
+    });
   }
 
-  async delete(
-    tenantId: string,
-    id: string,
-  ): Promise<void> {
+  async delete(tenantId: string, id: string): Promise<void> {
     await this.prisma.productVariant.deleteMany({
       where: {
         id,

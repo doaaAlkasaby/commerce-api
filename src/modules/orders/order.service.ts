@@ -169,8 +169,8 @@ export class OrderService {
 
   /**
    * Called by an expiration worker after it has determined that the
-   * pending order's payment deadline has elapsed. No expiry timestamp or
-   * background worker exists in the current schema/application.
+   * pending order's payment deadline has elapsed. The recovery worker adds
+   * its own stricter external-payment and lease checks before using this lifecycle.
    */
   async expirePendingOrder(tenantId: string, orderId: string) {
     const order = await prisma.$transaction((tx) =>

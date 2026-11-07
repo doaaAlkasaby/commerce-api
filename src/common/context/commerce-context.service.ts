@@ -1,7 +1,4 @@
-import {
-  AppError,
-  ErrorCode,
-} from '../errors/app-error.js';
+import { AppError } from '../errors/app-error.js';
 
 import type {
   CommerceContext,
@@ -16,48 +13,38 @@ export interface ResolveCommerceContextInput {
 }
 
 export class CommerceContextService {
-  constructor(
-    private readonly repository: CommerceContextRepository,
-  ) {}
+  constructor(private readonly repository: CommerceContextRepository) {}
 
-  async resolve(
-    input: ResolveCommerceContextInput,
-  ): Promise<CommerceContext> {
-    const requestedCountryCode = input.countryCode
-      ?.trim()
-      .toUpperCase();
+  async resolve(input: ResolveCommerceContextInput): Promise<CommerceContext> {
+    const requestedCountryCode = input.countryCode?.trim().toUpperCase();
 
     let country: CommerceCountry | null = null;
 
     if (requestedCountryCode) {
-      country = await this.repository.findCountryByCode(
-        requestedCountryCode,
-      );
+      country = await this.repository.findCountryByCode(requestedCountryCode);
 
       if (!country) {
         throw new AppError(
-          'COUNTRY_NOT_SUPPORTED',
           'The selected country is not supported.',
           400,
+          'COUNTRY_NOT_SUPPORTED',
         );
       }
     }
 
     if (!country && input.userId) {
-      const user = await this.repository.findUserDefaultCountry(
-        input.userId,
-      );
+      const user = await this.repository.findUserDefaultCountry(input.userId);
 
-      if (user.defaultCountry) {
+      if (user?.defaultCountry) {
         country = user.defaultCountry;
       }
     }
 
     if (!country) {
       throw new AppError(
-        'COUNTRY_REQUIRED',
         'A shopping country is required.',
         400,
+        'COUNTRY_REQUIRED',
       );
     }
 

@@ -1,39 +1,25 @@
-import {
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from 'vitest';
+const tenantId = '00000000-0000-4000-8000-000000000010';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type {
-  Category,
-} from '../../src/generated/prisma/client.js';
+import type { Category } from '../../src/generated/prisma/client.js';
 
-import {
-  createCategoryService,
-} from '../../src/modules/categories/category.service.js';
+import { createCategoryService } from '../../src/modules/categories/category.service.js';
 
-import type {
-  createCategoryRepository,
-} from '../../src/modules/categories/category.repository.js';
+import type { createCategoryRepository } from '../../src/modules/categories/category.repository.js';
 
-type CategoryRepository =
-  ReturnType<typeof createCategoryRepository>;
+type CategoryRepository = ReturnType<typeof createCategoryRepository>;
 
-const categoryId =
-  '00000000-0000-4000-8000-000000000001';
-const parentId =
-  '00000000-0000-4000-8000-000000000002';
-const otherCategoryId =
-  '00000000-0000-4000-8000-000000000003';
+const categoryId = '00000000-0000-4000-8000-000000000001';
+const parentId = '00000000-0000-4000-8000-000000000002';
+const otherCategoryId = '00000000-0000-4000-8000-000000000003';
 
 const makeCategory = (
   overrides: Partial<Category> = {},
-): Category => {
+): Category & { _count: { children: number } } => {
   const now = new Date('2026-01-01T00:00:00.000Z');
 
   return {
+    tenantId,
     id: categoryId,
     name: 'Category',
     slug: 'category',
@@ -44,6 +30,7 @@ const makeCategory = (
     parentId: null,
     createdAt: now,
     updatedAt: now,
+    _count: { children: 0 },
     ...overrides,
   };
 };
@@ -61,8 +48,7 @@ const categoryRepository: CategoryRepository = {
   delete: vi.fn<CategoryRepository['delete']>(),
 };
 
-const categoryService =
-  createCategoryService(categoryRepository);
+const categoryService = createCategoryService(categoryRepository);
 
 describe('Category service', () => {
   beforeEach(() => {
@@ -76,7 +62,7 @@ describe('Category service', () => {
       vi.mocked(categoryRepository.create).mockResolvedValue(createdCategory);
 
       await expect(
-        categoryService.create({
+        categoryService.create(tenantId, {
           name: 'Category',
           slug: 'category',
         }),
@@ -93,7 +79,7 @@ describe('Category service', () => {
       );
 
       await expect(
-        categoryService.create({
+        categoryService.create(tenantId, {
           name: 'Another Category',
           slug: 'category',
         }),
@@ -110,7 +96,7 @@ describe('Category service', () => {
       vi.mocked(categoryRepository.findById).mockResolvedValue(null);
 
       await expect(
-        categoryService.create({
+        categoryService.create(tenantId, {
           name: 'Child',
           slug: 'child',
           parentId,
@@ -133,7 +119,7 @@ describe('Category service', () => {
       );
 
       await expect(
-        categoryService.create({
+        categoryService.create(tenantId, {
           name: 'Child',
           slug: 'child',
           parentId,
@@ -152,15 +138,11 @@ describe('Category service', () => {
       const updatedCategory = makeCategory({
         name: 'Renamed Category',
       });
-      vi.mocked(categoryRepository.findById).mockResolvedValue(
-        makeCategory(),
-      );
-      vi.mocked(categoryRepository.update).mockResolvedValue(
-        updatedCategory,
-      );
+      vi.mocked(categoryRepository.findById).mockResolvedValue(makeCategory());
+      vi.mocked(categoryRepository.update).mockResolvedValue(updatedCategory);
 
       await expect(
-        categoryService.update(categoryId, {
+        categoryService.update(tenantId, categoryId, {
           name: 'Renamed Category',
         }),
       ).resolves.toMatchObject({
@@ -170,9 +152,7 @@ describe('Category service', () => {
     });
 
     it('rejects a duplicate slug', async () => {
-      vi.mocked(categoryRepository.findById).mockResolvedValue(
-        makeCategory(),
-      );
+      vi.mocked(categoryRepository.findById).mockResolvedValue(makeCategory());
       vi.mocked(categoryRepository.findBySlug).mockResolvedValue(
         makeCategory({
           id: otherCategoryId,
@@ -181,7 +161,7 @@ describe('Category service', () => {
       );
 
       await expect(
-        categoryService.update(categoryId, {
+        categoryService.update(tenantId, categoryId, {
           slug: 'taken-slug',
         }),
       ).rejects.toMatchObject({
@@ -193,12 +173,10 @@ describe('Category service', () => {
     });
 
     it('rejects making the category its own parent', async () => {
-      vi.mocked(categoryRepository.findById).mockResolvedValue(
-        makeCategory(),
-      );
+      vi.mocked(categoryRepository.findById).mockResolvedValue(makeCategory());
 
       await expect(
-        categoryService.update(categoryId, {
+        categoryService.update(tenantId, categoryId, {
           parentId: categoryId,
         }),
       ).rejects.toMatchObject({
@@ -215,7 +193,7 @@ describe('Category service', () => {
         .mockResolvedValueOnce(null);
 
       await expect(
-        categoryService.update(categoryId, {
+        categoryService.update(tenantId, categoryId, {
           parentId,
         }),
       ).rejects.toMatchObject({
@@ -229,9 +207,7 @@ describe('Category service', () => {
 
   describe('status', () => {
     it('deactivates a category', async () => {
-      vi.mocked(categoryRepository.findById).mockResolvedValue(
-        makeCategory(),
-      );
+      vi.mocked(categoryRepository.findById).mockResolvedValue(makeCategory());
       vi.mocked(categoryRepository.updateStatus).mockResolvedValue(
         makeCategory({
           isActive: false,
@@ -239,12 +215,13 @@ describe('Category service', () => {
       );
 
       await expect(
-        categoryService.updateStatus(categoryId, false),
+        categoryService.updateStatus(tenantId, categoryId, false),
       ).resolves.toMatchObject({
         id: categoryId,
         isActive: false,
       });
       expect(categoryRepository.updateStatus).toHaveBeenCalledWith(
+        tenantId,
         categoryId,
         false,
       );
@@ -263,12 +240,13 @@ describe('Category service', () => {
       );
 
       await expect(
-        categoryService.updateStatus(categoryId, true),
+        categoryService.updateStatus(tenantId, categoryId, true),
       ).resolves.toMatchObject({
         id: categoryId,
         isActive: true,
       });
       expect(categoryRepository.updateStatus).toHaveBeenCalledWith(
+        tenantId,
         categoryId,
         true,
       );
@@ -277,12 +255,10 @@ describe('Category service', () => {
 
   describe('retrieval', () => {
     it('gets a category', async () => {
-      vi.mocked(categoryRepository.findById).mockResolvedValue(
-        makeCategory(),
-      );
+      vi.mocked(categoryRepository.findById).mockResolvedValue(makeCategory());
 
       await expect(
-        categoryService.getById(categoryId),
+        categoryService.getById(tenantId, categoryId),
       ).resolves.toMatchObject({
         id: categoryId,
         slug: 'category',
@@ -294,9 +270,7 @@ describe('Category service', () => {
         makeCategory(),
       ]);
 
-      await expect(
-        categoryService.getActive(),
-      ).resolves.toMatchObject([
+      await expect(categoryService.getActive(tenantId)).resolves.toMatchObject([
         {
           id: categoryId,
           isActive: true,
@@ -318,7 +292,7 @@ describe('Category service', () => {
       ]);
 
       await expect(
-        categoryService.getChildren(parentId),
+        categoryService.getChildren(tenantId, parentId),
       ).resolves.toMatchObject([
         {
           id: categoryId,
@@ -331,7 +305,7 @@ describe('Category service', () => {
       vi.mocked(categoryRepository.findById).mockResolvedValue(null);
 
       await expect(
-        categoryService.getById(categoryId),
+        categoryService.getById(tenantId, categoryId),
       ).rejects.toMatchObject({
         statusCode: 404,
         code: 'CATEGORY_NOT_FOUND',

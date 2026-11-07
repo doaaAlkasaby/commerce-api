@@ -1,3 +1,7 @@
+import {
+  validateTenantAmounts,
+  validatePercentage,
+} from '../../common/pricing/money.repository.js';
 import type { Prisma, PrismaClient } from '../../generated/prisma/client.js';
 
 import type { CreateCouponInput, UpdateCouponInput } from './coupon.types.js';
@@ -14,6 +18,17 @@ export class CouponRepository {
   }
 
   async create(tenantId: string, data: CreateCouponInput) {
+    if (data.discountType === 'PERCENTAGE')
+      validatePercentage(data.discountValue);
+    await validateTenantAmounts(
+      tenantId,
+      [
+        data.minimumOrderAmount,
+        data.maximumDiscountAmount,
+        data.discountType === 'FIXED_AMOUNT' ? data.discountValue : undefined,
+      ],
+      this.prisma,
+    );
     return this.prisma.coupon.create({
       data: {
         tenantId,
@@ -88,6 +103,21 @@ export class CouponRepository {
   }
 
   async update(tenantId: string, id: string, data: UpdateCouponInput) {
+    const current = await this.prisma.coupon.findUnique({
+      where: { id, tenantId },
+    });
+    const type = data.discountType ?? current?.discountType;
+    if (data.discountType !== undefined || data.discountValue !== undefined) {
+      const value = data.discountValue ?? current?.discountValue.toString();
+      if (type === 'PERCENTAGE') validatePercentage(value);
+      if (type === 'FIXED_AMOUNT')
+        await validateTenantAmounts(tenantId, [value], this.prisma);
+    }
+    await validateTenantAmounts(
+      tenantId,
+      [data.minimumOrderAmount, data.maximumDiscountAmount],
+      this.prisma,
+    );
     return this.prisma.coupon.update({
       where: { id, tenantId },
       data,

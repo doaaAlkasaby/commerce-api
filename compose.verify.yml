@@ -1,0 +1,83 @@
+# LOCAL disposable verification only. Use a unique project and generated credentials.
+# Real staging/production uses externally provisioned TLS PostgreSQL and secret mounts.
+x-process: &process
+  image: commerce-api:${COMPOSE_PROJECT_NAME:?Use a unique verification project}
+  build:
+    context: .
+    target: runtime
+  init: true
+  restart: 'no'
+  read_only: true
+  tmpfs: [/tmp]
+  cap_drop: [ALL]
+  security_opt: ['no-new-privileges:true']
+  stop_grace_period: 45s
+  environment: &environment
+    NODE_ENV: test
+    DATABASE_URL: postgresql://verify:${VERIFY_DB_PASSWORD:?Generate a disposable password}@postgres:5432/commerce_verify
+    TEST_DATABASE_URL: postgresql://verify:${VERIFY_DB_PASSWORD}@postgres:5432/commerce_verify
+    DB_SSL_MODE: disable
+    JWT_ACCESS_SECRET: ${VERIFY_JWT_SECRET:?Generate an independent disposable signing key}
+    OPS_METRICS_TOKEN: ${VERIFY_METRICS_TOKEN:?Generate an independent operational token}
+    RATE_LIMIT_STORE: postgres
+    PAYMENT_PROVIDER: NONE
+    ENABLE_API_DOCS: 'false'
+    TRUST_PROXY: 'false'
+    CORS_ORIGINS: http://localhost:5173
+    UPLOAD_DIR: /app/uploads
+    UPLOAD_BASE_URL: http://localhost:${VERIFY_HTTP_PORT:-3080}/uploads
+    SHUTDOWN_TIMEOUT_MS: '30000'
+    DB_POOL_MAX: '10'
+  depends_on:
+    migrate:
+      condition: service_completed_successfully
+  volumes:
+    - uploads:/app/uploads
+
+services:
+  postgres:
+    image: postgres:17@sha256:f4c66b820c6f974249089d3d16d86a3698eae11e8746eb6644b2271031e91232
+    restart: 'no'
+    environment:
+      POSTGRES_USER: verify
+      POSTGRES_PASSWORD: ${VERIFY_DB_PASSWORD:?Generate a disposable password}
+      POSTGRES_DB: commerce_verify
+    volumes: [verify_postgres:/var/lib/postgresql/data]
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U verify -d commerce_verify']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  migrate:
+    image: commerce-migrate:${COMPOSE_PROJECT_NAME}
+    build:
+      context: .
+      target: migration
+    restart: 'no'
+    environment:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://verify:${VERIFY_DB_PASSWORD}@postgres:5432/commerce_verify
+    depends_on:
+      postgres:
+        condition: service_healthy
+  api:
+    <<: *process
+    ports: ['127.0.0.1:${VERIFY_HTTP_PORT:-3080}:3000']
+  worker:
+    <<: *process
+    command: ['node', 'dist/worker.js']
+    volumes: []
+    environment:
+      <<: *environment
+      WORKER_OPS_PORT: '3001'
+      OPS_BIND_HOST: 0.0.0.0
+    healthcheck:
+      test: ['CMD', 'node', 'deploy/healthcheck.mjs', '--worker']
+      interval: 10s
+      timeout: 3s
+      start_period: 20s
+      retries: 3
+
+volumes:
+  verify_postgres:
+  uploads:

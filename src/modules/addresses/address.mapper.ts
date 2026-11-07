@@ -15,7 +15,7 @@ export const mapAddress = (address: {
   city: string;
   state: string | null;
   postalCode: string | null;
-  country: string;
+  countryCode: string;
 
   phone: string | null;
 
@@ -41,15 +41,13 @@ export const mapAddress = (address: {
     city: address.city,
     state: address.state,
     postalCode: address.postalCode,
-    country: address.country,
+    country: address.countryCode,
 
     phone: address.phone,
 
-    isDefaultShipping:
-      address.isDefaultShipping,
+    isDefaultShipping: address.isDefaultShipping,
 
-    isDefaultBilling:
-      address.isDefaultBilling,
+    isDefaultBilling: address.isDefaultBilling,
 
     createdAt: address.createdAt,
     updatedAt: address.updatedAt,

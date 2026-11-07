@@ -1,3 +1,7 @@
+import {
+  isSafeStorageKey,
+  isHttpAssetUrl,
+} from '../../common/storage/storage-validation.js';
 import { z } from 'zod';
 
 import { paginationQuerySchema } from '../../common/pagination/pagination.js';
@@ -39,12 +43,17 @@ const productCollectionFields = {
     .string()
     .trim()
     .max(500, 'Image storage key must not exceed 500 characters')
+    .refine(isSafeStorageKey, 'Invalid storage key')
     .nullable()
     .optional(),
 
   imageUrl: z
     .string()
     .url('Invalid image URL')
+    .refine(
+      isHttpAssetUrl,
+      'Asset URL must use HTTP or HTTPS without credentials',
+    )
     .max(2000, 'Image URL must not exceed 2000 characters')
     .nullable()
     .optional(),

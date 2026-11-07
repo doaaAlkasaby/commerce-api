@@ -1,12 +1,12 @@
+import {
+  isSafeStorageKey,
+  isHttpAssetUrl,
+} from '../../common/storage/storage-validation.js';
 import { isCurrencyCode } from '../../common/pricing/currency.js';
 import { z } from 'zod';
 
 export const createTenantSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(2)
-    .max(150),
+  name: z.string().trim().min(2).max(150),
 
   slug: z
     .string()
@@ -28,18 +28,9 @@ export const createTenantSchema = z.object({
       'Code must contain uppercase letters, numbers and underscores only.',
     ),
 
-  legalName: z
-    .string()
-    .trim()
-    .max(200)
-    .optional(),
+  legalName: z.string().trim().max(200).optional(),
 
-  defaultCountryCode: z
-    .string()
-    .trim()
-    .length(2)
-    .toUpperCase()
-    .optional(),
+  defaultCountryCode: z.string().trim().length(2).toUpperCase().optional(),
 
   defaultCurrency: z
     .string()
@@ -49,39 +40,32 @@ export const createTenantSchema = z.object({
     .refine(isCurrencyCode, 'Invalid ISO 4217 currency code.')
     .optional(),
 
-  timezone: z
-    .string()
-    .trim()
-    .min(1)
-    .max(100)
-    .optional(),
+  timezone: z.string().trim().min(1).max(100).optional(),
 
   logoStorageKey: z
     .string()
     .trim()
     .max(500)
+    .refine(
+      (value) => value === '' || isSafeStorageKey(value),
+      'Invalid storage key',
+    )
     .optional(),
 
   logoUrl: z
     .string()
     .url()
+    .refine(
+      isHttpAssetUrl,
+      'Asset URL must use HTTP or HTTPS without credentials',
+    )
     .optional(),
 });
 
 export const updateTenantSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(2)
-    .max(150)
-    .optional(),
+  name: z.string().trim().min(2).max(150).optional(),
 
-  legalName: z
-    .string()
-    .trim()
-    .max(200)
-    .nullable()
-    .optional(),
+  legalName: z.string().trim().max(200).nullable().optional(),
 
   defaultCountryCode: z
     .string()
@@ -100,23 +84,26 @@ export const updateTenantSchema = z.object({
     .nullable()
     .optional(),
 
-  timezone: z
-    .string()
-    .trim()
-    .min(1)
-    .max(100)
-    .optional(),
+  timezone: z.string().trim().min(1).max(100).optional(),
 
   logoStorageKey: z
     .string()
     .trim()
     .max(500)
+    .refine(
+      (value) => value === '' || isSafeStorageKey(value),
+      'Invalid storage key',
+    )
     .nullable()
     .optional(),
 
   logoUrl: z
     .string()
     .url()
+    .refine(
+      isHttpAssetUrl,
+      'Asset URL must use HTTP or HTTPS without credentials',
+    )
     .nullable()
     .optional(),
 });
@@ -124,32 +111,11 @@ export const updateTenantSchema = z.object({
 export const addTenantMemberSchema = z.object({
   userId: z.string().uuid(),
 
-  role: z
-    .enum([
-      'OWNER',
-      'ADMIN',
-      'MANAGER',
-      'CUSTOMER',
-    ])
-    .default('CUSTOMER'),
+  role: z.enum(['OWNER', 'ADMIN', 'MANAGER', 'CUSTOMER']).default('CUSTOMER'),
 });
 
 export const updateTenantMemberSchema = z.object({
-  role: z
-    .enum([
-      'OWNER',
-      'ADMIN',
-      'MANAGER',
-      'CUSTOMER',
-    ])
-    .optional(),
+  role: z.enum(['OWNER', 'ADMIN', 'MANAGER', 'CUSTOMER']).optional(),
 
-  status: z
-    .enum([
-      'ACTIVE',
-      'INVITED',
-      'SUSPENDED',
-      'REMOVED',
-    ])
-    .optional(),
+  status: z.enum(['ACTIVE', 'INVITED', 'SUSPENDED', 'REMOVED']).optional(),
 });

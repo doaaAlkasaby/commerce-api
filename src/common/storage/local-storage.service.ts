@@ -1,8 +1,6 @@
-import {
-  mkdir,
-  unlink,
-  writeFile,
-} from 'node:fs/promises';
+import { isSafeStorageKey } from './storage-validation.js';
+import { AppError } from '../errors/app-error.js';
+import { mkdir, unlink, writeFile, realpath } from 'node:fs/promises';
 
 import path from 'node:path';
 
@@ -16,9 +14,23 @@ import type {
   StoredFile,
 } from './storage.types.js';
 
-const extensionFromContentType = (
-  contentType: string,
-): string => {
+function safePath(key: string): string {
+  if (!isSafeStorageKey(key))
+    throw new AppError('Invalid storage path', 400, 'INVALID_STORAGE_KEY');
+  const root = path.resolve(env.UPLOAD_DIR),
+    full = path.resolve(root, key);
+  if (!full.startsWith(root + path.sep))
+    throw new AppError('Invalid storage path', 400, 'INVALID_STORAGE_KEY');
+  return full;
+}
+async function ensureInside(filePath: string): Promise<void> {
+  const root = await realpath(path.resolve(env.UPLOAD_DIR));
+  const actual = await realpath(filePath);
+  if (actual !== root && !actual.startsWith(root + path.sep))
+    throw new AppError('Invalid storage path', 400, 'INVALID_STORAGE_KEY');
+}
+
+const extensionFromContentType = (contentType: string): string => {
   switch (contentType) {
     case 'image/jpeg':
       return '.jpg';
@@ -37,75 +49,61 @@ const extensionFromContentType = (
   }
 };
 
-export const createLocalStorageService =
-  (): StorageService => {
-    return {
-      upload: async (
-        file,
-        _fileName,
-        contentType,
-        folder: StorageFolder = 'products',
-      ): Promise<StoredFile> => {
-        const extension =
-          extensionFromContentType(
-            contentType,
-          );
-
-        const randomName =
-          `${crypto.randomUUID()}${extension}`;
-
-        const storageKey =
-          `${folder}/${randomName}`;
-
-        const fullPath =
-          path.join(
-            env.UPLOAD_DIR,
-            storageKey,
-          );
-
-        await mkdir(
-          path.dirname(fullPath),
-          {
-            recursive: true,
-          },
+export const createLocalStorageService = (): StorageService => {
+  return {
+    upload: async (
+      file,
+      _fileName,
+      contentType,
+      folder: StorageFolder = 'products',
+    ): Promise<StoredFile> => {
+      if (!['products', 'categories', 'brands'].includes(folder))
+        throw new AppError(
+          'Invalid storage folder',
+          400,
+          'INVALID_STORAGE_KEY',
         );
+      const extension = extensionFromContentType(contentType);
 
-        await writeFile(
-          fullPath,
-          file,
-        );
+      if (!extension)
+        throw new AppError('Unsupported image type', 400, 'INVALID_IMAGE_TYPE');
+      const randomName = `${crypto.randomUUID()}${extension}`;
 
-        const url =
-          `${env.UPLOAD_BASE_URL}/${storageKey}`;
+      const storageKey = `${folder}/${randomName}`;
 
-        return {
-          storageKey,
-          url,
-        };
-      },
+      const fullPath = safePath(storageKey);
 
-      delete: async (
+      await mkdir(path.dirname(fullPath), {
+        recursive: true,
+      });
+
+      await ensureInside(path.dirname(fullPath));
+      await writeFile(fullPath, file, { flag: 'wx' });
+
+      const url = `${env.UPLOAD_BASE_URL}/${storageKey}`;
+
+      return {
         storageKey,
-      ): Promise<void> => {
-        const fullPath =
-          path.join(
-            env.UPLOAD_DIR,
-            storageKey,
-          );
+        url,
+      };
+    },
 
-        try {
-          await unlink(fullPath);
-        } catch (error) {
-          const nodeError =
-            error as NodeJS.ErrnoException;
+    delete: async (storageKey): Promise<void> => {
+      const fullPath = safePath(storageKey);
 
-          if (
-            nodeError.code !==
-            'ENOENT'
-          ) {
-            throw error;
-          }
+      try {
+        await ensureInside(fullPath);
+        await unlink(fullPath);
+      } catch (error) {
+        const nodeError =
+          error && typeof error === 'object' && 'code' in error
+            ? error
+            : { code: undefined };
+
+        if (nodeError.code !== 'ENOENT') {
+          throw error;
         }
-      },
-    };
+      }
+    },
   };
+};

@@ -1,32 +1,20 @@
-import {
-  afterAll,
-  beforeAll,
-  describe,
-  expect,
-  it,
-} from 'vitest';
+import { catalogTenantFixture } from '../helpers/catalog.js';
+import { ProductVariantRepository } from '../../src/modules/product-variants/product-variant.repository.js';
+import type { ProductListQuery } from '../../src/modules/products/product.types.js';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import {
-  ProductStatus,
-} from '../../src/generated/prisma/client.js';
+import { ProductStatus } from '../../src/generated/prisma/client.js';
 
-import {
-  testPrisma,
-} from '../../src/config/test-database.js';
+import { testPrisma } from '../../src/config/test-database.js';
 
-import {
-  createBrandRepository,
-} from '../../src/modules/brands/brand.repository.js';
+import { createBrandRepository } from '../../src/modules/brands/brand.repository.js';
 
-import {
-  createCategoryRepository,
-} from '../../src/modules/categories/category.repository.js';
+import { createCategoryRepository } from '../../src/modules/categories/category.repository.js';
 
-import {
-  createProductRepository,
-} from '../../src/modules/products/product.repository.js';
+import { createProductRepository } from '../../src/modules/products/product.repository.js';
 
 describe('Product repository', () => {
+  const tenant = catalogTenantFixture();
   const runId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const categorySlug = `product-repo-category-${runId}`;
   const otherCategorySlug = `product-repo-other-category-${runId}`;
@@ -37,6 +25,14 @@ describe('Product repository', () => {
   const brandRepository = createBrandRepository(testPrisma);
   const repository = createProductRepository(testPrisma);
 
+  const variantRepository = new ProductVariantRepository(testPrisma);
+  const list = (query: ProductListQuery) =>
+    repository.findList(
+      tenant.id,
+      query,
+      (query.page - 1) * query.limit,
+      query.limit,
+    );
   let categoryId: string;
   let otherCategoryId: string;
   let brandId: string;
@@ -45,26 +41,27 @@ describe('Product repository', () => {
 
   beforeAll(async () => {
     await testPrisma.$connect();
+    await tenant.create();
 
-    const category = await categoryRepository.create({
+    const category = await categoryRepository.create(tenant.id, {
       name: 'Product Test Category',
       slug: categorySlug,
     });
     categoryId = category.id;
 
-    const otherCategory = await categoryRepository.create({
+    const otherCategory = await categoryRepository.create(tenant.id, {
       name: 'Product Test Other Category',
       slug: otherCategorySlug,
     });
     otherCategoryId = otherCategory.id;
 
-    const brand = await brandRepository.create({
+    const brand = await brandRepository.create(tenant.id, {
       name: 'Product Test Brand',
       slug: brandSlug,
     });
     brandId = brand.id;
 
-    const otherBrand = await brandRepository.create({
+    const otherBrand = await brandRepository.create(tenant.id, {
       name: 'Product Test Other Brand',
       slug: otherBrandSlug,
     });
@@ -76,7 +73,7 @@ describe('Product repository', () => {
         slug: `product-alpha-${runId}`,
         sku: `SKU-ALPHA-${runId}`,
         description: 'Lightweight running footwear',
-        price: '10.00',
+        basePrice: '10.00',
         categoryId,
         brandId,
         status: ProductStatus.ACTIVE,
@@ -86,7 +83,7 @@ describe('Product repository', () => {
         slug: `product-beta-${runId}`,
         sku: `SKU-BETA-${runId}`,
         description: 'Durable trail boot',
-        price: '25.00',
+        basePrice: '25.00',
         categoryId: otherCategoryId,
         brandId: otherBrandId,
         status: ProductStatus.INACTIVE,
@@ -96,60 +93,77 @@ describe('Product repository', () => {
         slug: `product-gamma-${runId}`,
         sku: `SKU-GAMMA-${runId}`,
         description: 'Everyday casual shoe',
-        price: '50.00',
+        basePrice: '50.00',
         categoryId,
         brandId: otherBrandId,
-        status: ProductStatus.ARCHIVED,
+        status: ProductStatus.ACTIVE,
       },
     ];
 
     for (const fixture of fixtures) {
-      const { status, ...input } = fixture;
-      const product = await repository.create(input);
+      const { status, sku, ...input } = fixture;
+      const product = await repository.create(tenant.id, input);
       productIds.push(product.id);
-      await repository.updateStatus(product.id, status);
+      await variantRepository.create({
+        tenantId: tenant.id,
+        productId: product.id,
+        sku,
+        price: input.basePrice,
+        combinationKey: '',
+        attributeValueIds: [],
+        isActive: true,
+      });
+      await repository.updateStatus(tenant.id, product.id, status);
     }
   });
 
   afterAll(async () => {
-    if (productIds.length > 0) {
-      await testPrisma.product.deleteMany({
-        where: {
-          id: {
-            in: productIds,
-          },
-        },
-      });
-    }
-    await testPrisma.brand.deleteMany({
-      where: {
-        id: {
-          in: [brandId, otherBrandId],
-        },
-      },
-    });
-    await testPrisma.category.deleteMany({
-      where: {
-        id: {
-          in: [categoryId, otherCategoryId],
-        },
-      },
-    });
+    await tenant.cleanup();
     await testPrisma.$disconnect();
   });
 
   it('creates a product and looks it up by ID, slug, and SKU', async () => {
-    const product = await repository.findById(productIds[0]!);
-    const bySlug = await repository.findBySlug(`product-alpha-${runId}`);
-    const bySku = await repository.findBySku(`SKU-ALPHA-${runId}`);
+    const product = await repository.findById(productIds[0]!, tenant.id);
+    const bySlug = await repository.findBySlug(
+      `product-alpha-${runId}`,
+      tenant.id,
+    );
+    const bySku = await variantRepository.findBySku(
+      tenant.id,
+      `SKU-ALPHA-${runId}`,
+    );
 
     expect(product?.id).toBe(productIds[0]);
     expect(bySlug?.id).toBe(productIds[0]);
-    expect(bySku?.id).toBe(productIds[0]);
+    expect(bySku?.productId).toBe(productIds[0]);
+    const otherVariant = await variantRepository.findBySku(
+      tenant.id,
+      `SKU-BETA-${runId}`,
+    );
+    if (!otherVariant) throw new Error('Other SKU fixture missing');
+    await expect(
+      variantRepository.update(tenant.id, otherVariant.id, {
+        sku: `SKU-ALPHA-${runId}`,
+      }),
+    ).rejects.toMatchObject({ code: 'P2002' });
+    expect(
+      (await variantRepository.findBySku(tenant.id, `SKU-BETA-${runId}`))?.id,
+    ).toBe(otherVariant.id);
+
+    await expect(
+      variantRepository.create({
+        tenantId: tenant.id,
+        productId: productIds[0]!,
+        sku: `SKU-ALPHA-${runId}`,
+        combinationKey: 'duplicate',
+        attributeValueIds: [],
+        isActive: true,
+      }),
+    ).rejects.toMatchObject({ code: 'P2002' });
   });
 
   it('updates product fields and relations', async () => {
-    const updated = await repository.update(productIds[0]!, {
+    const updated = await repository.update(tenant.id, productIds[0]!, {
       name: 'Alpha Updated',
       categoryId: otherCategoryId,
       brandId: null,
@@ -159,7 +173,7 @@ describe('Product repository', () => {
     expect(updated.categoryId).toBe(otherCategoryId);
     expect(updated.brandId).toBeNull();
 
-    await repository.update(productIds[0]!, {
+    await repository.update(tenant.id, productIds[0]!, {
       name: 'Alpha Running Shoe',
       categoryId,
       brandId,
@@ -167,10 +181,10 @@ describe('Product repository', () => {
   });
 
   it('disconnects and reconnects an optional brand', async () => {
-    const disconnected = await repository.update(productIds[0]!, {
+    const disconnected = await repository.update(tenant.id, productIds[0]!, {
       brandId: null,
     });
-    const connected = await repository.update(productIds[0]!, {
+    const connected = await repository.update(tenant.id, productIds[0]!, {
       brandId,
     });
 
@@ -179,12 +193,11 @@ describe('Product repository', () => {
   });
 
   it('filters by category, brand, status, and price range', async () => {
-    const { items } = await repository.list({
+    const { items } = await list({
       page: 1,
       limit: 20,
       categoryId,
       brandId,
-      status: ProductStatus.ACTIVE,
       minPrice: '9.00',
       maxPrice: '11.00',
       sortBy: 'createdAt',
@@ -197,14 +210,14 @@ describe('Product repository', () => {
   });
 
   it('paginates and returns a total count', async () => {
-    const firstPage = await repository.list({
+    const firstPage = await list({
       page: 1,
       limit: 2,
       categoryId,
       sortBy: 'name',
       sortOrder: 'asc',
     });
-    const secondPage = await repository.list({
+    const secondPage = await list({
       page: 2,
       limit: 2,
       categoryId,
@@ -215,9 +228,7 @@ describe('Product repository', () => {
     expect(firstPage.total).toBe(2);
     expect(firstPage.items).toHaveLength(2);
     expect(secondPage.items).toHaveLength(0);
-    expect(
-      firstPage.items.map(({ id }) => id),
-    ).not.toEqual(
+    expect(firstPage.items.map(({ id }) => id)).not.toEqual(
       secondPage.items.map(({ id }) => id),
     );
   });
@@ -225,36 +236,33 @@ describe('Product repository', () => {
   it.each([
     ['Alpha', 0],
     ['Lightweight running', 0],
-    ['SKU-BETA', 1],
-  ])('searches product name, description, or SKU for "%s"', async (
-    search,
-    expectedIndex,
-  ) => {
-    const { items } = await repository.list({
-      page: 1,
-      limit: 20,
-      search,
-      sortBy: 'name',
-      sortOrder: 'asc',
-    });
+    ['Everyday casual', 2],
+  ])(
+    'searches active product name or description for "%s"',
+    async (search, expectedIndex) => {
+      const { items } = await list({
+        page: 1,
+        limit: 20,
+        search,
+        sortBy: 'name',
+        sortOrder: 'asc',
+      });
 
-    expect(items.map(({ id }) => id)).toContain(
-      productIds[expectedIndex],
-    );
-  });
+      expect(items.map(({ id }) => id)).toContain(productIds[expectedIndex]);
+    },
+  );
 
   it('deletes a product', async () => {
-    const created = await repository.create({
+    const created = await repository.create(tenant.id, {
       name: 'Product To Delete',
       slug: `product-delete-${runId}`,
-      sku: `SKU-DELETE-${runId}`,
-      price: '1.00',
+      basePrice: '1.00',
       categoryId,
     });
 
-    const deleted = await repository.delete(created.id);
+    const deleted = await repository.delete(tenant.id, created.id);
 
-    expect(deleted.id).toBe(created.id);
-    expect(await repository.findById(created.id)).toBeNull();
+    expect(deleted.count).toBe(1);
+    expect(await repository.findById(created.id, tenant.id)).toBeNull();
   });
 });

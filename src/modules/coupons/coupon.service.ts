@@ -1,9 +1,12 @@
+import { Prisma as MoneyPrisma } from '../../generated/prisma/client.js';
+import { tenantCurrency } from '../../common/pricing/money.repository.js';
 import { CouponDiscountType } from '../../generated/prisma/client.js';
 
 import { AppError } from '../../common/errors/app-error.js';
 
 import {
-  calculateDiscountAmount,
+  calculateCouponPercentageDiscount,
+  percentageToBasisPoints,
   toCents,
   centsToString,
 } from '../../common/pricing/pricing.service.js';
@@ -139,7 +142,10 @@ export class CouponService {
     await this.repository.delete(tenantId, id);
   }
 
-  async validate(tenantId: string, input: ValidateCouponInput): Promise<CouponValidationResult> {
+  async validate(
+    tenantId: string,
+    input: ValidateCouponInput,
+  ): Promise<CouponValidationResult> {
     const code = input.code.trim().toUpperCase();
 
     const coupon = await this.repository.findByCode(tenantId, code);
@@ -150,10 +156,14 @@ export class CouponService {
 
     this.validateAvailability(coupon);
 
-    const subtotalCents = toCents(input.subtotal);
+    const currency = await tenantCurrency(tenantId);
+    const subtotalCents = toCents(input.subtotal, currency);
 
     if (coupon.minimumOrderAmount !== null) {
-      const minimumCents = toCents(coupon.minimumOrderAmount.toString());
+      const minimumCents = toCents(
+        coupon.minimumOrderAmount.toString(),
+        currency,
+      );
 
       if (subtotalCents < minimumCents) {
         throw new AppError(
@@ -191,19 +201,21 @@ export class CouponService {
     let discountCents: bigint;
 
     if (coupon.discountType === CouponDiscountType.FIXED_AMOUNT) {
-      const fixedDiscount = toCents(coupon.discountValue.toString());
+      const fixedDiscount = toCents(coupon.discountValue.toString(), currency);
 
       discountCents =
         fixedDiscount > subtotalCents ? subtotalCents : fixedDiscount;
     } else {
-      discountCents = calculateDiscountAmount(
+      discountCents = calculateCouponPercentageDiscount(
         subtotalCents,
-        'PERCENTAGE',
-        coupon.discountValue.toString(),
+        percentageToBasisPoints(coupon.discountValue.toString()),
       );
 
       if (coupon.maximumDiscountAmount !== null) {
-        const maximumCents = toCents(coupon.maximumDiscountAmount.toString());
+        const maximumCents = toCents(
+          coupon.maximumDiscountAmount.toString(),
+          currency,
+        );
 
         if (discountCents > maximumCents) {
           discountCents = maximumCents;
@@ -226,11 +238,11 @@ export class CouponService {
 
       discountValue: coupon.discountValue.toString(),
 
-      subtotal: centsToString(subtotalCents),
+      subtotal: centsToString(subtotalCents, currency),
 
-      discountAmount: centsToString(discountCents),
+      discountAmount: centsToString(discountCents, currency),
 
-      finalSubtotal: centsToString(finalSubtotal),
+      finalSubtotal: centsToString(finalSubtotal, currency),
     };
   }
 
@@ -255,10 +267,14 @@ export class CouponService {
   }
 
   private validateBusinessRules(input: CreateCouponInput): void {
-    const discountValue = Number(input.discountValue);
+    const discountValue = new MoneyPrisma.Decimal(input.discountValue);
 
     if (input.discountType === CouponDiscountType.PERCENTAGE) {
-      if (discountValue <= 0 || discountValue > 100) {
+      if (
+        discountValue.lte(0) ||
+        discountValue.gt(100) ||
+        discountValue.decimalPlaces() > 2
+      ) {
         throw new AppError(
           'Percentage discount must be between 0 and 100',
           400,
@@ -266,7 +282,7 @@ export class CouponService {
         );
       }
     } else {
-      if (discountValue <= 0) {
+      if (discountValue.lte(0)) {
         throw new AppError(
           'Fixed discount must be greater than zero',
           400,
@@ -286,7 +302,7 @@ export class CouponService {
     if (
       input.minimumOrderAmount !== null &&
       input.minimumOrderAmount !== undefined &&
-      Number(input.minimumOrderAmount) < 0
+      new MoneyPrisma.Decimal(input.minimumOrderAmount).lt(0)
     ) {
       throw new AppError(
         'Minimum order amount cannot be negative',
@@ -298,7 +314,7 @@ export class CouponService {
     if (
       input.maximumDiscountAmount !== null &&
       input.maximumDiscountAmount !== undefined &&
-      Number(input.maximumDiscountAmount) <= 0
+      new MoneyPrisma.Decimal(input.maximumDiscountAmount).lte(0)
     ) {
       throw new AppError(
         'Maximum discount amount must be greater than zero',

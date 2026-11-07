@@ -1,52 +1,14 @@
 import type { DiscountInput, EffectivePrice } from './pricing.types.js';
 import type { DiscountType } from '../../generated/prisma/client.js';
 
-/**
- * Convert a monetary string into integer cents.
- *
- * Examples:
- * "100"    -> 10000n
- * "100.50" -> 10050n
- * "0.99"   -> 99n
- *
- * Monetary values are expected to have at most 2 decimal places.
- */
-export const toCents = (value: string): bigint => {
-  const normalized = value.trim();
+import { toMinorUnits, fromMinorUnits } from './money.js';
 
-  if (!/^\d+(\.\d{1,2})?$/.test(normalized)) {
-    throw new Error(
-      `Invalid monetary value: "${value}". Expected format like "10.00".`,
-    );
-  }
-
-  const [whole = '0', fraction = ''] = normalized.split('.');
-
-  const paddedFraction = fraction.padEnd(2, '0');
-
-  return BigInt(whole) * 100n + BigInt(paddedFraction);
-};
-
-/**
- * Convert integer cents back to a monetary string.
- *
- * Examples:
- * 10000n -> "100.00"
- * 10050n -> "100.50"
- * 99n    -> "0.99"
- */
-export const centsToString = (cents: bigint): string => {
-  const negative = cents < 0n;
-
-  const absolute = negative ? -cents : cents;
-
-  const whole = absolute / 100n;
-  const fraction = absolute % 100n;
-
-  return `${negative ? '-' : ''}${whole}.${fraction
-    .toString()
-    .padStart(2, '0')}`;
-};
+// Compatibility names retained for existing callers. Units are currency minor
+// units, not necessarily cents. New production callers pass currency explicitly.
+export const toCents = (value: string, currency = 'USD'): bigint =>
+  toMinorUnits(value, currency);
+export const centsToString = (value: bigint, currency = 'USD'): string =>
+  fromMinorUnits(value, currency);
 
 /**
  * Convert percentage value into basis points.
@@ -116,10 +78,11 @@ export const calculateDiscountAmount = (
   baseCents: bigint,
   type: DiscountType,
   value: string,
+  currency = 'USD',
 ): bigint => {
   const amount =
     type === 'FIXED_AMOUNT'
-      ? toCents(value)
+      ? toCents(value, currency)
       : (baseCents * percentageToBasisPoints(value) + 5000n) / 10000n;
 
   return amount > baseCents ? baseCents : amount;
@@ -162,8 +125,9 @@ export const calculateEffectivePrice = (
   productDiscount: DiscountInput,
   variantDiscount: DiscountInput,
   now = new Date(),
+  currency = 'USD',
 ): EffectivePrice => {
-  const baseCents = toCents(basePrice);
+  const baseCents = toCents(basePrice, currency);
 
   /**
    * Variant discount has priority over
@@ -186,11 +150,11 @@ export const calculateEffectivePrice = (
     selectedDiscount.value === null
   ) {
     return {
-      basePrice: centsToString(baseCents),
+      basePrice: centsToString(baseCents, currency),
       discountType: null,
       discountValue: '0.00',
-      discountAmount: '0.00',
-      finalPrice: centsToString(baseCents),
+      discountAmount: centsToString(0n, currency),
+      finalPrice: centsToString(baseCents, currency),
     };
   }
 
@@ -201,6 +165,7 @@ export const calculateEffectivePrice = (
     baseCents,
     selectedDiscount.type,
     selectedDiscount.value,
+    currency,
   );
 
   /**
@@ -209,14 +174,20 @@ export const calculateEffectivePrice = (
   const finalCents = baseCents - discountAmount;
 
   return {
-    basePrice: centsToString(baseCents),
+    basePrice: centsToString(baseCents, currency),
 
     discountType: selectedDiscount.type,
 
     discountValue: selectedDiscount.value ?? '0.00',
 
-    discountAmount: centsToString(discountAmount),
+    discountAmount: centsToString(discountAmount, currency),
 
-    finalPrice: centsToString(finalCents),
+    finalPrice: centsToString(finalCents, currency),
   };
 };
+
+/** Checkout coupon policy: truncate a percentage discount once at order level. */
+export const calculateCouponPercentageDiscount = (
+  amount: bigint,
+  basisPoints: bigint,
+): bigint => (amount * basisPoints) / 10000n;

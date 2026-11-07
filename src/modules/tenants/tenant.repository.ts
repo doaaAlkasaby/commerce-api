@@ -15,12 +15,20 @@ export class TenantRepository {
         name: input.name,
         slug: input.slug,
         code: input.code,
-        legalName: input.legalName,
-        defaultCountryCode: input.defaultCountryCode,
-        defaultCurrency: input.defaultCurrency,
+        ...(input.legalName !== undefined
+          ? { legalName: input.legalName }
+          : {}),
+        ...(input.defaultCountryCode !== undefined
+          ? { defaultCountryCode: input.defaultCountryCode }
+          : {}),
+        ...(input.defaultCurrency !== undefined
+          ? { defaultCurrency: input.defaultCurrency }
+          : {}),
         timezone: input.timezone ?? 'UTC',
-        logoStorageKey: input.logoStorageKey,
-        logoUrl: input.logoUrl,
+        ...(input.logoStorageKey !== undefined
+          ? { logoStorageKey: input.logoStorageKey }
+          : {}),
+        ...(input.logoUrl !== undefined ? { logoUrl: input.logoUrl } : {}),
       },
     });
   }
@@ -43,10 +51,7 @@ export class TenantRepository {
     });
   }
 
-  async update(
-    id: string,
-    input: UpdateTenantInput,
-  ) {
+  async update(id: string, input: UpdateTenantInput) {
     return this.prisma.tenant.update({
       where: { id },
       data: input,
@@ -58,15 +63,12 @@ export class TenantRepository {
       data: {
         tenantId: input.tenantId,
         userId: input.userId,
-        role: input.role,
+        ...(input.role !== undefined ? { role: input.role } : {}),
       },
     });
   }
 
-  async findMembership(
-    tenantId: string,
-    userId: string,
-  ) {
+  async findMembership(tenantId: string, userId: string) {
     return this.prisma.tenantMember.findUnique({
       where: {
         tenantId_userId: {

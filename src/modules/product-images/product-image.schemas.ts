@@ -1,3 +1,7 @@
+import {
+  isSafeStorageKey,
+  isHttpAssetUrl,
+} from '../../common/storage/storage-validation.js';
 import { z } from 'zod';
 
 export const productImageIdSchema = z.object({
@@ -15,60 +19,41 @@ export const createProductImageSchema = z.object({
     .string()
     .trim()
     .min(1)
-    .max(500),
+    .max(500)
+    .refine(
+      (value) => value === '' || isSafeStorageKey(value),
+      'Invalid storage key',
+    ),
 
   url: z
     .string()
     .trim()
     .url()
+    .refine(
+      isHttpAssetUrl,
+      'Asset URL must use HTTP or HTTPS without credentials',
+    )
     .max(2000),
 
-  altText: z
-    .string()
-    .trim()
-    .max(500)
-    .nullable()
-    .optional(),
+  altText: z.string().trim().max(500).nullable().optional(),
 
-  sortOrder: z
-    .number()
-    .int()
-    .min(0)
-    .optional(),
+  sortOrder: z.number().int().min(0).optional(),
 
-  isPrimary: z
-    .boolean()
-    .optional(),
+  isPrimary: z.boolean().optional(),
 });
 
 export const updateProductImageSchema = z.object({
-  altText: z
-    .string()
-    .trim()
-    .max(500)
-    .nullable()
-    .optional(),
+  altText: z.string().trim().max(500).nullable().optional(),
 
-  sortOrder: z
-    .number()
-    .int()
-    .min(0)
-    .optional(),
+  sortOrder: z.number().int().min(0).optional(),
 });
 
 export const uploadProductImageSchema = z.object({
   productId: z.string().uuid('Invalid product ID'),
-  altText: z
-    .string()
-    .trim()
-    .max(500)
-    .nullable()
-    .optional(),
+  altText: z.string().trim().max(500).nullable().optional(),
   sortOrder: z
     .union([z.string(), z.number()])
-    .transform((value) =>
-      value === '' ? 0 : Number(value),
-    )
+    .transform((value) => (value === '' ? 0 : Number(value)))
     .pipe(z.number().int().min(0))
     .optional()
     .default(0),

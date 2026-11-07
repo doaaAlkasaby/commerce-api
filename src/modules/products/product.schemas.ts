@@ -1,3 +1,4 @@
+import { Prisma as MoneyPrisma } from '../../generated/prisma/client.js';
 import { z } from 'zod';
 
 import { ProductStatus } from '../../generated/prisma/client.js';
@@ -17,8 +18,12 @@ const slugSchema = z
 const priceSchema = z
   .string()
   .trim()
-  .regex(/^\d+(\.\d{1,2})?$/, 'Invalid monetary value')
-  .refine((value) => Number(value) >= 0, 'Price cannot be negative');
+  .regex(/^\d+(\.\d{1,4})?$/, 'Invalid monetary value')
+  .refine(
+    (value) =>
+      /^\d+(\.\d{1,4})?$/.test(value) && new MoneyPrisma.Decimal(value).gte(0),
+    'Price cannot be negative',
+  );
 
 const optionalQueryParam = <T extends z.ZodType>(schema: T) =>
   z.preprocess(
@@ -37,9 +42,10 @@ const discountSchema = z
     endsAt: z.coerce.date().nullable().optional(),
   })
   .superRefine((discount, ctx) => {
-    const amount = Number(discount.value);
+    if (!/^\d+(\.\d{1,4})?$/.test(discount.value)) return;
+    const amount = new MoneyPrisma.Decimal(discount.value);
 
-    if (amount <= 0) {
+    if (amount.lte(0)) {
       ctx.addIssue({
         code: 'custom',
         path: ['value'],
@@ -47,7 +53,10 @@ const discountSchema = z
       });
     }
 
-    if (discount.type === 'PERCENTAGE' && amount > 100) {
+    if (
+      discount.type === 'PERCENTAGE' &&
+      (amount.gt(100) || amount.decimalPlaces() > 2)
+    ) {
       ctx.addIssue({
         code: 'custom',
         path: ['value'],
@@ -118,7 +127,9 @@ export const productListQuerySchema = paginationQuerySchema
     ({ minPrice, maxPrice }) =>
       minPrice === undefined ||
       maxPrice === undefined ||
-      Number(minPrice) <= Number(maxPrice),
+      !/^\d+(\.\d{1,4})?$/.test(minPrice) ||
+      !/^\d+(\.\d{1,4})?$/.test(maxPrice) ||
+      new MoneyPrisma.Decimal(minPrice).lte(maxPrice),
     {
       message: 'Minimum price cannot be greater than maximum price',
       path: ['minPrice'],

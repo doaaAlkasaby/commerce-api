@@ -11,25 +11,15 @@ export class HomeRepository {
 
         AND: [
           {
-            OR: [
-              { startsAt: null },
-              { startsAt: { lte: now } },
-            ],
+            OR: [{ startsAt: null }, { startsAt: { lte: now } }],
           },
           {
-            OR: [
-              { endsAt: null },
-              { endsAt: { gte: now } },
-            ],
+            OR: [{ endsAt: null }, { endsAt: { gte: now } }],
           },
         ],
       },
 
-      orderBy: [
-        { sortOrder: 'asc' },
-        { createdAt: 'desc' },
-        { id: 'asc' },
-      ],
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }, { id: 'asc' }],
 
       take: limit,
     });
@@ -42,29 +32,26 @@ export class HomeRepository {
         isActive: true,
       },
 
-      orderBy: [
-        { name: 'asc' },
-        { id: 'asc' },
-      ],
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
 
       take: limit,
 
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        imageUrl: true,
+        _count: {
           select: {
-      id: true,
-      name: true,
-      slug: true,
-      imageUrl: true,
-      _count: {
-        select: {
-          children: {
-      where: {
-        tenantId,
-        isActive: true,
-      },
-    },
+            children: {
+              where: {
+                tenantId,
+                isActive: true,
+              },
+            },
+          },
         },
       },
-    },
     });
   }
 
@@ -75,10 +62,7 @@ export class HomeRepository {
         isActive: true,
       },
 
-      orderBy: [
-        { name: 'asc' },
-        { id: 'asc' },
-      ],
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
 
       take: limit,
     });
@@ -87,86 +71,69 @@ export class HomeRepository {
   async findFeaturedProducts(limit: number) {
     const now = new Date();
 
-    const collection =
-      await prisma.productCollection.findFirst({
-        where: {
-          slug: 'featured',
+    const collection = await prisma.productCollection.findFirst({
+      where: {
+        slug: 'featured',
 
-          isActive: true,
+        isActive: true,
 
-          AND: [
-            {
-              OR: [
-                { startsAt: null },
-                { startsAt: { lte: now } },
-              ],
-            },
-            {
-              OR: [
-                { endsAt: null },
-                { endsAt: { gte: now } },
-              ],
-            },
-          ],
-        },
+        AND: [
+          {
+            OR: [{ startsAt: null }, { startsAt: { lte: now } }],
+          },
+          {
+            OR: [{ endsAt: null }, { endsAt: { gte: now } }],
+          },
+        ],
+      },
 
-        include: {
-          products: {
-            where: {
-              product: {
-                status: 'ACTIVE',
+      include: {
+        products: {
+          where: {
+            product: {
+              status: 'ACTIVE',
 
-                variants: {
-                  some: {
-                    isActive: true,
-                  },
+              variants: {
+                some: {
+                  isActive: true,
                 },
               },
             },
+          },
 
-            orderBy: [
-              { sortOrder: 'asc' },
-              { productId: 'asc' },
-            ],
+          orderBy: [{ sortOrder: 'asc' }, { productId: 'asc' }],
 
-            take: limit,
+          take: limit,
 
-            include: {
-              product: {
-                include: {
-                  images: {
-                    orderBy: [
-                      { sortOrder: 'asc' },
-                      { id: 'asc' },
-                    ],
-                    take: 1,
+          include: {
+            product: {
+              include: {
+                tenant: { select: { defaultCurrency: true } },
+                images: {
+                  orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+                  take: 1,
+                },
+
+                variants: {
+                  where: {
+                    isActive: true,
                   },
 
-                  variants: {
-                    where: {
-                      isActive: true,
-                    },
+                  orderBy: [{ price: 'asc' }, { id: 'asc' }],
 
-                    orderBy: [
-                      { price: 'asc' },
-                      { id: 'asc' },
-                    ],
-
-                    take: 1,
-                  },
+                  take: 1,
                 },
               },
             },
           },
         },
-      });
+      },
+    });
 
     if (!collection) {
       return [];
     }
 
-    return collection.products.map(
-      (item) => item.product,
-    );
+    return collection.products.map((item) => item.product);
   }
 }

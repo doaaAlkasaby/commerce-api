@@ -18,7 +18,7 @@ export interface CreateTenantInput {
 
 export interface UpdateTenantInput {
   name?: string;
-  legalName?: string;
+  legalName?: string | null;
   defaultCountryCode?: string | null;
   defaultCurrency?: string | null;
   timezone?: string;

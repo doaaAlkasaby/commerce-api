@@ -1,9 +1,13 @@
+import { env } from '../../config/env.js';
 import {
   checkoutFingerprint,
   validateIdempotencyKey,
 } from './checkout.idempotency.js';
 import { couponRepository } from '../coupons/coupon.repository.instance.js';
-import { isCurrencyCode } from '../../common/pricing/currency.js';
+import {
+  isCurrencyCode,
+  currencyPrecision,
+} from '../../common/pricing/currency.js';
 import {
   OrderStatus,
   PaymentMethod,
@@ -16,6 +20,8 @@ import type { Address, TaxTreatment } from '../../generated/prisma/client.js';
 import { AppError } from '../../common/errors/app-error.js';
 import {
   calculateEffectivePrice,
+  percentageToBasisPoints,
+  calculateCouponPercentageDiscount,
   centsToString,
   toCents,
 } from '../../common/pricing/pricing.service.js';
@@ -110,7 +116,12 @@ export class CheckoutService {
      * ---------------------------------------------------------
      */
 
-    const paymentProvider = input.paymentProvider ?? PaymentProvider.NONE;
+    const paymentProvider =
+      input.paymentProvider ??
+      (input.paymentMethod === PaymentMethod.CARD &&
+      env.PAYMENT_PROVIDER === 'MYFATOORAH'
+        ? PaymentProvider.MYFATOORAH
+        : PaymentProvider.NONE);
 
     /*
      * ---------------------------------------------------------
@@ -215,10 +226,20 @@ export class CheckoutService {
        * -----------------------------------------------------
        */
 
+      const reservationExpiresAt = [
+        PaymentMethod.CARD,
+        PaymentMethod.DIGITAL_WALLET,
+      ].some((method) => method === input.paymentMethod)
+        ? await checkoutRepository.reservationDeadline(
+            tx,
+            env.RESERVATION_TTL_SECONDS,
+          )
+        : null;
       const order = await tx.order.create({
         data: {
           tenantId,
           orderNumber,
+          reservationExpiresAt,
           userId,
           couponId: coupon?.id ?? null,
           couponSnapshot: coupon
@@ -231,7 +252,7 @@ export class CheckoutService {
                   coupon.minimumOrderAmount?.toString() ?? null,
                 maximumDiscountAmount:
                   coupon.maximumDiscountAmount?.toString() ?? null,
-                discountAmount: centsToString(couponDiscountCents),
+                discountAmount: centsToString(couponDiscountCents, currency),
                 currency,
               }
             : Prisma.DbNull,
@@ -242,17 +263,19 @@ export class CheckoutService {
 
           currency,
 
-          subtotal: new Prisma.Decimal(centsToString(subtotalCents)),
+          subtotal: new Prisma.Decimal(centsToString(subtotalCents, currency)),
 
           discountAmount: new Prisma.Decimal(
-            centsToString(couponDiscountCents),
+            centsToString(couponDiscountCents, currency),
           ),
 
-          shippingAmount: new Prisma.Decimal(centsToString(shippingCents)),
+          shippingAmount: new Prisma.Decimal(
+            centsToString(shippingCents, currency),
+          ),
 
-          taxAmount: new Prisma.Decimal(centsToString(taxCents)),
+          taxAmount: new Prisma.Decimal(centsToString(taxCents, currency)),
 
-          totalAmount: new Prisma.Decimal(centsToString(totalCents)),
+          totalAmount: new Prisma.Decimal(centsToString(totalCents, currency)),
 
           /*
            * Tax configuration snapshot.
@@ -276,17 +299,20 @@ export class CheckoutService {
             shippingMethodCode: shippingResult.shippingMethodCode,
             shippingMethodName: shippingResult.shippingMethodName,
             shippingRuleId: shippingResult.shippingRuleId,
-            amount: centsToString(shippingCents),
+            amount: centsToString(shippingCents, currency),
             distanceKm: shippingResult.distanceKm,
-            eligibleSubtotal: centsToString(shippingResult.orderSubtotalCents),
+            eligibleSubtotal: centsToString(
+              shippingResult.orderSubtotalCents,
+              currency,
+            ),
             minOrderAmount:
               shippingResult.minOrderAmountCents === null
                 ? null
-                : centsToString(shippingResult.minOrderAmountCents),
+                : centsToString(shippingResult.minOrderAmountCents, currency),
             maxOrderAmount:
               shippingResult.maxOrderAmountCents === null
                 ? null
-                : centsToString(shippingResult.maxOrderAmountCents),
+                : centsToString(shippingResult.maxOrderAmountCents, currency),
             maxDistanceKm: shippingResult.maxDistanceKm,
           },
 
@@ -331,18 +357,20 @@ export class CheckoutService {
 
               quantity: item.quantity,
 
-              unitPrice: new Prisma.Decimal(centsToString(item.unitPriceCents)),
+              unitPrice: new Prisma.Decimal(
+                centsToString(item.unitPriceCents, currency),
+              ),
 
               itemDiscountAmount: new Prisma.Decimal(
-                centsToString(item.itemDiscountAmountCents),
+                centsToString(item.itemDiscountAmountCents, currency),
               ),
 
               finalUnitPrice: new Prisma.Decimal(
-                centsToString(item.finalUnitPriceCents),
+                centsToString(item.finalUnitPriceCents, currency),
               ),
 
               totalPrice: new Prisma.Decimal(
-                centsToString(item.totalPriceCents),
+                centsToString(item.totalPriceCents, currency),
               ),
 
               variantSnapshot: item.variantSnapshot,
@@ -363,10 +391,12 @@ export class CheckoutService {
               ),
 
               taxableAmount: new Prisma.Decimal(
-                centsToString(item.taxableAmountCents),
+                centsToString(item.taxableAmountCents, currency),
               ),
 
-              taxAmount: new Prisma.Decimal(centsToString(item.taxAmountCents)),
+              taxAmount: new Prisma.Decimal(
+                centsToString(item.taxAmountCents, currency),
+              ),
             })),
           },
         },
@@ -500,7 +530,7 @@ export class CheckoutService {
           status: PaymentStatus.PENDING,
           initiationState: 'NOT_STARTED',
 
-          amount: new Prisma.Decimal(centsToString(totalCents)),
+          amount: new Prisma.Decimal(centsToString(totalCents, currency)),
 
           currency,
 
@@ -509,7 +539,7 @@ export class CheckoutService {
 
             shippingMethodName: shippingResult.shippingMethodName,
 
-            shippingAmount: centsToString(shippingCents),
+            shippingAmount: centsToString(shippingCents, currency),
           },
         },
       });
@@ -808,13 +838,15 @@ export class CheckoutService {
         basePrice.toString(),
         productDiscount,
         variantDiscount,
+        new Date(),
+        currency,
       );
 
-      const unitPriceCents = toCents(basePrice.toString());
+      const unitPriceCents = toCents(basePrice.toString(), currency);
 
-      const finalUnitPriceCents = toCents(pricing.finalPrice);
+      const finalUnitPriceCents = toCents(pricing.finalPrice, currency);
 
-      const itemDiscountAmountCents = toCents(pricing.discountAmount);
+      const itemDiscountAmountCents = toCents(pricing.discountAmount, currency);
 
       const totalPriceCents = finalUnitPriceCents * BigInt(cartItem.quantity);
 
@@ -958,7 +990,10 @@ export class CheckoutService {
        * Minimum order amount.
        */
       if (coupon.minimumOrderAmount !== null) {
-        const minimumOrderCents = toCents(coupon.minimumOrderAmount.toString());
+        const minimumOrderCents = toCents(
+          coupon.minimumOrderAmount.toString(),
+          currency,
+        );
 
         if (subtotalCents < minimumOrderCents) {
           throw new AppError(
@@ -994,7 +1029,10 @@ export class CheckoutService {
       /*
        * Calculate discount.
        */
-      const discountValueCents = toCents(coupon.discountValue.toString());
+      const discountValueCents =
+        coupon.discountType === 'PERCENTAGE'
+          ? percentageToBasisPoints(coupon.discountValue.toString())
+          : toCents(coupon.discountValue.toString(), currency);
 
       if (coupon.discountType === 'PERCENTAGE') {
         /*
@@ -1022,6 +1060,7 @@ export class CheckoutService {
       if (coupon.maximumDiscountAmount !== null) {
         const maximumDiscountCents = toCents(
           coupon.maximumDiscountAmount.toString(),
+          currency,
         );
 
         if (couponDiscountCents > maximumDiscountCents) {
@@ -1120,9 +1159,15 @@ export class CheckoutService {
         ZERO,
       );
 
-    // All persisted monetary columns use Decimal(12,2). Reject a tax/quantity
+    // Reject a tax/quantity
     // overflow before order creation rather than leaking a database error.
-    const maxPersistedCents = 999999999999n;
+    const maxPersistedCents = toCents(
+      '9999999999' +
+        (currencyPrecision(currency)
+          ? '.' + '9'.repeat(currencyPrecision(currency))
+          : ''),
+      currency,
+    );
     const persistedAmounts = [
       subtotalCents,
       couponDiscountCents,
@@ -1178,7 +1223,7 @@ export class CheckoutService {
           false,
         );
         const money = (cents: bigint) =>
-          new Prisma.Decimal(centsToString(cents)).toString();
+          new Prisma.Decimal(centsToString(cents, currency)).toString();
         const {
           currency,
           discountedTaxableItems: items,
@@ -1307,7 +1352,7 @@ export class CheckoutService {
      * divide by 10000.
      */
 
-    return (amountCents * percentageCents) / 10000n;
+    return calculateCouponPercentageDiscount(amountCents, percentageCents);
   }
 
   private addressToSnapshot(address: Address): Prisma.InputJsonObject {

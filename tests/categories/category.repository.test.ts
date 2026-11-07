@@ -1,20 +1,12 @@
-import {
-  afterAll,
-  beforeAll,
-  describe,
-  expect,
-  it,
-} from 'vitest';
+import { catalogTenantFixture } from '../helpers/catalog.js';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import {
-  testPrisma,
-} from '../../src/config/test-database.js';
+import { testPrisma } from '../../src/config/test-database.js';
 
-import {
-  createCategoryRepository,
-} from '../../src/modules/categories/category.repository.js';
+import { createCategoryRepository } from '../../src/modules/categories/category.repository.js';
 
 describe('Category repository', () => {
+  const tenant = catalogTenantFixture();
   const runId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const parentSlug = `repository-parent-${runId}`;
   const childSlug = `repository-child-${runId}`;
@@ -29,8 +21,9 @@ describe('Category repository', () => {
 
   beforeAll(async () => {
     await testPrisma.$connect();
+    await tenant.create();
 
-    const parent = await repository.create({
+    const parent = await repository.create(tenant.id, {
       name: 'Repository Parent',
       slug: parentSlug,
     });
@@ -45,19 +38,19 @@ describe('Category repository', () => {
       },
     });
 
-    const child = await repository.create({
+    const child = await repository.create(tenant.id, {
       name: 'Repository Child',
       slug: childSlug,
       parentId,
     });
     childId = child.id;
 
-    const inactive = await repository.create({
+    const inactive = await repository.create(tenant.id, {
       name: 'Repository Inactive',
       slug: inactiveSlug,
     });
     inactiveId = inactive.id;
-    await repository.updateStatus(inactiveId, false);
+    await repository.updateStatus(tenant.id, inactiveId, false);
   });
 
   afterAll(async () => {
@@ -68,18 +61,17 @@ describe('Category repository', () => {
         },
       },
     });
+    await tenant.cleanup();
     await testPrisma.$disconnect();
   });
 
   it('creates and finds a category by ID and slug', async () => {
-    const category = await repository.findById(parentId);
-    const bySlug = await repository.findBySlug(parentSlug);
+    const category = await repository.findById(tenant.id, parentId);
+    const bySlug = await repository.findBySlug(tenant.id, parentSlug);
 
     expect(category).not.toBeNull();
     expect(category?.id).toBe(parentId);
-    expect(category?.imageStorageKey).toBe(
-      'categories/repository-parent.jpg',
-    );
+    expect(category?.imageStorageKey).toBe('categories/repository-parent.jpg');
     expect(category?.imageUrl).toBe(
       'https://example.com/repository-parent.jpg',
     );
@@ -87,25 +79,29 @@ describe('Category repository', () => {
   });
 
   it('finds all categories, active categories, and children', async () => {
-    const all = await repository.findAll();
-    const active = await repository.findActive();
-    const children = await repository.findChildren(parentId);
+    const all = await repository.findAll(tenant.id);
+    const active = await repository.findActive(tenant.id);
+    const children = await repository.findChildren(tenant.id, parentId);
 
     expect(all.map(({ id }) => id)).toContain(parentId);
-    expect(
-      all.find(({ id }) => id === parentId)?.imageUrl,
-    ).toBe('https://example.com/repository-parent.jpg');
+    expect(all.find(({ id }) => id === parentId)?.imageUrl).toBe(
+      'https://example.com/repository-parent.jpg',
+    );
     expect(active.map(({ id }) => id)).toContain(parentId);
     expect(active.map(({ id }) => id)).not.toContain(inactiveId);
     expect(children.map(({ id }) => id)).toContain(childId);
   });
 
   it('updates category data and status', async () => {
-    const updated = await repository.update(parentId, {
+    const updated = await repository.update(tenant.id, parentId, {
       name: 'Updated Repository Parent',
     });
-    const deactivated = await repository.updateStatus(parentId, false);
-    const activated = await repository.updateStatus(parentId, true);
+    const deactivated = await repository.updateStatus(
+      tenant.id,
+      parentId,
+      false,
+    );
+    const activated = await repository.updateStatus(tenant.id, parentId, true);
 
     expect(updated.name).toBe('Updated Repository Parent');
     expect(deactivated.isActive).toBe(false);
@@ -113,14 +109,14 @@ describe('Category repository', () => {
   });
 
   it('deletes a category', async () => {
-    const created = await repository.create({
+    const created = await repository.create(tenant.id, {
       name: 'Repository Delete',
       slug: deleteSlug,
     });
 
-    const deleted = await repository.delete(created.id);
+    const deleted = await repository.delete(tenant.id, created.id);
 
     expect(deleted.id).toBe(created.id);
-    expect(await repository.findById(created.id)).toBeNull();
+    expect(await repository.findById(tenant.id, created.id)).toBeNull();
   });
 });

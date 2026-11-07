@@ -1,0 +1,27 @@
+# Allowlist the build inputs. In particular, no .env variant enters the context.
+**
+!package.json
+!package-lock.json
+!tsconfig.json
+!prisma7.config.ts
+!docs/
+!docs/openapi.json
+!src/
+!src/**
+!prisma/
+!prisma/schema.prisma
+!prisma/migrations/
+!prisma/migrations/**
+!deploy/
+!deploy/healthcheck.mjs
+!deploy/migrate.mjs
+!deploy/environment.mjs
+!deploy/check-environment.mjs
+!deploy/entrypoint.sh
+src/generated/
+**/.env*
+**/*.pem
+**/*.key
+**/*.p12
+**/node_modules/
+**/.git/

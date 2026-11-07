@@ -1,11 +1,12 @@
-import type {
-  NextFunction,
-  Request,
-  Response,
-} from 'express';
+import type { NextFunction, Request, Response } from 'express';
 
 import { addressService } from './address.service.instance.js';
 import { mapAddress } from './address.mapper.js';
+import {
+  createAddressSchema,
+  updateAddressSchema,
+  addressIdParamsSchema,
+} from './address.schemas.js';
 
 export class AddressController {
   async create(
@@ -13,11 +14,16 @@ export class AddressController {
     res: Response,
     _next: NextFunction,
   ): Promise<void> {
-    const address =
-      await addressService.create(
-        req.user!.userId,
-        req.validatedBody as any,
-      );
+    const input = createAddressSchema.parse(req.validatedBody);
+    const address = await addressService.create(req.user!.userId, {
+      ...input,
+      label: input.label ?? null,
+      company: input.company ?? null,
+      addressLine2: input.addressLine2 ?? null,
+      state: input.state ?? null,
+      postalCode: input.postalCode ?? null,
+      phone: input.phone ?? null,
+    });
 
     res.status(201).json({
       success: true,
@@ -31,10 +37,7 @@ export class AddressController {
     res: Response,
     _next: NextFunction,
   ): Promise<void> {
-    const addresses =
-      await addressService.getAll(
-        req.user!.userId,
-      );
+    const addresses = await addressService.getAll(req.user!.userId);
 
     res.status(200).json({
       success: true,
@@ -48,11 +51,10 @@ export class AddressController {
     res: Response,
     _next: NextFunction,
   ): Promise<void> {
-    const address =
-      await addressService.getById(
-        req.user!.userId,
-        req.validatedParams as any,
-      );
+    const address = await addressService.getById(
+      req.user!.userId,
+      addressIdParamsSchema.parse(req.validatedParams).id,
+    );
 
     res.status(200).json({
       success: true,
@@ -66,17 +68,34 @@ export class AddressController {
     res: Response,
     _next: NextFunction,
   ): Promise<void> {
-    const params =
-      req.validatedParams as {
-        id: string;
-      };
+    const params = addressIdParamsSchema.parse(req.validatedParams);
 
-    const address =
-      await addressService.update(
-        req.user!.userId,
-        params.id,
-        req.validatedBody as any,
-      );
+    const input = updateAddressSchema.parse(req.validatedBody);
+    const address = await addressService.update(req.user!.userId, params.id, {
+      ...(input.label !== undefined ? { label: input.label } : {}),
+      ...(input.firstName !== undefined ? { firstName: input.firstName } : {}),
+      ...(input.lastName !== undefined ? { lastName: input.lastName } : {}),
+      ...(input.company !== undefined ? { company: input.company } : {}),
+      ...(input.addressLine1 !== undefined
+        ? { addressLine1: input.addressLine1 }
+        : {}),
+      ...(input.addressLine2 !== undefined
+        ? { addressLine2: input.addressLine2 }
+        : {}),
+      ...(input.city !== undefined ? { city: input.city } : {}),
+      ...(input.state !== undefined ? { state: input.state } : {}),
+      ...(input.postalCode !== undefined
+        ? { postalCode: input.postalCode }
+        : {}),
+      ...(input.country !== undefined ? { country: input.country } : {}),
+      ...(input.phone !== undefined ? { phone: input.phone } : {}),
+      ...(input.isDefaultShipping !== undefined
+        ? { isDefaultShipping: input.isDefaultShipping }
+        : {}),
+      ...(input.isDefaultBilling !== undefined
+        ? { isDefaultBilling: input.isDefaultBilling }
+        : {}),
+    });
 
     res.status(200).json({
       success: true,
@@ -90,15 +109,9 @@ export class AddressController {
     res: Response,
     _next: NextFunction,
   ): Promise<void> {
-    const params =
-      req.validatedParams as {
-        id: string;
-      };
+    const params = addressIdParamsSchema.parse(req.validatedParams);
 
-    await addressService.delete(
-      req.user!.userId,
-      params.id,
-    );
+    await addressService.delete(req.user!.userId, params.id);
 
     res.status(200).json({
       success: true,
@@ -112,21 +125,16 @@ export class AddressController {
     res: Response,
     _next: NextFunction,
   ): Promise<void> {
-    const params =
-      req.validatedParams as {
-        id: string;
-      };
+    const params = addressIdParamsSchema.parse(req.validatedParams);
 
-    const address =
-      await addressService.setDefaultShipping(
-        req.user!.userId,
-        params.id,
-      );
+    const address = await addressService.setDefaultShipping(
+      req.user!.userId,
+      params.id,
+    );
 
     res.status(200).json({
       success: true,
-      message:
-        'Default shipping address updated successfully',
+      message: 'Default shipping address updated successfully',
       data: mapAddress(address),
     });
   }
@@ -136,25 +144,19 @@ export class AddressController {
     res: Response,
     _next: NextFunction,
   ): Promise<void> {
-    const params =
-      req.validatedParams as {
-        id: string;
-      };
+    const params = addressIdParamsSchema.parse(req.validatedParams);
 
-    const address =
-      await addressService.setDefaultBilling(
-        req.user!.userId,
-        params.id,
-      );
+    const address = await addressService.setDefaultBilling(
+      req.user!.userId,
+      params.id,
+    );
 
     res.status(200).json({
       success: true,
-      message:
-        'Default billing address updated successfully',
+      message: 'Default billing address updated successfully',
       data: mapAddress(address),
     });
   }
 }
 
-export const addressController =
-  new AddressController();
+export const addressController = new AddressController();

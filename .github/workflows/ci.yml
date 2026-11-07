@@ -1,0 +1,58 @@
+name: Verify commerce API
+on:
+  pull_request:
+  push:
+    branches: [develop, 'hardening/**', 'feature/**', 'fix/**']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17@sha256:f4c66b820c6f974249089d3d16d86a3698eae11e8746eb6644b2271031e91232
+        env:
+          POSTGRES_USER: ci_disposable
+          POSTGRES_PASSWORD: ci_disposable_only
+          POSTGRES_DB: commerce_ci_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U ci_disposable -d commerce_ci_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://ci_disposable:ci_disposable_only@127.0.0.1:5432/commerce_ci_test
+      TEST_DATABASE_URL: postgresql://ci_disposable:ci_disposable_only@127.0.0.1:5432/commerce_ci_test
+      DB_SSL_MODE: disable
+      PAYMENT_PROVIDER: NONE
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Generate ephemeral CI signing key
+        run: |
+          node --input-type=module -e "import {randomBytes} from 'node:crypto'; import {appendFileSync} from 'node:fs'; appendFileSync(process.env.GITHUB_ENV, 'JWT_ACCESS_SECRET=' + randomBytes(32).toString('hex') + '\n');"
+      - run: npm ci
+      - run: npx prisma validate --config prisma7.config.ts
+      - run: npm run db:generate
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm run ci:quality
+      - run: node scripts/validate-workflows.mjs
+      - run: npx vitest run deploy/tests/environment.test.mjs
+      - run: npm audit --omit=dev --audit-level=moderate
+      - run: npm audit --audit-level=high
+      # This guarded runner creates a UUID test DB, deploys all migrations, checks
+      # schema drift, enables every integration flag and drops ONLY its own DB.
+      - run: npm run test:postgres
+      - run: npm run container:verify

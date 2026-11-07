@@ -3,6 +3,17 @@ import type { Prisma, PrismaClient } from '../../generated/prisma/client.js';
 export class CheckoutRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
+  async reservationDeadline(
+    tx: Prisma.TransactionClient,
+    ttlSeconds: number,
+  ): Promise<Date> {
+    const [row] = await tx.$queryRaw<Array<{ deadline: Date }>>`
+      SELECT CURRENT_TIMESTAMP + ${ttlSeconds} * interval '1 second' AS deadline
+    `;
+    if (!row) throw new Error('Database time is unavailable');
+    return row.deadline;
+  }
+
   async tryLockRequest(
     tx: Prisma.TransactionClient,
     tenantId: string,

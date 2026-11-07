@@ -1,7 +1,4 @@
-import type {
-  Prisma,
-  PrismaClient,
-} from '../../generated/prisma/client.js';
+import type { Prisma, PrismaClient } from '../../generated/prisma/client.js';
 
 import type {
   CreateAddressInput,
@@ -11,14 +8,9 @@ import type {
 type PrismaTransaction = Prisma.TransactionClient;
 
 export class AddressRepository {
-  constructor(
-    private readonly prisma: PrismaClient,
-  ) {}
+  constructor(private readonly prisma: PrismaClient) {}
 
-  async create(
-    userId: string,
-    data: CreateAddressInput,
-  ) {
+  async create(userId: string, data: CreateAddressInput) {
     return this.prisma.address.create({
       data: {
         userId,
@@ -36,15 +28,13 @@ export class AddressRepository {
         city: data.city,
         state: data.state ?? null,
         postalCode: data.postalCode ?? null,
-        country: data.country,
+        countryCode: data.country,
 
         phone: data.phone ?? null,
 
-        isDefaultShipping:
-          data.isDefaultShipping ?? false,
+        isDefaultShipping: data.isDefaultShipping ?? false,
 
-        isDefaultBilling:
-          data.isDefaultBilling ?? false,
+        isDefaultBilling: data.isDefaultBilling ?? false,
       },
     });
   }
@@ -71,23 +61,18 @@ export class AddressRepository {
         city: data.city,
         state: data.state ?? null,
         postalCode: data.postalCode ?? null,
-        country: data.country,
+        countryCode: data.country,
 
         phone: data.phone ?? null,
 
-        isDefaultShipping:
-          data.isDefaultShipping ?? false,
+        isDefaultShipping: data.isDefaultShipping ?? false,
 
-        isDefaultBilling:
-          data.isDefaultBilling ?? false,
+        isDefaultBilling: data.isDefaultBilling ?? false,
       },
     });
   }
 
-  async findByIdForUser(
-    id: string,
-    userId: string,
-  ) {
+  async findByIdForUser(id: string, userId: string) {
     return this.prisma.address.findFirst({
       where: {
         id,
@@ -115,15 +100,12 @@ export class AddressRepository {
     });
   }
 
-  async update(
-    id: string,
-    data: UpdateAddressInput,
-  ) {
+  async update(id: string, data: UpdateAddressInput) {
     return this.prisma.address.update({
       where: {
         id,
       },
-      data,
+      data: addressUpdateData(data),
     });
   }
 
@@ -136,7 +118,7 @@ export class AddressRepository {
       where: {
         id,
       },
-      data,
+      data: addressUpdateData(data),
     });
   }
 
@@ -148,9 +130,7 @@ export class AddressRepository {
     });
   }
 
-  async clearDefaultShipping(
-    userId: string,
-  ) {
+  async clearDefaultShipping(userId: string) {
     await this.prisma.address.updateMany({
       where: {
         userId,
@@ -177,9 +157,7 @@ export class AddressRepository {
     });
   }
 
-  async clearDefaultBilling(
-    userId: string,
-  ) {
+  async clearDefaultBilling(userId: string) {
     await this.prisma.address.updateMany({
       where: {
         userId,
@@ -207,13 +185,16 @@ export class AddressRepository {
   }
 
   async transaction<T>(
-  callback: (
-    tx: PrismaTransaction,
-  ) => Promise<T>,
-): Promise<T> {
-  return this.prisma.$transaction(
-    async (tx) => callback(tx),
-  );
-}
+    callback: (tx: PrismaTransaction) => Promise<T>,
+  ): Promise<T> {
+    return this.prisma.$transaction(async (tx) => callback(tx));
+  }
 }
 
+function addressUpdateData(data: UpdateAddressInput) {
+  const { country, ...fields } = data;
+  return {
+    ...fields,
+    ...(country !== undefined ? { countryCode: country } : {}),
+  };
+}

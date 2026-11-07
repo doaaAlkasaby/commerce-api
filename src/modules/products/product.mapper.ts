@@ -76,6 +76,8 @@ const mapVariant = (variant: ProductVariant, product: ProductDetails) => {
     variant.price?.toString() ?? product.basePrice.toString(),
     mapDiscount(product),
     mapDiscount(variant),
+    new Date(),
+    product.tenant.defaultCurrency ?? '',
   );
 
   return {
@@ -135,6 +137,8 @@ export const mapProductDetails = (product: ProductDetails) => {
       startsAt: null,
       endsAt: null,
     },
+    new Date(),
+    product.tenant.defaultCurrency ?? '',
   );
 
   return {
@@ -184,8 +188,7 @@ export const mapProductDetails = (product: ProductDetails) => {
 };
 
 export function mapProductCard(
-    product: ProductCardRecord & ProductEnrichedFields,
-
+  product: ProductCardRecord & ProductEnrichedFields,
 ): ProductCardResponse {
   const productDiscount = {
     type: product.discountType,
@@ -212,11 +215,19 @@ export function mapProductCard(
               startsAt: null,
               endsAt: null,
             },
+        new Date(),
+        product.tenant.defaultCurrency ?? '',
       ),
     )
     .sort((left, right) => {
-      const leftPrice = toCents(left.finalPrice);
-      const rightPrice = toCents(right.finalPrice);
+      const leftPrice = toCents(
+        left.finalPrice,
+        product.tenant.defaultCurrency ?? '',
+      );
+      const rightPrice = toCents(
+        right.finalPrice,
+        product.tenant.defaultCurrency ?? '',
+      );
       return leftPrice < rightPrice ? -1 : leftPrice > rightPrice ? 1 : 0;
     })[0];
 
@@ -224,14 +235,20 @@ export function mapProductCard(
     throw new Error('Unable to calculate product card pricing');
   }
 
-  const baseCents = toCents(pricing.basePrice);
-  const discountCents = toCents(pricing.discountAmount);
+  const baseCents = toCents(
+    pricing.basePrice,
+    product.tenant.defaultCurrency ?? '',
+  );
+  const discountCents = toCents(
+    pricing.discountAmount,
+    product.tenant.defaultCurrency ?? '',
+  );
   const discountPercentage =
     pricing.discountType === null || baseCents === 0n
       ? null
       : Number((discountCents * 10_000n + baseCents / 2n) / baseCents) / 100;
 
-      const variantInfo = getProductVariantInfo(product);
+  const variantInfo = getProductVariantInfo(product);
 
   return {
     id: product.id,
@@ -241,7 +258,7 @@ export function mapProductCard(
     slug: product.slug,
     rating: product.rating,
 
-  isInWishlist: product.isInWishlist,
+    isInWishlist: product.isInWishlist,
 
     price: {
       original: pricing.basePrice,
@@ -267,40 +284,31 @@ export function mapProductCard(
         }
       : null,
 
-      hasVariants: variantInfo.hasVariants,
+    hasVariants: variantInfo.hasVariants,
 
-  defaultVariantId: variantInfo.defaultVariantId,
+    defaultVariantId: variantInfo.defaultVariantId,
   };
 }
 
-function getProductVariantInfo(
-  product: {
-    variants: Array<{
-      id: string;
-      isDefault: boolean;
-      isActive: boolean;
-    }>;
-  },
-) {
-  const activeVariants = product.variants.filter(
-    (variant) => variant.isActive,
-  );
+function getProductVariantInfo(product: {
+  variants: Array<{
+    id: string;
+    isDefault: boolean;
+    isActive: boolean;
+  }>;
+}) {
+  const activeVariants = product.variants.filter((variant) => variant.isActive);
 
   const defaultVariant =
-    activeVariants.find(
-      (variant) => variant.isDefault,
-    ) ?? null;
+    activeVariants.find((variant) => variant.isDefault) ?? null;
 
-  const selectableVariants =
-    activeVariants.filter(
-      (variant) => !variant.isDefault,
-    );
+  const selectableVariants = activeVariants.filter(
+    (variant) => !variant.isDefault,
+  );
 
   return {
     hasVariants: selectableVariants.length > 0,
     defaultVariantId:
-      selectableVariants.length === 0
-        ? defaultVariant?.id ?? null
-        : null,
+      selectableVariants.length === 0 ? (defaultVariant?.id ?? null) : null,
   };
 }

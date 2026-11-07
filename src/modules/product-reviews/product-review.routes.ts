@@ -15,10 +15,10 @@ import {
 import { productReviewController } from './product-review.controller.js';
 
 export const productReviewRouter = Router();
-productReviewRouter.use(tenantMiddleware);
 
 productReviewRouter.get(
   '/products/:productId/reviews',
+  tenantMiddleware,
   validate(productReviewProductIdParamSchema, 'params'),
   validate(productReviewListQuerySchema, 'query'),
   (req, res, next) => productReviewController.getProductReviews(req, res, next),
@@ -26,12 +26,14 @@ productReviewRouter.get(
 
 productReviewRouter.get(
   '/products/:productId/reviews/summary',
+  tenantMiddleware,
   validate(productReviewProductIdParamSchema, 'params'),
   (req, res, next) => productReviewController.getRatingSummary(req, res, next),
 );
 
 productReviewRouter.post(
   '/products/:productId/reviews',
+  tenantMiddleware,
   authenticate,
   validate(productReviewProductIdParamSchema, 'params'),
   validate(createProductReviewSchema, 'body'),
@@ -40,6 +42,7 @@ productReviewRouter.post(
 
 productReviewRouter.patch(
   '/products/:productId/reviews/:reviewId',
+  tenantMiddleware,
   authenticate,
   validate(productReviewIdParamSchema, 'params'),
   validate(updateProductReviewSchema, 'body'),
@@ -48,6 +51,7 @@ productReviewRouter.patch(
 
 productReviewRouter.delete(
   '/products/:productId/reviews/:reviewId',
+  tenantMiddleware,
   authenticate,
   validate(productReviewIdParamSchema, 'params'),
   (req, res, next) => productReviewController.deleteReview(req, res, next),

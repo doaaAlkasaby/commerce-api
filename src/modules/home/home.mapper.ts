@@ -36,7 +36,7 @@ export function mapHomeCategory(category: HomeCategoryRecord): HomeCategory {
     name: category.name,
     slug: category.slug,
     imageUrl: category.imageUrl,
-hasChildren: category._count.children > 0,
+    hasChildren: category._count.children > 0,
   };
 }
 
@@ -71,18 +71,14 @@ export function mapHomeBrand(brand: HomeBrand): HomeBrand {
  *    This variant has isDefault = true.
  */
 function getVariantSelectionInfo(product: HomeProductRecord) {
-  const activeVariants = product.variants.filter(
-    (variant) => variant.isActive,
-  );
+  const activeVariants = product.variants.filter((variant) => variant.isActive);
 
   const hasSelectableVariants = activeVariants.some(
     (variant) => variant.values.length > 0,
   );
 
   const defaultVariant =
-    activeVariants.find(
-      (variant) => variant.isDefault,
-    ) ?? null;
+    activeVariants.find((variant) => variant.isDefault) ?? null;
 
   return {
     hasVariants: hasSelectableVariants,
@@ -118,6 +114,8 @@ export function mapHomeProduct(
               startsAt: variant.discountStartsAt,
               endsAt: variant.discountEndsAt,
             },
+            new Date(),
+            product.tenant.defaultCurrency ?? '',
           ),
         )
       : [
@@ -130,28 +128,33 @@ export function mapHomeProduct(
               startsAt: null,
               endsAt: null,
             },
+            new Date(),
+            product.tenant.defaultCurrency ?? '',
           ),
         ];
 
   const pricing = candidates.reduce((lowest, current) =>
-    toCents(current.finalPrice) < toCents(lowest.finalPrice)
+    toCents(current.finalPrice, product.tenant.defaultCurrency ?? '') <
+    toCents(lowest.finalPrice, product.tenant.defaultCurrency ?? '')
       ? current
       : lowest,
   );
 
-  const baseCents = toCents(pricing.basePrice);
-  const discountCents = toCents(pricing.discountAmount);
+  const baseCents = toCents(
+    pricing.basePrice,
+    product.tenant.defaultCurrency ?? '',
+  );
+  const discountCents = toCents(
+    pricing.discountAmount,
+    product.tenant.defaultCurrency ?? '',
+  );
 
   const discountPercentage =
     pricing.discountType === null || baseCents === 0n
       ? null
-      : Number(
-          (discountCents * 10_000n + baseCents / 2n) / baseCents,
-        ) / 100;
+      : Number((discountCents * 10_000n + baseCents / 2n) / baseCents) / 100;
 
-        const variantInfo =
-    getVariantSelectionInfo(product);
-
+  const variantInfo = getVariantSelectionInfo(product);
 
   return {
     id: product.id,
@@ -176,14 +179,11 @@ export function mapHomeProduct(
     /*
      * NEW
      */
-    hasVariants:
-      variantInfo.hasVariants,
+    hasVariants: variantInfo.hasVariants,
 
     /*
      * NEW
      */
-    defaultVariantId:
-      variantInfo.defaultVariantId,
-
+    defaultVariantId: variantInfo.defaultVariantId,
   };
 }

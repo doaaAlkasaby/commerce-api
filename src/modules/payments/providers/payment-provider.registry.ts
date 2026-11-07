@@ -1,3 +1,9 @@
+import { env } from '../../../config/env.js';
+import {
+  myFatoorahSettingsSchema,
+  type PaymentConfiguration,
+} from '../../../config/payment-options.js';
+import { MyFatoorahProvider } from './myfatoorah.provider.js';
 import {
   PaymentMethod,
   PaymentProvider,
@@ -5,37 +11,27 @@ import {
 
 import { AppError } from '../../../common/errors/app-error.js';
 
-import type {
-  PaymentProviderAdapter,
-} from './payment-provider.js';
+import type { PaymentProviderAdapter } from './payment-provider.js';
 
-import {
-  CashOnDeliveryProvider,
-} from './cash-on-delivery.provider.js';
+import { CashOnDeliveryProvider } from './cash-on-delivery.provider.js';
 
 export class PaymentProviderRegistry {
-  private readonly providers: Map<
-    PaymentProvider,
-    PaymentProviderAdapter
-  >;
+  private readonly providers: Map<PaymentProvider, PaymentProviderAdapter>;
 
-  constructor() {
-    const cashOnDelivery =
-      new CashOnDeliveryProvider();
+  constructor(private readonly configuration: PaymentConfiguration = env) {
+    const cashOnDelivery = new CashOnDeliveryProvider();
 
-    this.providers = new Map([
-      [
-        PaymentProvider.NONE,
-        cashOnDelivery,
-      ],
-    ]);
+    this.providers = new Map([[PaymentProvider.NONE, cashOnDelivery]]);
+    if (configuration.PAYMENT_PROVIDER === 'MYFATOORAH') {
+      this.providers.set(
+        PaymentProvider.MYFATOORAH,
+        new MyFatoorahProvider(myFatoorahSettingsSchema.parse(configuration)),
+      );
+    }
   }
 
-  getProvider(
-    provider: PaymentProvider,
-  ): PaymentProviderAdapter {
-    const paymentProvider =
-      this.providers.get(provider);
+  getProvider(provider: PaymentProvider): PaymentProviderAdapter {
+    const paymentProvider = this.providers.get(provider);
 
     if (!paymentProvider) {
       throw new AppError(
@@ -48,14 +44,14 @@ export class PaymentProviderRegistry {
     return paymentProvider;
   }
 
-  resolveProviderForMethod(
-    method: PaymentMethod,
-  ): PaymentProvider {
+  resolveProviderForMethod(method: PaymentMethod): PaymentProvider {
     switch (method) {
       case PaymentMethod.CASH_ON_DELIVERY:
         return PaymentProvider.NONE;
 
       case PaymentMethod.CARD:
+        if (this.configuration.PAYMENT_PROVIDER === 'MYFATOORAH')
+          return PaymentProvider.MYFATOORAH;
         throw new AppError(
           'Card payment provider is not configured yet',
           400,

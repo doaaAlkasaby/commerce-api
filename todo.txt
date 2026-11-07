@@ -148,3 +148,204 @@ Logs · Metrics · Recovery
 والسؤال الأهم قبل بدء المرحلة الجديدة: هل هدفك من المشروع حاليًا أن يكون Production-ready portfolio project تعرضيه في مقابلات العمل، أم أنك تخططين لنشره وتشغيل متجر حقيقي بعملاء ومدفوعات فعلية؟
 
 الاختيار ده هيحدد مقدار البنية التحتية والخدمات الخارجية اللي نحتاج تنفيذها، من غير تعقيد أو تكلفة غير ضرورية.
+
+
+//-----------------------------------------------------------------------------------
+
+نعم، بعض التعديلات القادمة قد تؤثر على الـ APIs التي يستخدمها تطبيق Flutter، لكن معظمها يمكن تنفيذه دون تغيير الـ API Contracts الحالية.
+
+وبما إن هدفنا أصبح تشغيل متجر إلكتروني حقيقي بعملاء ومدفوعات فعلية، فأنا أقترح نعتمد قاعدة أساسية من الآن:
+
+Backward Compatibility First — نحافظ على الـ APIs الحالية قدر الإمكان، وأي تغيير ضروري نحدده ونوثقه قبل تنفيذه.
+
+خليني أوضح لك تأثير كل مرحلة بالتفصيل.
+
+## 1. هل المراحل القادمة ستؤثر على الـ APIs؟
+
+| المرحلة                       | التأثير المتوقع على Flutter APIs | هل يحتاج تعديل Flutter؟          |
+| ----------------------------- | -------------------------------- | -------------------------------- |
+| 1. إصلاح TypeScript Errors    | لا يُفترض                        | غالبًا لا                        |
+| 2. Prisma Schema & Migrations | لا يُفترض                        | غالبًا لا                        |
+| 3. Real Payment Gateway       | نعم                              | نعم، في Payment Flow             |
+| 4. Background Jobs            | غالبًا لا                        | قد يحتاج التعامل مع انتهاء الحجز |
+| 5. Security Hardening         | محتمل                            | حسب التغييرات                    |
+| 6. Monitoring & Logging       | لا يُفترض                        | لا                               |
+| 7. CI/CD & Deployment         | محدود                            | تغيير Base URL والإعدادات غالبًا |
+
+## 2. ما الذي سيحدث في كل مرحلة؟
+
+### Phase 1 — Fix TypeScript Errors
+
+حاليًا لدينا 27 خطأ في TypeScript.
+
+المطلوب هو إصلاحها دون تغيير طريقة عمل الـ APIs.
+
+مثلاً لو عندنا:
+
+```
+const productId: number = req.params.id;
+```
+
+نصلح الـ typing والتحقق المناسب من البيانات، لكن نحافظ على الـ endpoint وشكل الاستجابة.
+
+المطلوب: عدم تغيير URL أو HTTP Method أو Request Body أو Response JSON إلا إذا اكتشفنا خطأ يستدعي تغييرًا ضروريًا، وفي الحالة دي نراجعه أولًا.
+
+### Phase 2 — Database & Migrations
+
+قد نحتاج تعديل Prisma schema أو إضافة migrations جديدة، لكن التغييرات الداخلية في قاعدة البيانات لا تعني بالضرورة تغيير الـ APIs.
+
+مثال: إضافة Index لتحسين أداء استعلام المنتجات.
+
+```
+CREATE INDEX idx_products_tenant
+ON "Product" ("tenantId");
+```
+
+ده لا يتطلب تعديل Flutter.
+
+لكن لو احتجنا تغيير اسم حقل يستخدمه الـ API، هنحافظ على الاسم الخارجي باستخدام DTO أو Mapper قدر الإمكان.
+
+### Phase 3 — Real Payment Gateway
+
+دي أكثر مرحلة متوقع إنها تؤثر على تطبيق Flutter.
+
+حاليًا عندنا Checkout ينشئ Order وPayment محلية، لكن مفيش Payment Gateway حقيقية متصلة.
+
+بعد إضافة بوابة دفع، هيكون الـ flow بالشكل التالي:
+
+Flutter — Checkout Preview
+
+POST Checkout — Create Order
+
+Initiate Payment API
+
+Returns payment session / redirect / SDK data
+
+Flutter — Payment Gateway UI
+
+Backend — Verified Webhook
+
+Updates payment and order status
+
+Flutter — Fetch Payment Status
+
+Display success, failure, or pending
+
+هنا هنحتاج Flutter يتعامل مع Payment Session أو Redirect URL أو SDK حسب بوابة الدفع المختارة.
+
+لكن مش لازم نغير Checkout API نفسها؛ ممكن نضيف Payment Integration على الـ APIs الموجودة، مع إضافة حقول اختيارية أو endpoints جديدة عند الحاجة.
+
+ومهم جدًا إن Flutter لا يعتمد على نجاح شاشة الدفع وحده لتأكيد الطلب؛ السيرفر لازم يتحقق من نتيجة الدفع من مصدر موثوق.
+
+### Phase 4 — Background Jobs
+
+مثال: العميل حجز آخر قطعة من منتج، ولم يكمل الدفع.
+
+الـ Worker سيتعامل مع انتهاء الحجز تلقائيًا.
+
+غالبًا لن نغير أي API، لكن Flutter قد يحتاج عرض رسالة مثل:
+
+> انتهت مهلة إتمام الدفع. يرجى بدء Checkout جديد.
+
+وده تغيير في تجربة المستخدم أكثر من كونه تغييرًا في الـ API Contract.
+
+### Phase 5 — Security Hardening
+
+قد نحتاج بعض التعديلات التي تؤثر على الـ API behavior، مثل:
+
+- إرجاع `429 Too Many Requests` عند تجاوز Rate Limit.
+- رفض الطلبات التي تفتقد Authentication أو Tenant Context.
+- تحديث قواعد Token Refresh أو انتهاء الجلسة إذا ثبت وجود مشكلة أمنية.
+
+هنا سنحافظ على شكل الـ Error Response الحالي:
+
+```
+{
+  "success": false,
+  "message": "Too many requests",
+  "code": "RATE_LIMIT_EXCEEDED",
+  "data": null
+}
+```
+
+لكن Flutter قد يحتاج التعامل مع error codes إضافية.
+
+## 3. كيف نضمن عدم كسر الـ APIs الحالية؟
+
+أقترح نضيف قاعدة ثابتة لكل Codex Prompt قادم، باسم:
+
+API Compatibility Protection
+
+API Compatibility Rules
+
+- لا نغير أسماء الـ endpoints أو HTTP Methods الحالية دون ضرورة وموافقة.
+- لا نحذف أو نعيد تسمية Request/Response fields المستخدمة حاليًا.
+- نحافظ على Success/Error Response Envelope.
+- نضيف Contract Tests للـ APIs المهمة.
+- أي تغيير غير متوافق مع الإصدارات القديمة يتطلب خطة Migration أو API Versioning.
+- كل تقرير Codex يوضح تأثير التعديلات على Flutter.
+
+وهذا نص جاهز نضيفه لكل prompt:
+
+```
+API BACKWARD COMPATIBILITY — MANDATORY
+
+This backend serves an existing Flutter mobile application.
+
+Preserve all existing public API contracts unless an
+explicitly approved breaking change is unavoidable.
+
+Do not change:
+- Existing endpoint URLs
+- HTTP methods
+- Request field names and types
+- Response field names and types
+- Existing success/error envelope
+- Authentication and tenant headers
+- Documented HTTP status semantics
+
+Add regression tests for affected API contracts.
+
+If a breaking change is necessary:
+1. Do not implement it silently.
+2. Explain why it is required.
+3. Propose a backward-compatible alternative.
+4. Document the exact Flutter impact.
+5. Wait for approval before changing the contract.
+
+Every final report must include:
+
+API COMPATIBILITY REPORT
+- Existing endpoints changed:
+- New endpoints added:
+- Request contract changes:
+- Response contract changes:
+- New error codes/statuses:
+- Authentication changes:
+- Flutter changes required:
+- Breaking changes: YES/NO
+```
+
+## 4. اقتراحي قبل البدء في Production Readiness
+
+بما إن المشروع هيخدم عملاء حقيقيين، أقترح نضيف خطوة صغيرة قبل Phase 1:
+
+API Contract Baseline
+
+فيها Codex يوثق جميع الـ public APIs الحالية، خصوصًا Authentication وProducts وCart وCheckout وOrders وPayments.
+
+بعد ذلك نستخدم الـ baseline لمقارنة أي تغييرات مستقبلية.
+
+وده هيساعدنا نتأكد إن إصلاح الـ TypeScript errors أو تغيير الـ database مش هيكسر تطبيق Flutter بدون ما نلاحظ.
+
+## 5. ماذا عن الإصدارات الجديدة من Flutter؟
+
+في المتاجر الحقيقية، المستخدمون مش كلهم بيحدثوا التطبيق في نفس اليوم.
+
+ممكن يكون عندك مستخدم على Flutter App v1.0 ومستخدم آخر على v1.2.
+
+لذلك من الأفضل إن السيرفر يدعم الإصدارات القديمة خلال فترة انتقالية مناسبة، بدل ما أي Backend Deployment جديد يجبر كل العملاء على تحديث التطبيق فورًا.
+
+الخلاصة: هنقدر ننفذ معظم مراحل Production Readiness بدون تغيير الـ APIs الحالية. أما Payment Gateway وبعض Security Behaviors، فغالبًا هيحتاجوا إضافات أو تعديلات محددة في Flutter، وهنوثقها ونختبرها قبل النشر.
+
+توصيتي: نبدأ بـ API Contract Baseline + Fix TypeScript Errors، مع تطبيق قواعد Backward Compatibility في كل مراحل العمل القادمة.

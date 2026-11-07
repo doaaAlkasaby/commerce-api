@@ -1,28 +1,18 @@
+import { catalogTenantFixture } from '../helpers/catalog.js';
 import request from 'supertest';
 
-import {
-  afterAll,
-  beforeAll,
-  describe,
-  expect,
-  it,
-} from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import app from '../../src/app.js';
 
-import {
-  createAccessToken,
-} from '../../src/common/security/jwt.js';
+import { createAccessToken } from '../../src/common/security/jwt.js';
 
-import {
-  hashPassword,
-} from '../../src/common/security/password.js';
+import { hashPassword } from '../../src/common/security/password.js';
 
-import {
-  testPrisma,
-} from '../../src/config/test-database.js';
+import { testPrisma } from '../../src/config/test-database.js';
 
 describe('Categories API', () => {
+  const tenant = catalogTenantFixture();
   const runId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const categoryIds: string[] = [];
 
@@ -40,13 +30,12 @@ describe('Categories API', () => {
   ): Promise<string> => {
     const response = await request(app)
       .post('/api/v1/categories')
+      .set('X-Tenant-Slug', tenant.slug)
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
         name: options.name ?? slug,
         slug,
-        ...(options.parentId
-          ? { parentId: options.parentId }
-          : {}),
+        ...(options.parentId ? { parentId: options.parentId } : {}),
       });
 
     expect(response.status).toBe(201);
@@ -56,6 +45,7 @@ describe('Categories API', () => {
 
   beforeAll(async () => {
     await testPrisma.$connect();
+    await tenant.create();
     const passwordHash = await hashPassword('Password123!');
 
     const customer = await testPrisma.user.create({
@@ -78,6 +68,12 @@ describe('Categories API', () => {
       },
     });
 
+    await testPrisma.tenantMember.createMany({
+      data: [
+        { tenantId: tenant.id, userId: customer.id, role: 'CUSTOMER' },
+        { tenantId: tenant.id, userId: admin.id, role: 'ADMIN' },
+      ],
+    });
     customerId = customer.id;
     adminId = admin.id;
     customerToken = await createAccessToken(customer.id);
@@ -98,10 +94,13 @@ describe('Categories API', () => {
     await testPrisma.user.deleteMany({
       where: {
         id: {
-          in: [customerId, adminId],
+          in: [customerId, adminId].filter(
+            (id): id is string => typeof id === 'string',
+          ),
         },
       },
     });
+    await tenant.cleanup();
     await testPrisma.$disconnect();
   });
 
@@ -109,6 +108,7 @@ describe('Categories API', () => {
     it('rejects an unauthenticated user from creating a category', async () => {
       const response = await request(app)
         .post('/api/v1/categories')
+        .set('X-Tenant-Slug', tenant.slug)
         .send({
           name: 'Unauthorized Category',
           slug: `unauthorized-${runId}`,
@@ -121,6 +121,7 @@ describe('Categories API', () => {
     it('rejects a customer from creating a category', async () => {
       const response = await request(app)
         .post('/api/v1/categories')
+        .set('X-Tenant-Slug', tenant.slug)
         .set('Authorization', `Bearer ${customerToken}`)
         .send({
           name: 'Customer Category',
@@ -136,6 +137,7 @@ describe('Categories API', () => {
 
       const response = await request(app)
         .patch(`/api/v1/categories/${categoryId}`)
+        .set('X-Tenant-Slug', tenant.slug)
         .set('Authorization', `Bearer ${customerToken}`)
         .send({
           name: 'Customer Updated Category',
@@ -150,6 +152,7 @@ describe('Categories API', () => {
 
       const response = await request(app)
         .delete(`/api/v1/categories/${categoryId}`)
+        .set('X-Tenant-Slug', tenant.slug)
         .set('Authorization', `Bearer ${customerToken}`);
 
       expect(response.status).toBe(403);
@@ -160,6 +163,7 @@ describe('Categories API', () => {
       const slug = `admin-create-${runId}`;
       const response = await request(app)
         .post('/api/v1/categories')
+        .set('X-Tenant-Slug', tenant.slug)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
           name: 'Admin Created Category',
@@ -176,6 +180,7 @@ describe('Categories API', () => {
       const categoryId = await createCategory(`admin-update-${runId}`);
       const response = await request(app)
         .patch(`/api/v1/categories/${categoryId}`)
+        .set('X-Tenant-Slug', tenant.slug)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
           name: 'Admin Updated Category',
@@ -189,6 +194,7 @@ describe('Categories API', () => {
       const categoryId = await createCategory(`admin-delete-${runId}`);
       const response = await request(app)
         .delete(`/api/v1/categories/${categoryId}`)
+        .set('X-Tenant-Slug', tenant.slug)
         .set('Authorization', `Bearer ${adminToken}`);
 
       expect(response.status).toBe(200);
@@ -201,6 +207,7 @@ describe('Categories API', () => {
       const categoryId = await createCategory(`deactivate-${runId}`);
       const response = await request(app)
         .patch(`/api/v1/categories/${categoryId}/status`)
+        .set('X-Tenant-Slug', tenant.slug)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
           isActive: false,
@@ -223,6 +230,7 @@ describe('Categories API', () => {
 
       const response = await request(app)
         .patch(`/api/v1/categories/${categoryId}/status`)
+        .set('X-Tenant-Slug', tenant.slug)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
           isActive: true,
@@ -237,7 +245,8 @@ describe('Categories API', () => {
     it('gets a category', async () => {
       const categoryId = await createCategory(`get-${runId}`);
       const response = await request(app)
-        .get(`/api/v1/categories/${categoryId}`);
+        .get(`/api/v1/categories/${categoryId}`)
+        .set('X-Tenant-Slug', tenant.slug);
 
       expect(response.status).toBe(200);
       expect(response.body.data.id).toBe(categoryId);
@@ -256,7 +265,8 @@ describe('Categories API', () => {
       });
 
       const response = await request(app)
-        .get('/api/v1/categories/active');
+        .get('/api/v1/categories/active')
+        .set('X-Tenant-Slug', tenant.slug);
       const returnedIds = response.body.data.map(
         (category: { id: string }) => category.id,
       );
@@ -273,7 +283,8 @@ describe('Categories API', () => {
       });
 
       const response = await request(app)
-        .get(`/api/v1/categories/${parentId}/children`);
+        .get(`/api/v1/categories/${parentId}/children`)
+        .set('X-Tenant-Slug', tenant.slug);
       const returnedIds = response.body.data.map(
         (category: { id: string }) => category.id,
       );
@@ -284,7 +295,8 @@ describe('Categories API', () => {
 
     it('returns 404 for a missing category', async () => {
       const response = await request(app)
-        .get('/api/v1/categories/00000000-0000-4000-8000-000000000099');
+        .get('/api/v1/categories/00000000-0000-4000-8000-000000000099')
+        .set('X-Tenant-Slug', tenant.slug);
 
       expect(response.status).toBe(404);
       expect(response.body.code).toBe('CATEGORY_NOT_FOUND');

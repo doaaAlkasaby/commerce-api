@@ -1,4 +1,4 @@
-
+import { logger } from '../logger/logger.js';
 
 export interface SendVerificationEmailInput {
   email: string;
@@ -15,38 +15,27 @@ export interface SendPasswordResetEmailInput {
 export const createEmailService = () => {
   return {
     sendVerificationEmail: async (
-      input: SendVerificationEmailInput,
+      _input: SendVerificationEmailInput,
     ): Promise<void> => {
       /*
        * Email provider integration will be added later.
        *
-       * For now we log the verification URL
-       * during development.
+       * Tokens and addresses are never written to logs.
        */
 
-      const verificationUrl =
-        `http://localhost:3000/api/v1/auth/verify-email?token=${encodeURIComponent(
-          input.verificationToken,
-        )}`;
-
-      console.log(
-        `Verification email for ${input.email}: ${verificationUrl}`,
+      logger.info(
+        { category: 'EMAIL_DELIVERY_NOT_CONFIGURED' },
+        'Verification delivery adapter is not configured',
       );
     },
 
     sendPasswordResetEmail: async (
-      input: SendPasswordResetEmailInput,
+      _input: SendPasswordResetEmailInput,
     ): Promise<void> => {
-      const resetUrl =
-        `http://localhost:3000/reset-password?token=${encodeURIComponent(
-          input.resetToken,
-        )}`;
-
-      console.log(
-        `Password reset email for ${input.email}: ${resetUrl}`,
+      logger.info(
+        { category: 'EMAIL_DELIVERY_NOT_CONFIGURED' },
+        'Password reset delivery adapter is not configured',
       );
     },
-
-
   };
 };

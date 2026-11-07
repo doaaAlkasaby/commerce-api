@@ -1,8 +1,6 @@
 import type { Prisma } from '../../generated/prisma/client.js';
 
-import {
-  calculateEffectivePrice,
-} from '../../common/pricing/pricing.service.js';
+import { calculateEffectivePrice } from '../../common/pricing/pricing.service.js';
 
 export const productVariantDetailsSelect = {
   id: true,
@@ -23,6 +21,7 @@ export const productVariantDetailsSelect = {
 
   product: {
     select: {
+      tenant: { select: { defaultCurrency: true } },
       id: true,
       name: true,
       slug: true,
@@ -85,131 +84,85 @@ export const productVariantDetailsSelect = {
   },
 } satisfies Prisma.ProductVariantSelect;
 
-export type ProductVariantDetails =
-  Prisma.ProductVariantGetPayload<{
-    select:
-      typeof productVariantDetailsSelect;
-  }>;
+export type ProductVariantDetails = Prisma.ProductVariantGetPayload<{
+  select: typeof productVariantDetailsSelect;
+}>;
 
-export const toProductVariantResponse = (
-  variant: ProductVariantDetails,
-) => {
-  const effectiveBasePrice =
-    variant.price ??
-    variant.product.basePrice;
+export const toProductVariantResponse = (variant: ProductVariantDetails) => {
+  const effectiveBasePrice = variant.price ?? variant.product.basePrice;
 
-  const effectivePrice =
-    calculateEffectivePrice(
-      effectiveBasePrice.toString(),
+  const effectivePrice = calculateEffectivePrice(
+    effectiveBasePrice.toString(),
 
-      {
-        type:
-          variant.product
-            .discountType,
+    {
+      type: variant.product.discountType,
 
-        value:
-          variant.product
-            .discountValue
-            ?.toString() ?? null,
+      value: variant.product.discountValue?.toString() ?? null,
 
-        startsAt:
-          variant.product
-            .discountStartsAt,
+      startsAt: variant.product.discountStartsAt,
 
-        endsAt:
-          variant.product
-            .discountEndsAt,
-      },
+      endsAt: variant.product.discountEndsAt,
+    },
 
-      {
-        type:
-          variant.discountType,
+    {
+      type: variant.discountType,
 
-        value:
-          variant.discountValue
-            ?.toString() ?? null,
+      value: variant.discountValue?.toString() ?? null,
 
-        startsAt:
-          variant.discountStartsAt,
+      startsAt: variant.discountStartsAt,
 
-        endsAt:
-          variant.discountEndsAt,
-      },
-    );
+      endsAt: variant.discountEndsAt,
+    },
+    new Date(),
+    variant.product.tenant.defaultCurrency ?? '',
+  );
 
   return {
     id: variant.id,
     productId: variant.productId,
     sku: variant.sku,
 
-    price:
-      variant.price?.toString() ??
-      null,
+    price: variant.price?.toString() ?? null,
 
     effectivePrice,
 
-    isActive:
-      variant.isActive,
+    isActive: variant.isActive,
 
-    attributes:
-      variant.values.map(
-        ({ attributeValue }) => ({
-          id:
-            attributeValue
-              .attribute.id,
+    attributes: variant.values.map(({ attributeValue }) => ({
+      id: attributeValue.attribute.id,
 
-          name:
-            attributeValue
-              .attribute.name,
+      name: attributeValue.attribute.name,
 
-          valueId:
-            attributeValue.id,
+      valueId: attributeValue.id,
 
-          value:
-            attributeValue.value,
+      value: attributeValue.value,
 
-          image:
-            attributeValue.imageUrl
-              ? {
-                  storageKey:
-                    attributeValue
-                      .imageStorageKey!,
-                  url:
-                    attributeValue
-                      .imageUrl,
-                }
-              : null,
-        }),
-      ),
+      image: attributeValue.imageUrl
+        ? {
+            storageKey: attributeValue.imageStorageKey!,
+            url: attributeValue.imageUrl,
+          }
+        : null,
+    })),
 
-    images:
-      variant.images.map(
-        (image) => ({
-          id: image.id,
-          variantId:
-            image.variantId,
+    images: variant.images.map((image) => ({
+      id: image.id,
+      variantId: image.variantId,
 
-          storageKey:
-            image.storageKey,
+      storageKey: image.storageKey,
 
-          url: image.url,
+      url: image.url,
 
-          altText:
-            image.altText,
+      altText: image.altText,
 
-          sortOrder:
-            image.sortOrder,
+      sortOrder: image.sortOrder,
 
-          isPrimary:
-            image.isPrimary,
+      isPrimary: image.isPrimary,
 
-          createdAt:
-            image.createdAt,
+      createdAt: image.createdAt,
 
-          updatedAt:
-            image.updatedAt,
-        }),
-      ),
+      updatedAt: image.updatedAt,
+    })),
 
     product: {
       id: variant.product.id,
@@ -218,10 +171,8 @@ export const toProductVariantResponse = (
       status: variant.product.status,
     },
 
-    createdAt:
-      variant.createdAt,
+    createdAt: variant.createdAt,
 
-    updatedAt:
-      variant.updatedAt,
+    updatedAt: variant.updatedAt,
   };
 };

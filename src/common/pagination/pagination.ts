@@ -13,18 +13,13 @@ export interface PaginationResponse {
 }
 
 export const paginationQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
+  page: z.coerce.number().int().min(1).max(21474836).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
 
-export type PaginationQuery = z.infer<
-  typeof paginationQuerySchema
->;
+export type PaginationQuery = z.infer<typeof paginationQuerySchema>;
 
-export function calculateSkip(
-  page: number,
-  limit: number,
-): number {
+export function calculateSkip(page: number, limit: number): number {
   return (page - 1) * limit;
 }
 

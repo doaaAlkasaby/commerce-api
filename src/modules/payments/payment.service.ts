@@ -1,3 +1,6 @@
+import { logger } from '../../common/logger/logger.js';
+import { observePayment, metrics } from '../../common/observability/metrics.js';
+import { validateAmount } from '../../common/pricing/money.js';
 import {
   validatePaymentTransition,
   isFinanciallyCommitted,
@@ -134,9 +137,49 @@ export class PaymentService {
     return this.repository.findMany(tenantId, { orderId });
   }
 
-  async initiatePayment(tenantId: string, userId: string, paymentId: string) {
+  async initiatePayment(
+    tenantId: string,
+    userId: string,
+    paymentId: string,
+    guard?: (tx: Prisma.TransactionClient) => Promise<void>,
+  ) {
+    return observePayment(
+      'initiation',
+      async () => {
+        const result = await this.initiatePaymentObserved(
+          tenantId,
+          userId,
+          paymentId,
+          guard,
+        );
+        logger.info(
+          {
+            operation: 'initiation',
+            tenantId,
+            paymentId,
+            outcome: result.initiationState,
+          },
+          'Payment initiation observed',
+        );
+        metrics.payment(
+          'initiation',
+          result.initiationState === 'UNKNOWN' ? 'unknown' : 'success',
+        );
+        return result;
+      },
+      { tenantId, paymentId },
+    );
+  }
+
+  private async initiatePaymentObserved(
+    tenantId: string,
+    userId: string,
+    paymentId: string,
+    guard?: (tx: Prisma.TransactionClient) => Promise<void>,
+  ) {
     const claim = await prisma.$transaction(async (tx) => {
       await this.repository.lockOrderForUser(tx, tenantId, userId, paymentId);
+      await guard?.(tx);
       const payment = await this.repository.findForUser(
         tenantId,
         userId,
@@ -199,6 +242,11 @@ export class PaymentService {
           'PAYMENT_RECONCILIATION_REQUIRED',
         );
       }
+      validateAmount(order.totalAmount.toString(), order.currency);
+      adapter.validatePayment?.({
+        amount: order.totalAmount.toString(),
+        currency: order.currency,
+      });
       await this.repository.setInitiationState(
         tx,
         tenantId,
@@ -233,6 +281,28 @@ export class PaymentService {
       if (!supported.includes(result.status))
         throw new Error('Unsupported provider initiation result');
       return await prisma.$transaction(async (tx) => {
+        await this.repository.lockOrderForUser(tx, tenantId, userId, paymentId);
+        await guard?.(tx);
+        const current = await this.repository.findForUser(
+          tenantId,
+          userId,
+          paymentId,
+          tx,
+        );
+        if (current?.provider === 'MYFATOORAH' && result.providerPaymentId) {
+          await this.repository.bindMyFatoorahInvoice(
+            tx,
+            tenantId,
+            paymentId,
+            result.providerPaymentId,
+          );
+          if (
+            current.initiationState === 'INITIATED' &&
+            current.providerPaymentId === result.providerPaymentId &&
+            !['PENDING', 'REQUIRES_ACTION'].includes(current.status)
+          )
+            return current;
+        }
         await this.applyPaymentStatusWithClient(
           tenantId,
           paymentId,
@@ -271,18 +341,19 @@ export class PaymentService {
           'INITIATED',
         );
       });
-    } catch {
+    } catch (error) {
       // A transport error (or failure to persist a provider reply) is not proof
       // of payment failure. Keep reservation and committed checkout intact.
-      await prisma.$transaction(async (tx) => {
+      const markedUnknown = await prisma.$transaction(async (tx) => {
         await this.repository.lockOrderForUser(tx, tenantId, userId, paymentId);
+        await guard?.(tx);
         const payment = await this.repository.findForUser(
           tenantId,
           userId,
           paymentId,
           tx,
         );
-        if (payment?.initiationState === 'IN_PROGRESS')
+        if (payment?.initiationState === 'IN_PROGRESS') {
           await this.repository.setInitiationState(
             tx,
             tenantId,
@@ -290,7 +361,38 @@ export class PaymentService {
             paymentId,
             'UNKNOWN',
           );
+          if (payment.provider === 'MYFATOORAH') {
+            const categories: Readonly<Record<string, string>> = {
+              MYFATOORAH_REJECTED: 'INITIATION_REJECTED',
+              MYFATOORAH_TIMEOUT: 'INITIATION_TIMEOUT',
+              MYFATOORAH_AUTHENTICATION_FAILED:
+                'INITIATION_AUTHENTICATION_FAILED',
+              MYFATOORAH_INVALID_RESPONSE: 'INITIATION_INVALID_RESPONSE',
+            };
+            const category =
+              error instanceof AppError
+                ? (categories[error.code] ?? 'INITIATION_UNKNOWN')
+                : 'INITIATION_UNKNOWN';
+            await this.repository.recordInitiationFailure(
+              tx,
+              tenantId,
+              payment.orderId,
+              category,
+            );
+          }
+          return true;
+        }
+        return false;
       });
+      if (markedUnknown) {
+        metrics.increment('commerce_payment_initiation_uncertain_total');
+        logger.warn(
+          { operation: 'initiation', outcome: 'unknown', tenantId, paymentId },
+          'Payment initiation requires reconciliation',
+        );
+      }
+      if (error instanceof AppError && error.code.startsWith('MYFATOORAH_'))
+        throw error;
       throw new AppError(
         'Payment outcome is unknown; check status and retry only when safe',
         503,

@@ -1,3 +1,4 @@
+import { toMinorUnits } from '../pricing/money.js';
 import { AppError } from '../errors/app-error.js';
 
 import { calculateDistanceKm } from './shipping.calculator.js';
@@ -8,6 +9,13 @@ import type {
 } from './shipping.types.js';
 
 import type { ShippingRepository } from './shipping.repository.js';
+
+type Profile = NonNullable<
+  Awaited<ReturnType<ShippingRepository['findProfile']>>
+>;
+type Zone = Profile['zones'][number];
+type Method = Zone['methods'][number];
+type Rule = Method['rules'][number];
 
 export class ShippingService {
   constructor(private readonly repository: ShippingRepository) {}
@@ -64,9 +72,9 @@ export class ShippingService {
     );
 
     const distanceIsRequired = method.rules.some(
-      (rule: any) =>
+      (rule: Rule) =>
         rule.maxDistanceKm != null &&
-        this.matchesOrderAmount(rule, input.orderSubtotalCents),
+        this.matchesOrderAmount(rule, input.orderSubtotalCents, input.currency),
     );
 
     if (distanceKm == null && distanceIsRequired) {
@@ -89,6 +97,7 @@ export class ShippingService {
       method.rules,
       input.orderSubtotalCents,
       distanceKm,
+      input.currency,
     );
 
     if (!rule) {
@@ -106,7 +115,7 @@ export class ShippingService {
 
       shippingRuleId: rule.id,
 
-      amountCents: decimalToCents(rule.flatRate),
+      amountCents: toMinorUnits(String(rule.flatRate), input.currency),
 
       currency: profile.currency,
 
@@ -115,11 +124,11 @@ export class ShippingService {
       distanceKm,
 
       minOrderAmountCents: rule.minOrderAmount
-        ? decimalToCents(rule.minOrderAmount)
+        ? toMinorUnits(String(rule.minOrderAmount), input.currency)
         : null,
 
       maxOrderAmountCents: rule.maxOrderAmount
-        ? decimalToCents(rule.maxOrderAmount)
+        ? toMinorUnits(String(rule.maxOrderAmount), input.currency)
         : null,
 
       maxDistanceKm: rule.maxDistanceKm ? Number(rule.maxDistanceKm) : null,
@@ -127,7 +136,7 @@ export class ShippingService {
   }
 
   private findZone(
-    zones: any[],
+    zones: Zone[],
     destination: ShippingCalculationInput['destination'],
   ) {
     const countryMatches = zones.filter(
@@ -161,7 +170,7 @@ export class ShippingService {
     );
   }
 
-  private findMethod(methods: any[], methodCode?: string | null) {
+  private findMethod(methods: Method[], methodCode?: string | null) {
     if (methodCode) {
       return methods.find((method) => method.code === methodCode) ?? null;
     }
@@ -215,12 +224,13 @@ export class ShippingService {
   }
 
   private findApplicableRule(
-    rules: any[],
+    rules: Rule[],
     orderSubtotalCents: bigint,
     distanceKm: number | null,
+    currency: string,
   ) {
     for (const rule of rules) {
-      if (!this.matchesOrderAmount(rule, orderSubtotalCents)) {
+      if (!this.matchesOrderAmount(rule, orderSubtotalCents, currency)) {
         continue;
       }
 
@@ -234,9 +244,13 @@ export class ShippingService {
     return null;
   }
 
-  private matchesOrderAmount(rule: any, orderSubtotalCents: bigint): boolean {
+  private matchesOrderAmount(
+    rule: Rule,
+    orderSubtotalCents: bigint,
+    currency: string,
+  ): boolean {
     if (rule.minOrderAmount != null) {
-      const minimum = decimalToCents(rule.minOrderAmount);
+      const minimum = toMinorUnits(String(rule.minOrderAmount), currency);
 
       if (orderSubtotalCents < minimum) {
         return false;
@@ -244,7 +258,7 @@ export class ShippingService {
     }
 
     if (rule.maxOrderAmount != null) {
-      const maximum = decimalToCents(rule.maxOrderAmount);
+      const maximum = toMinorUnits(String(rule.maxOrderAmount), currency);
 
       if (orderSubtotalCents > maximum) {
         return false;
@@ -254,7 +268,7 @@ export class ShippingService {
     return true;
   }
 
-  private matchesDistance(rule: any, distanceKm: number | null): boolean {
+  private matchesDistance(rule: Rule, distanceKm: number | null): boolean {
     if (rule.maxDistanceKm == null) {
       return true;
     }
@@ -269,14 +283,4 @@ export class ShippingService {
 
     return distanceKm <= Number(rule.maxDistanceKm);
   }
-}
-
-function decimalToCents(value: unknown): bigint {
-  const normalized = String(value);
-
-  const [whole, fraction = ''] = normalized.split('.');
-
-  const paddedFraction = fraction.padEnd(2, '0').slice(0, 2);
-
-  return BigInt(whole ?? '0') * 100n + BigInt(paddedFraction || '0');
 }

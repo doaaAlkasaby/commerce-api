@@ -1,35 +1,17 @@
-import {
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from 'vitest';
+const tenantId = '00000000-0000-4000-8000-000000000010';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type {
-  Brand,
-  Category,
-} from '../../src/generated/prisma/client.js';
+import type { Brand, Category } from '../../src/generated/prisma/client.js';
 
-import {
-  storageService,
-} from '../../src/common/storage/storage.service.js';
+import { storageService } from '../../src/common/storage/storage.service.js';
 
-import {
-  createBrandRepository,
-} from '../../src/modules/brands/brand.repository.js';
+import { createBrandRepository } from '../../src/modules/brands/brand.repository.js';
 
-import {
-  createBrandService,
-} from '../../src/modules/brands/brand.service.js';
+import { createBrandService } from '../../src/modules/brands/brand.service.js';
 
-import {
-  createCategoryRepository,
-} from '../../src/modules/categories/category.repository.js';
+import { createCategoryRepository } from '../../src/modules/categories/category.repository.js';
 
-import {
-  createCategoryService,
-} from '../../src/modules/categories/category.service.js';
+import { createCategoryService } from '../../src/modules/categories/category.service.js';
 
 vi.mock('../../src/common/storage/storage.service.js', () => ({
   storageService: {
@@ -38,15 +20,14 @@ vi.mock('../../src/common/storage/storage.service.js', () => ({
   },
 }));
 
-type BrandRepository =
-  ReturnType<typeof createBrandRepository>;
-type CategoryRepository =
-  ReturnType<typeof createCategoryRepository>;
+type BrandRepository = ReturnType<typeof createBrandRepository>;
+type CategoryRepository = ReturnType<typeof createCategoryRepository>;
 
 const now = new Date('2026-01-01T00:00:00.000Z');
 const imageFile = Buffer.from([0xff, 0xd8, 0xff]);
 
 const brand: Brand = {
+  tenantId,
   id: '00000000-0000-4000-8000-000000000001',
   name: 'Brand',
   slug: 'brand',
@@ -58,7 +39,9 @@ const brand: Brand = {
   updatedAt: now,
 };
 
-const category: Category = {
+const category: Category & { _count: { children: number } } = {
+  _count: { children: 0 },
+  tenantId,
   id: '00000000-0000-4000-8000-000000000002',
   name: 'Category',
   slug: 'category',
@@ -119,7 +102,7 @@ describe('Brand and category image services', () => {
       imageUrl: '/uploads/brands/brand.jpg',
     });
 
-    const response = await brandService.uploadImage(brand.id, {
+    const response = await brandService.uploadImage(tenantId, brand.id, {
       file: imageFile,
       originalName: 'brand.jpg',
       contentType: 'image/jpeg',
@@ -132,9 +115,7 @@ describe('Brand and category image services', () => {
       'image/jpeg',
       'brands',
     );
-    expect(storageService.delete).toHaveBeenCalledWith(
-      'brands/old-brand.jpg',
-    );
+    expect(storageService.delete).toHaveBeenCalledWith('brands/old-brand.jpg');
   });
 
   it('uploads a category image and returns its URL', async () => {
@@ -145,11 +126,10 @@ describe('Brand and category image services', () => {
     });
     vi.mocked(categoryRepository.updateImage).mockResolvedValue({
       ...category,
-      imageStorageKey: 'categories/category.jpg',
       imageUrl: '/uploads/categories/category.jpg',
     });
 
-    const response = await categoryService.uploadImage(category.id, {
+    const response = await categoryService.uploadImage(tenantId, category.id, {
       file: imageFile,
       originalName: 'category.jpg',
       contentType: 'image/jpeg',
@@ -171,16 +151,15 @@ describe('Brand and category image services', () => {
       imageUrl: '/uploads/categories/old.jpg',
     });
 
-    await categoryService.deleteImage(category.id);
+    await categoryService.deleteImage(tenantId, category.id);
 
     expect(categoryRepository.updateImage).toHaveBeenCalledWith(
+      tenantId,
       category.id,
       null,
       null,
     );
-    expect(storageService.delete).toHaveBeenCalledWith(
-      'categories/old.jpg',
-    );
+    expect(storageService.delete).toHaveBeenCalledWith('categories/old.jpg');
   });
 
   it('clears and deletes a brand image', async () => {
@@ -190,15 +169,14 @@ describe('Brand and category image services', () => {
       imageUrl: '/uploads/brands/brand.jpg',
     });
 
-    await brandService.deleteImage(brand.id);
+    await brandService.deleteImage(tenantId, brand.id);
 
     expect(brandRepository.updateImage).toHaveBeenCalledWith(
+      tenantId,
       brand.id,
       null,
       null,
     );
-    expect(storageService.delete).toHaveBeenCalledWith(
-      'brands/brand.jpg',
-    );
+    expect(storageService.delete).toHaveBeenCalledWith('brands/brand.jpg');
   });
 });

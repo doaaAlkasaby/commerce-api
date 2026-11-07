@@ -17,8 +17,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate dev",
+    "db:generate": "prisma generate --config prisma7.config.ts",
+    "db:migrate": "prisma migrate deploy --config prisma7.config.ts",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:test-data": "tsx prisma/seed-test-data.ts",
     "db:studio": "prisma studio",
@@ -26,7 +26,15 @@
     "docs:generate": "npm run swagger:generate",
     "postman:generate": "tsx scripts/generate-api-docs.ts",
     "docs:generate:all": "npm run docs:generate",
-    "build:docs": "npm run swagger:generate"
+    "build:docs": "npm run swagger:generate",
+    "test:postgres": "tsx scripts/test-postgres.ts",
+    "db:migrate:deploy": "prisma migrate deploy --config prisma7.config.ts",
+    "db:migrate:status": "prisma migrate status --config prisma7.config.ts",
+    "db:verify": "tsx scripts/test-postgres.ts --schema-only",
+    "worker": "node dist/worker.js",
+    "worker:dev": "tsx src/worker.ts",
+    "ci:quality": "node scripts/ci-quality.mjs",
+    "container:verify": "node scripts/verify-containers.mjs"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^9.1.0",
@@ -67,5 +75,8 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.70.1",
     "vitest": "^5.0.2"
+  },
+  "engines": {
+    "node": ">=24.0.0 <25"
   }
 }

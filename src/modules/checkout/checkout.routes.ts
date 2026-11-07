@@ -1,3 +1,4 @@
+import { sensitiveRateLimiter } from '../../config/rate-limit.js';
 import { tenantMiddleware } from '../../middleware/tenant.middleware.js';
 import { Router } from 'express';
 
@@ -18,6 +19,7 @@ router.use(tenantMiddleware);
 router.post(
   '/preview',
   authenticate,
+  sensitiveRateLimiter,
   requireVerifiedEmail,
   validate(checkoutPreviewSchema, 'body'),
   checkoutController.preview,
@@ -26,6 +28,7 @@ router.post(
 router.post(
   '/',
   authenticate,
+  sensitiveRateLimiter,
   requireVerifiedEmail,
   validate(checkoutSchema, 'body'),
   checkoutController.checkout,

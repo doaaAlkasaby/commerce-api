@@ -92,3 +92,15 @@ export interface PaymentResponse {
 
   updatedAt: string;
 }
+
+export interface VerifiedProviderPayment {
+  invoiceId: string;
+  customerReference: string;
+  orderReference: string;
+  amount: string;
+  currency: string;
+  status: PaymentStatus;
+  transactionId?: string;
+  transactionPaymentId?: string;
+  transactionPaymentIds: string[];
+}

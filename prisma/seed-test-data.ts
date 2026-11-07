@@ -1,3 +1,4 @@
+import { assertDevelopmentSeedTarget } from '../src/config/seed-options.js';
 import 'dotenv/config';
 
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -17,6 +18,7 @@ if (!testDatabaseUrl) {
   throw new Error('TEST_DATABASE_URL must be set to seed test data.');
 }
 
+assertDevelopmentSeedTarget(process.env.NODE_ENV, testDatabaseUrl);
 const databaseName = new URL(testDatabaseUrl).pathname.slice(1);
 
 if (!databaseName.endsWith('_test')) {
@@ -309,13 +311,13 @@ const seed = async (): Promise<void> => {
   });
 
   console.log('Seeded test catalog and cart data:', seeded);
-  console.log('Test user: test.customer@commerce.test / TestPassword123!');
+  console.log('Local test account provisioned; password is not logged.');
 };
 
 try {
   await seed();
-} catch (error) {
-  console.error('Test data seed failed:', error);
+} catch {
+  console.error('Test data seed failed; check the local test configuration.');
   process.exitCode = 1;
 } finally {
   await prisma.$disconnect();

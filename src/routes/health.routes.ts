@@ -1,6 +1,6 @@
 import { Router } from 'express';
 
-import { prisma } from '../config/database.js';
+import { readiness } from '../common/observability/operations.js';
 
 const router = Router();
 
@@ -16,7 +16,7 @@ router.get('/health', (_req, res) => {
 
 router.get('/ready', async (_req, res) => {
   try {
-    await prisma.$queryRaw`SELECT 1`;
+    if (!(await readiness.check())) throw new Error('Not ready');
 
     res.status(200).json({
       success: true,

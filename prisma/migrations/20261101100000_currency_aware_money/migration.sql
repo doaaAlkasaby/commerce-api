@@ -1,0 +1,23 @@
+-- Forward-only widening: preserves ten major-unit digits and all historical values.
+ALTER TABLE "Product" ALTER COLUMN "basePrice" TYPE DECIMAL(14,4);
+ALTER TABLE "Product" ALTER COLUMN "discountValue" TYPE DECIMAL(14,4);
+ALTER TABLE "ProductVariant" ALTER COLUMN "price" TYPE DECIMAL(14,4);
+ALTER TABLE "ProductVariant" ALTER COLUMN "discountValue" TYPE DECIMAL(14,4);
+ALTER TABLE "Coupon" ALTER COLUMN "discountValue" TYPE DECIMAL(14,4);
+ALTER TABLE "Coupon" ALTER COLUMN "minimumOrderAmount" TYPE DECIMAL(14,4);
+ALTER TABLE "Coupon" ALTER COLUMN "maximumDiscountAmount" TYPE DECIMAL(14,4);
+ALTER TABLE "Order" ALTER COLUMN "subtotal" TYPE DECIMAL(14,4);
+ALTER TABLE "Order" ALTER COLUMN "discountAmount" TYPE DECIMAL(14,4);
+ALTER TABLE "Order" ALTER COLUMN "shippingAmount" TYPE DECIMAL(14,4);
+ALTER TABLE "Order" ALTER COLUMN "taxAmount" TYPE DECIMAL(14,4);
+ALTER TABLE "Order" ALTER COLUMN "totalAmount" TYPE DECIMAL(14,4);
+ALTER TABLE "OrderItem" ALTER COLUMN "unitPrice" TYPE DECIMAL(14,4);
+ALTER TABLE "OrderItem" ALTER COLUMN "itemDiscountAmount" TYPE DECIMAL(14,4);
+ALTER TABLE "OrderItem" ALTER COLUMN "finalUnitPrice" TYPE DECIMAL(14,4);
+ALTER TABLE "OrderItem" ALTER COLUMN "totalPrice" TYPE DECIMAL(14,4);
+ALTER TABLE "OrderItem" ALTER COLUMN "taxableAmount" TYPE DECIMAL(14,4);
+ALTER TABLE "OrderItem" ALTER COLUMN "taxAmount" TYPE DECIMAL(14,4);
+ALTER TABLE "Payment" ALTER COLUMN "amount" TYPE DECIMAL(14,4);
+ALTER TABLE "ShippingRule" ALTER COLUMN "minOrderAmount" TYPE DECIMAL(14,4);
+ALTER TABLE "ShippingRule" ALTER COLUMN "maxOrderAmount" TYPE DECIMAL(14,4);
+ALTER TABLE "ShippingRule" ALTER COLUMN "flatRate" TYPE DECIMAL(14,4);

@@ -1,218 +1,186 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-
 import { testPrisma } from '../../src/config/test-database.js';
-
-import { createCategoryRepository } from '../../src/modules/categories/category.repository.js';
-
 import { InventoryRepository } from '../../src/modules/inventory/inventory.repository.js';
+import { InventoryService } from '../../src/modules/inventory/inventory.service.js';
+import { catalogTenantFixture } from '../helpers/catalog.js';
 
-import { createProductRepository } from '../../src/modules/products/product.repository.js';
-
-describe('Inventory repository', () => {
-  const runId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  const categorySlug = `inventory-repository-${runId}`;
-  const productSlug = `inventory-repository-${runId}`;
-  const productSku = `INVENTORY-REPOSITORY-${runId}`;
-
-  const categoryRepository = createCategoryRepository(testPrisma);
-  const productRepository = createProductRepository(testPrisma);
+describe('Inventory repository and transactional service', () => {
+  const tenant = catalogTenantFixture();
   const repository = new InventoryRepository(testPrisma);
-
-  let categoryId: string;
-  let productId: string;
+  const service = new InventoryService(repository);
+  let variantId: string;
   let inventoryId: string;
-
-  const referenceId = (label: string) => `${label}-${runId}`;
+  const referenceId = (label: string) => `${label}-${tenant.id}`;
+  const history = () =>
+    repository.findTransactions(tenant.id, inventoryId, { page: 1, limit: 20 });
 
   beforeAll(async () => {
-    await testPrisma.$connect();
-
-    const category = await categoryRepository.create({
-      name: 'Inventory Repository Test',
-      slug: categorySlug,
+    await tenant.create();
+    const category = await testPrisma.category.create({
+      data: { tenantId: tenant.id, name: 'Inventory', slug: 'inventory' },
     });
-    categoryId = category.id;
-
-    const product = await productRepository.create({
-      name: 'Inventory Repository Test Product',
-      slug: productSlug,
-      sku: productSku,
-      price: '10.00',
-      categoryId,
+    const product = await testPrisma.product.create({
+      data: {
+        tenantId: tenant.id,
+        categoryId: category.id,
+        name: 'Inventory Product',
+        slug: 'inventory',
+        basePrice: '10.00',
+      },
     });
-    productId = product.id;
-
-    const inventory = await repository.create(productId, 10);
+    const variant = await testPrisma.productVariant.create({
+      data: {
+        productId: product.id,
+        sku: `INV-${tenant.id}`,
+        combinationKey: '',
+        isDefault: true,
+      },
+    });
+    variantId = variant.id;
+    const inventory = await repository.create(tenant.id, variantId, 10);
     inventoryId = inventory.id;
   });
 
   beforeEach(async () => {
+    // Never execute broad cleanup when fixture construction failed.
+    if (!inventoryId) throw new Error('Inventory fixture was not created');
     await testPrisma.inventoryTransaction.deleteMany({
-      where: {
-        inventoryId,
-      },
+      where: { inventoryId },
     });
     await testPrisma.inventory.update({
-      where: {
-        id: inventoryId,
-      },
-      data: {
-        quantity: 10,
-        reservedQuantity: 0,
-      },
+      where: { id: inventoryId },
+      data: { quantity: 10, reservedQuantity: 0 },
     });
   });
-
   afterAll(async () => {
-    if (productId) {
-      await testPrisma.product.delete({
-        where: {
-          id: productId,
-        },
-      });
-    }
-
-    if (categoryId) {
-      await testPrisma.category.delete({
-        where: {
-          id: categoryId,
-        },
-      });
-    }
-
+    await tenant.cleanup();
     await testPrisma.$disconnect();
   });
 
-  it('creates inventory and finds it by ID and product ID', async () => {
-    const byId = await repository.findById(inventoryId);
-    const byProductId = await repository.findByProductId(productId);
-
-    expect(byId?.id).toBe(inventoryId);
-    expect(byId?.quantity).toBe(10);
-    expect(byProductId?.id).toBe(inventoryId);
-    expect(await repository.findById('missing-inventory')).toBeNull();
-    expect(await repository.findByProductId('missing-product')).toBeNull();
+  it('creates inventory and finds it by ID and variant ID', async () => {
+    expect(await repository.findById(tenant.id, inventoryId)).toMatchObject({
+      id: inventoryId,
+      quantity: 10,
+    });
+    expect(
+      await repository.findByVariantId(tenant.id, variantId),
+    ).toMatchObject({ id: inventoryId });
+    expect(
+      await repository.findById(tenant.id, 'missing-inventory'),
+    ).toBeNull();
+    expect(
+      await repository.findByVariantId(tenant.id, 'missing-variant'),
+    ).toBeNull();
   });
-
-  it('stocks in quantity and records the transaction', async () => {
-    const inventory = await repository.stockIn(productId, 5, {
+  it('stocks in quantity and records the transaction atomically', async () => {
+    const inventory = await service.stockIn(tenant.id, inventoryId, {
+      quantity: 5,
       reason: 'Restock',
       referenceId: referenceId('stock-in'),
     });
-    const transactions = await repository.getTransactions(productId);
-
-    expect(inventory?.quantity).toBe(15);
-    expect(transactions).toHaveLength(1);
-    expect(transactions?.[0]).toMatchObject({
+    expect(inventory.quantity).toBe(15);
+    const transactions = await history();
+    expect(transactions.total).toBe(1);
+    expect(transactions.items[0]).toMatchObject({
       type: 'STOCK_IN',
       quantity: 5,
       reason: 'Restock',
       referenceId: referenceId('stock-in'),
     });
   });
-
   it('stocks out only unreserved quantity', async () => {
-    await repository.reserve(
-      productId,
-      6,
-      referenceId('stock-out-reservation'),
-    );
-
-    expect(await repository.stockOut(productId, 5, {})).toBeNull();
-
-    const inventory = await repository.stockOut(productId, 4, {
+    await service.reserve(tenant.id, inventoryId, {
+      quantity: 6,
+      referenceId: referenceId('stock-out-reservation'),
+    });
+    expect(await repository.stockOut(tenant.id, inventoryId, 5)).toBe(0);
+    const inventory = await service.stockOut(tenant.id, inventoryId, {
+      quantity: 4,
       reason: 'Damaged',
       referenceId: referenceId('stock-out'),
     });
-
-    expect(inventory?.quantity).toBe(6);
-    expect(inventory?.reservedQuantity).toBe(6);
+    expect(inventory).toMatchObject({ quantity: 6, reservedQuantity: 6 });
+    expect((await history()).total).toBe(2);
   });
-
   it('rejects adjustments below reserved stock and records valid adjustments', async () => {
-    await repository.reserve(
-      productId,
-      6,
-      referenceId('adjustment-reservation'),
-    );
-
-    expect(
-      await repository.adjust(productId, -5, { reason: 'Count correction' }),
-    ).toBeNull();
-
-    const inventory = await repository.adjust(productId, -2, {
+    await service.reserve(tenant.id, inventoryId, {
+      quantity: 6,
+      referenceId: referenceId('adjustment-reservation'),
+    });
+    expect(await repository.adjustment(tenant.id, inventoryId, -5)).toBe(0);
+    const inventory = await service.adjustment(tenant.id, inventoryId, {
+      quantity: -2,
       reason: 'Count correction',
       referenceId: referenceId('adjustment'),
     });
-
-    expect(inventory?.quantity).toBe(8);
-    expect(inventory?.reservedQuantity).toBe(6);
-    expect(await repository.getTransactions(productId)).toHaveLength(2);
+    expect(inventory).toMatchObject({ quantity: 8, reservedQuantity: 6 });
+    expect((await history()).total).toBe(2);
   });
-
   it('reserves available stock once per reference', async () => {
-    const reference = referenceId('reservation');
-    const first = await repository.reserve(productId, 4, reference);
-    const repeated = await repository.reserve(productId, 4, reference);
-
-    expect(first?.reservedQuantity).toBe(4);
-    expect(repeated?.reservedQuantity).toBe(4);
-    expect(await repository.getTransactions(productId)).toHaveLength(1);
+    const input = { quantity: 4, referenceId: referenceId('reservation') };
+    expect(await service.reserve(tenant.id, inventoryId, input)).toMatchObject({
+      reservedQuantity: 4,
+    });
+    expect(await service.reserve(tenant.id, inventoryId, input)).toMatchObject({
+      reservedQuantity: 4,
+    });
+    expect((await history()).total).toBe(1);
   });
-
-  it('does not reserve more than the available stock', async () => {
-    const inventory = await repository.reserve(
-      productId,
-      11,
-      referenceId('excess-reservation'),
-    );
-
-    expect(inventory).toBeNull();
-    expect(await repository.getTransactions(productId)).toHaveLength(0);
+  it('does not reserve more than available stock', async () => {
+    expect(await repository.reserve(tenant.id, inventoryId, 11)).toBe(0);
+    expect(await repository.findById(tenant.id, inventoryId)).toMatchObject({
+      quantity: 10,
+      reservedQuantity: 0,
+    });
+    expect((await history()).total).toBe(0);
   });
-
   it('releases reserved stock and rejects excessive releases', async () => {
-    await repository.reserve(productId, 4, referenceId('release-reservation'));
-
-    expect(
-      await repository.release(productId, 5, referenceId('release')),
-    ).toBeNull();
-
-    const inventory = await repository.release(
-      productId,
-      3,
-      referenceId('release'),
-    );
-
-    expect(inventory?.quantity).toBe(10);
-    expect(inventory?.reservedQuantity).toBe(1);
+    await service.reserve(tenant.id, inventoryId, {
+      quantity: 4,
+      referenceId: referenceId('release-reservation'),
+    });
+    expect(await repository.release(tenant.id, inventoryId, 5)).toBe(0);
+    const inventory = await service.release(tenant.id, inventoryId, {
+      quantity: 3,
+      referenceId: referenceId('release'),
+    });
+    expect(inventory).toMatchObject({ quantity: 10, reservedQuantity: 1 });
   });
-
   it('completes sales from reserved stock and rejects excess sales', async () => {
-    await repository.reserve(productId, 4, referenceId('sale-reservation'));
-
-    expect(await repository.sale(productId, 5, referenceId('sale'))).toBeNull();
-
-    const inventory = await repository.sale(productId, 3, referenceId('sale'));
-
-    expect(inventory?.quantity).toBe(7);
-    expect(inventory?.reservedQuantity).toBe(1);
+    await service.reserve(tenant.id, inventoryId, {
+      quantity: 4,
+      referenceId: referenceId('sale-reservation'),
+    });
+    expect(await repository.sale(tenant.id, inventoryId, 5)).toBe(0);
+    const inventory = await service.sale(tenant.id, inventoryId, {
+      quantity: 3,
+      referenceId: referenceId('sale'),
+    });
+    expect(inventory).toMatchObject({ quantity: 7, reservedQuantity: 1 });
   });
-
   it('returns transactions newest first', async () => {
-    await repository.stockIn(productId, 1, {
+    await service.stockIn(tenant.id, inventoryId, {
+      quantity: 1,
       referenceId: referenceId('history-stock-in'),
     });
-    await repository.adjust(productId, 1, {
+    await service.adjustment(tenant.id, inventoryId, {
+      quantity: 1,
+      reason: 'Count',
       referenceId: referenceId('history-adjustment'),
     });
-
-    const transactions = await repository.getTransactions(productId);
-
-    expect(transactions).toHaveLength(2);
-    expect(transactions?.[0]?.createdAt.getTime()).toBeGreaterThanOrEqual(
-      transactions?.[1]?.createdAt.getTime() ?? 0,
+    const transactions = await history();
+    expect(transactions.total).toBe(2);
+    const [newer, older] = transactions.items;
+    expect(newer).toBeDefined();
+    expect(older).toBeDefined();
+    expect(newer!.createdAt.getTime()).toBeGreaterThanOrEqual(
+      older!.createdAt.getTime(),
     );
-    expect(await repository.getTransactions('missing-product')).toBeNull();
+    expect(
+      await repository.findTransactions(tenant.id, 'missing-inventory', {
+        page: 1,
+        limit: 20,
+      }),
+    ).toEqual({ items: [], total: 0 });
   });
 });

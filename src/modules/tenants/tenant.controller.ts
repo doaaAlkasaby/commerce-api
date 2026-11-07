@@ -9,25 +9,36 @@ import {
 
 import { tenantService } from './tenant.service.instance.js';
 
-import {
-  mapTenant,
-  mapTenantMember,
-} from './tenant.mapper.js';
-import type { Request, Response } from 'express';
+import { mapTenant, mapTenantMember } from './tenant.mapper.js';
 
-import { UnauthorizedError } from '../../common/errors/unauthorized.error.js';
+import { AppError } from '../../common/errors/app-error.js';
+import { z } from 'zod';
 import { mapTenantMembership } from './tenant.mapper.js';
-
-
 
 export const tenantController = {
   create: (async (req, res, next) => {
     try {
-      const input =
-        createTenantSchema.parse(req.body);
+      const input = createTenantSchema.parse(req.body);
 
-      const tenant =
-        await tenantService.create(input);
+      const tenant = await tenantService.create({
+        name: input.name,
+        slug: input.slug,
+        code: input.code,
+        ...(input.legalName !== undefined
+          ? { legalName: input.legalName }
+          : {}),
+        ...(input.defaultCountryCode !== undefined
+          ? { defaultCountryCode: input.defaultCountryCode }
+          : {}),
+        ...(input.defaultCurrency !== undefined
+          ? { defaultCurrency: input.defaultCurrency }
+          : {}),
+        ...(input.timezone !== undefined ? { timezone: input.timezone } : {}),
+        ...(input.logoStorageKey !== undefined
+          ? { logoStorageKey: input.logoStorageKey }
+          : {}),
+        ...(input.logoUrl !== undefined ? { logoUrl: input.logoUrl } : {}),
+      });
 
       res.status(201).json({
         success: true,
@@ -41,10 +52,9 @@ export const tenantController = {
 
   getById: (async (req, res, next) => {
     try {
-      const tenant =
-        await tenantService.getById(
-          req.params.id,
-        );
+      const tenant = await tenantService.getTenantById(
+        z.string().parse(req.params.id),
+      );
 
       res.json({
         success: true,
@@ -58,14 +68,28 @@ export const tenantController = {
 
   update: (async (req, res, next) => {
     try {
-      const input =
-        updateTenantSchema.parse(req.body);
+      const input = updateTenantSchema.parse(req.body);
 
-      const tenant =
-        await tenantService.update(
-          req.params.id,
-          input,
-        );
+      const tenant = await tenantService.update(
+        z.string().parse(req.params.id),
+        {
+          ...(input.name !== undefined ? { name: input.name } : {}),
+          ...(input.legalName !== undefined
+            ? { legalName: input.legalName }
+            : {}),
+          ...(input.defaultCountryCode !== undefined
+            ? { defaultCountryCode: input.defaultCountryCode }
+            : {}),
+          ...(input.defaultCurrency !== undefined
+            ? { defaultCurrency: input.defaultCurrency }
+            : {}),
+          ...(input.timezone !== undefined ? { timezone: input.timezone } : {}),
+          ...(input.logoStorageKey !== undefined
+            ? { logoStorageKey: input.logoStorageKey }
+            : {}),
+          ...(input.logoUrl !== undefined ? { logoUrl: input.logoUrl } : {}),
+        },
+      );
 
       res.json({
         success: true,
@@ -79,17 +103,13 @@ export const tenantController = {
 
   addMember: (async (req, res, next) => {
     try {
-      const body =
-        addTenantMemberSchema.parse(
-          req.body,
-        );
+      const body = addTenantMemberSchema.parse(req.body);
 
-      const member =
-        await tenantService.addMember({
-          tenantId: req.params.id,
-          userId: body.userId,
-          role: body.role,
-        });
+      const member = await tenantService.addMember({
+        tenantId: z.string().parse(req.params.id),
+        userId: body.userId,
+        role: body.role,
+      });
 
       res.status(201).json({
         success: true,
@@ -103,10 +123,9 @@ export const tenantController = {
 
   listMembers: (async (req, res, next) => {
     try {
-      const members =
-        await tenantService.listMembers(
-          req.params.id,
-        );
+      const members = await tenantService.listMembers(
+        z.string().parse(req.params.id),
+      );
 
       res.json({
         success: true,
@@ -120,17 +139,16 @@ export const tenantController = {
 
   updateMember: (async (req, res, next) => {
     try {
-      const input =
-        updateTenantMemberSchema.parse(
-          req.body,
-        );
+      const input = updateTenantMemberSchema.parse(req.body);
 
-      const member =
-        await tenantService.updateMember(
-          req.params.id,
-          req.params.userId,
-          input,
-        );
+      const member = await tenantService.updateMember(
+        z.string().parse(req.params.id),
+        z.string().parse(req.params.userId),
+        {
+          ...(input.role !== undefined ? { role: input.role } : {}),
+          ...(input.status !== undefined ? { status: input.status } : {}),
+        },
+      );
 
       res.json({
         success: true,
@@ -144,9 +162,20 @@ export const tenantController = {
 
   getMyTenants: (async (req, res, next) => {
     try {
-      if (!req.user) throw new UnauthorizedError('Authentication is required');
-      const memberships = await tenantService.listUserMemberships(req.user.userId);
-      res.json({ success: true, message: null, data: memberships.map(mapTenantMembership) });
+      if (!req.user)
+        throw new AppError(
+          'Authentication is required',
+          401,
+          'AUTHENTICATION_REQUIRED',
+        );
+      const memberships = await tenantService.listUserMemberships(
+        req.user.userId,
+      );
+      res.json({
+        success: true,
+        message: null,
+        data: memberships.map(mapTenantMembership),
+      });
     } catch (error) {
       next(error);
     }

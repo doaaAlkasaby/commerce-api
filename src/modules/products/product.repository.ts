@@ -1,3 +1,7 @@
+import {
+  validateTenantAmounts,
+  validatePercentage,
+} from '../../common/pricing/money.repository.js';
 import { Prisma } from '../../generated/prisma/client.js';
 
 import type {
@@ -97,6 +101,7 @@ export class ProductRepository {
       },
 
       include: {
+        tenant: { select: { defaultCurrency: true } },
         category: {
           select: {
             id: true,
@@ -240,8 +245,7 @@ export class ProductRepository {
           }
         : {}),
 
-      ...(query.minPrice !== undefined ||
-      query.maxPrice !== undefined
+      ...(query.minPrice !== undefined || query.maxPrice !== undefined
         ? {
             basePrice: {
               ...(query.minPrice !== undefined
@@ -274,6 +278,7 @@ export class ProductRepository {
         take,
 
         select: {
+          tenant: { select: { defaultCurrency: true } },
           id: true,
           name: true,
           slug: true,
@@ -341,6 +346,18 @@ export class ProductRepository {
   // ============================================================
 
   async create(tenantId: string, input: CreateProductInput) {
+    if (input.discount?.type === 'PERCENTAGE')
+      validatePercentage(input.discount.value);
+    await validateTenantAmounts(
+      tenantId,
+      [
+        input.basePrice,
+        input.discount?.type === 'FIXED_AMOUNT'
+          ? input.discount.value
+          : undefined,
+      ],
+      this.prisma,
+    );
     if (!(await this.categoryExists(tenantId, input.categoryId))) {
       throw new Error('Category does not belong to this tenant');
     }
@@ -371,12 +388,23 @@ export class ProductRepository {
   // UPDATE PRODUCT
   // ============================================================
 
-  async update(
-    tenantId: string,
-    id: string,
-    input: UpdateProductInput,
-  ) {
-    if (input.categoryId && !(await this.categoryExists(tenantId, input.categoryId))) {
+  async update(tenantId: string, id: string, input: UpdateProductInput) {
+    if (input.discount?.type === 'PERCENTAGE')
+      validatePercentage(input.discount.value);
+    await validateTenantAmounts(
+      tenantId,
+      [
+        input.basePrice,
+        input.discount?.type === 'FIXED_AMOUNT'
+          ? input.discount.value
+          : undefined,
+      ],
+      this.prisma,
+    );
+    if (
+      input.categoryId &&
+      !(await this.categoryExists(tenantId, input.categoryId))
+    ) {
       throw new Error('Category does not belong to this tenant');
     }
     if (input.brandId && !(await this.brandExists(tenantId, input.brandId))) {
@@ -427,11 +455,7 @@ export class ProductRepository {
   // UPDATE PRODUCT STATUS
   // ============================================================
 
-  async updateStatus(
-    tenantId: string,
-    id: string,
-    status: ProductStatus,
-  ) {
+  async updateStatus(tenantId: string, id: string, status: ProductStatus) {
     return this.prisma.product.update({
       where: {
         id,
@@ -478,21 +502,17 @@ export class ProductRepository {
   // CATEGORY EXISTS
   // ============================================================
 
-  async categoryExists(
-    tenantId: string,
-    categoryId: string,
-  ): Promise<boolean> {
-    const category =
-      await this.prisma.category.findUnique({
-        where: {
-          id: categoryId,
-          tenantId,
-        },
+  async categoryExists(tenantId: string, categoryId: string): Promise<boolean> {
+    const category = await this.prisma.category.findUnique({
+      where: {
+        id: categoryId,
+        tenantId,
+      },
 
-        select: {
-          id: true,
-        },
-      });
+      select: {
+        id: true,
+      },
+    });
 
     return category !== null;
   }
@@ -501,21 +521,17 @@ export class ProductRepository {
   // BRAND EXISTS
   // ============================================================
 
-  async brandExists(
-    tenantId: string,
-    brandId: string,
-  ): Promise<boolean> {
-    const brand =
-      await this.prisma.brand.findUnique({
-        where: {
-          id: brandId,
-          tenantId,
-        },
+  async brandExists(tenantId: string, brandId: string): Promise<boolean> {
+    const brand = await this.prisma.brand.findUnique({
+      where: {
+        id: brandId,
+        tenantId,
+      },
 
-        select: {
-          id: true,
-        },
-      });
+      select: {
+        id: true,
+      },
+    });
 
     return brand !== null;
   }
@@ -530,11 +546,7 @@ export class ProductRepository {
    *
    * Pagination is performed directly by PostgreSQL.
    */
-  async findOffers(
-    tenantId: string,
-    skip: number,
-    take: number,
-  ) {
+  async findOffers(tenantId: string, skip: number, take: number) {
     const now = new Date();
 
     const where = {
@@ -632,56 +644,53 @@ export class ProductRepository {
       ],
     } satisfies Prisma.ProductWhereInput;
 
-    const [items, total] =
-      await Promise.all([
-        this.prisma.product.findMany({
-          where,
+    const [items, total] = await Promise.all([
+      this.prisma.product.findMany({
+        where,
 
-          orderBy: [
-            {
-              createdAt: 'desc',
-            },
-
-            {
-              id: 'asc',
-            },
-          ],
-
-          skip,
-          take,
-
-          include: {
-            images: {
-              orderBy: [
-                { isPrimary: 'desc' },
-                { sortOrder: 'asc' },
-                { createdAt: 'asc' },
-                { id: 'asc' },
-              ],
-            },
-
-            variants: {
-              where: {
-                isActive: true,
-              },
-
-              orderBy: [
-                { price: 'asc' },
-                { id: 'asc' },
-              ],
-
-              select: productVariantSelect,
-            },
-
-            category: true,
-            brand: true,
+        orderBy: [
+          {
+            createdAt: 'desc',
           },
-        }),
 
-        this.prisma.product.count({
-          where,
-        }),
-      ]);
+          {
+            id: 'asc',
+          },
+        ],
+
+        skip,
+        take,
+
+        include: {
+          tenant: { select: { defaultCurrency: true } },
+          images: {
+            orderBy: [
+              { isPrimary: 'desc' },
+              { sortOrder: 'asc' },
+              { createdAt: 'asc' },
+              { id: 'asc' },
+            ],
+          },
+
+          variants: {
+            where: {
+              isActive: true,
+            },
+
+            orderBy: [{ price: 'asc' }, { id: 'asc' }],
+
+            select: productVariantSelect,
+          },
+
+          category: true,
+          brand: true,
+        },
+      }),
+
+      this.prisma.product.count({
+        where,
+      }),
+    ]);
 
     return {
       items,
@@ -718,28 +727,18 @@ export class ProductRepository {
    *
    * This avoids loading every bestseller into Node.js.
    */
-  async findBestSellers(
-    tenantId: string,
-    skip: number,
-    take: number,
-  ) {
-    const orderStatuses =
-      Prisma.join(
-        BEST_SELLER_ORDER_STATUSES.map(
-          (status) => Prisma.sql`${status}`,
-        ),
-      );
+  async findBestSellers(tenantId: string, skip: number, take: number) {
+    const orderStatuses = Prisma.join(
+      BEST_SELLER_ORDER_STATUSES.map((status) => Prisma.sql`${status}`),
+    );
 
     // ----------------------------------------------------------
     // Step 1:
     // Get ONLY the product IDs for the requested page.
     // ----------------------------------------------------------
 
-    const rows =
-      await this.prisma.$queryRaw<
-        BestSellerRow[]
-      >(
-        Prisma.sql`
+    const rows = await this.prisma.$queryRaw<BestSellerRow[]>(
+      Prisma.sql`
           SELECT
             oi."productId" AS "productId",
             SUM(oi."quantity")::bigint AS "soldQuantity"
@@ -769,17 +768,14 @@ export class ProductRepository {
           OFFSET ${skip}
           LIMIT ${take}
         `,
-      );
+    );
 
     // ----------------------------------------------------------
     // Count total bestseller products
     // ----------------------------------------------------------
 
-    const countRows =
-      await this.prisma.$queryRaw<
-        BestSellerCountRow[]
-      >(
-        Prisma.sql`
+    const countRows = await this.prisma.$queryRaw<BestSellerCountRow[]>(
+      Prisma.sql`
           SELECT COUNT(*)::bigint AS "count"
 
           FROM (
@@ -805,11 +801,9 @@ export class ProductRepository {
               oi."productId"
           ) AS bestseller_products
         `,
-      );
-
-    const total = Number(
-      countRows[0]?.count ?? 0n,
     );
+
+    const total = Number(countRows[0]?.count ?? 0n);
 
     if (rows.length === 0) {
       return {
@@ -823,53 +817,48 @@ export class ProductRepository {
     // Extract product IDs in database ranking order.
     // ----------------------------------------------------------
 
-    const productIds = rows.map(
-      (row) => row.productId,
-    );
+    const productIds = rows.map((row) => row.productId);
 
     // ----------------------------------------------------------
     // Step 3:
     // Fetch only products belonging to current page.
     // ----------------------------------------------------------
 
-    const products =
-      await this.prisma.product.findMany({
-        where: {
-          id: {
-            in: productIds,
-          },
-          tenantId,
+    const products = await this.prisma.product.findMany({
+      where: {
+        id: {
+          in: productIds,
+        },
+        tenantId,
 
-          status: 'ACTIVE',
+        status: 'ACTIVE',
+      },
+
+      include: {
+        tenant: { select: { defaultCurrency: true } },
+        images: {
+          orderBy: [
+            { isPrimary: 'desc' },
+            { sortOrder: 'asc' },
+            { createdAt: 'asc' },
+            { id: 'asc' },
+          ],
         },
 
-        include: {
-          images: {
-            orderBy: [
-              { isPrimary: 'desc' },
-              { sortOrder: 'asc' },
-              { createdAt: 'asc' },
-              { id: 'asc' },
-            ],
+        variants: {
+          where: {
+            isActive: true,
           },
 
-          variants: {
-            where: {
-              isActive: true,
-            },
+          orderBy: [{ price: 'asc' }, { id: 'asc' }],
 
-            orderBy: [
-              { price: 'asc' },
-              { id: 'asc' },
-            ],
-
-            select: productVariantSelect,
-          },
-
-          category: true,
-          brand: true,
+          select: productVariantSelect,
         },
-      });
+
+        category: true,
+        brand: true,
+      },
+    });
 
     // ----------------------------------------------------------
     // Prisma `in` does not guarantee the same order
@@ -877,22 +866,14 @@ export class ProductRepository {
     // ----------------------------------------------------------
 
     const productMap = new Map(
-      products.map((product) => [
-        product.id,
-        product,
-      ]),
+      products.map((product) => [product.id, product]),
     );
 
-    const items = productIds.flatMap(
-      (productId) => {
-        const product =
-          productMap.get(productId);
+    const items = productIds.flatMap((productId) => {
+      const product = productMap.get(productId);
 
-        return product
-          ? [product]
-          : [];
-      },
-    );
+      return product ? [product] : [];
+    });
 
     return {
       items,
@@ -907,66 +888,59 @@ export class ProductRepository {
   /**
    * Returns active products ordered by creation date.
    */
-  async findNewArrivals(
-    tenantId: string,
-    skip: number,
-    take: number,
-  ) {
+  async findNewArrivals(tenantId: string, skip: number, take: number) {
     const where = {
       tenantId,
       status: 'ACTIVE' as const,
     };
 
-    const [items, total] =
-      await Promise.all([
-        this.prisma.product.findMany({
-          where,
+    const [items, total] = await Promise.all([
+      this.prisma.product.findMany({
+        where,
 
-          orderBy: [
-            {
-              createdAt: 'desc',
-            },
-
-            {
-              id: 'asc',
-            },
-          ],
-
-          skip,
-          take,
-
-          include: {
-            images: {
-              orderBy: [
-                { isPrimary: 'desc' },
-                { sortOrder: 'asc' },
-                { createdAt: 'asc' },
-                { id: 'asc' },
-              ],
-            },
-
-            variants: {
-              where: {
-                isActive: true,
-              },
-
-              orderBy: [
-                { price: 'asc' },
-                { id: 'asc' },
-              ],
-
-              select: productVariantSelect,
-            },
-
-            category: true,
-            brand: true,
+        orderBy: [
+          {
+            createdAt: 'desc',
           },
-        }),
 
-        this.prisma.product.count({
-          where,
-        }),
-      ]);
+          {
+            id: 'asc',
+          },
+        ],
+
+        skip,
+        take,
+
+        include: {
+          tenant: { select: { defaultCurrency: true } },
+          images: {
+            orderBy: [
+              { isPrimary: 'desc' },
+              { sortOrder: 'asc' },
+              { createdAt: 'asc' },
+              { id: 'asc' },
+            ],
+          },
+
+          variants: {
+            where: {
+              isActive: true,
+            },
+
+            orderBy: [{ price: 'asc' }, { id: 'asc' }],
+
+            select: productVariantSelect,
+          },
+
+          category: true,
+          brand: true,
+        },
+      }),
+
+      this.prisma.product.count({
+        where,
+      }),
+    ]);
 
     return {
       items,
@@ -1000,75 +974,71 @@ export class ProductRepository {
       },
     };
 
-    const [
-      collectionItems,
-      total,
-    ] = await Promise.all([
-      this.prisma.productCollectionItem.findMany(
-        {
-          where,
+    const [collectionItems, total] = await Promise.all([
+      this.prisma.productCollectionItem.findMany({
+        where,
 
-          orderBy: [
-            {
-              sortOrder: 'asc',
-            },
+        orderBy: [
+          {
+            sortOrder: 'asc',
+          },
 
-            {
-              productId: 'asc',
-            },
-          ],
+          {
+            productId: 'asc',
+          },
+        ],
 
-          skip,
-          take,
+        skip,
+        take,
 
-          include: {
-            product: {
-              include: {
-                images: {
-                  orderBy: [
-                    {
-                      isPrimary: 'desc',
-                    },
-
-                    {
-                      sortOrder: 'asc',
-                    },
-
-                    {
-                      createdAt: 'asc',
-                    },
-
-                    {
-                      id: 'asc',
-                    },
-                  ],
-                },
-
-                variants: {
-                  where: {
-                    isActive: true,
+        include: {
+          product: {
+            include: {
+              tenant: { select: { defaultCurrency: true } },
+              images: {
+                orderBy: [
+                  {
+                    isPrimary: 'desc',
                   },
 
-                  orderBy: [
-                    {
-                      price: 'asc',
-                    },
+                  {
+                    sortOrder: 'asc',
+                  },
 
-                    {
-                      id: 'asc',
-                    },
-                  ],
+                  {
+                    createdAt: 'asc',
+                  },
 
-                  select: productVariantSelect,
+                  {
+                    id: 'asc',
+                  },
+                ],
+              },
+
+              variants: {
+                where: {
+                  isActive: true,
                 },
 
-                category: true,
-                brand: true,
+                orderBy: [
+                  {
+                    price: 'asc',
+                  },
+
+                  {
+                    id: 'asc',
+                  },
+                ],
+
+                select: productVariantSelect,
               },
+
+              category: true,
+              brand: true,
             },
           },
         },
-      ),
+      }),
 
       this.prisma.productCollectionItem.count({
         where,
@@ -1076,9 +1046,7 @@ export class ProductRepository {
     ]);
 
     return {
-      items: collectionItems.map(
-        (item) => item.product,
-      ),
+      items: collectionItems.map((item) => item.product),
 
       total,
     };
@@ -1089,6 +1057,5 @@ export class ProductRepository {
 // REPOSITORY FACTORY
 // ============================================================
 
-export const createProductRepository = (
-  prisma: PrismaClient,
-) => new ProductRepository(prisma);
+export const createProductRepository = (prisma: PrismaClient) =>
+  new ProductRepository(prisma);

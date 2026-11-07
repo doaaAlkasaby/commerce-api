@@ -1,3 +1,5 @@
+import { paymentVerificationService } from './payment-verification.service.js';
+import { paymentIdParamsSchema } from './payment.schemas.js';
 import type { NextFunction, Request, Response } from 'express';
 
 import { paymentService } from './payment.service.instance.js';
@@ -10,6 +12,28 @@ import type {
 import { mapPaymentToResponse } from './payment.mapper.js';
 
 export class PaymentController {
+  async verifyPayment(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
+    try {
+      const { id } = paymentIdParamsSchema.parse(req.validatedParams);
+      const payment = await paymentVerificationService.verifyForUser(
+        req.tenant!.tenantId,
+        req.user!.userId,
+        id,
+      );
+      res.status(200).json({
+        success: true,
+        message: null,
+        data: mapPaymentToResponse(payment),
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async initiatePayment(
     req: Request,
     res: Response,

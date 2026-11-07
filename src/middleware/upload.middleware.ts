@@ -1,8 +1,6 @@
 import multer from 'multer';
 
-import {
-  AppError,
-} from '../common/errors/app-error.js';
+import { AppError } from '../common/errors/app-error.js';
 
 import { env } from '../config/env.js';
 
@@ -13,41 +11,29 @@ const allowedMimeTypes = new Set([
   'image/gif',
 ]);
 
-const maxFileSize =
-  env.MAX_IMAGE_SIZE_MB *
-  1024 *
-  1024;
+const maxFileSize = env.MAX_IMAGE_SIZE_MB * 1024 * 1024;
 
-export const productImageUpload =
-  multer({
-    storage: multer.memoryStorage(),
+export const productImageUpload = multer({
+  storage: multer.memoryStorage(),
 
-    limits: {
-      fileSize: maxFileSize,
-      files: 1,
-    },
+  limits: {
+    fileSize: maxFileSize,
+    files: 1,
+    fields: 20,
+    fieldSize: 65536,
+    fieldNameSize: 100,
+    parts: 22,
+  },
 
-    fileFilter: (
-      _req,
-      file,
-      callback,
-    ) => {
-      if (
-        !allowedMimeTypes.has(
-          file.mimetype,
-        )
-      ) {
-        callback(
-          new AppError(
-            'Unsupported image type',
-            400,
-            'INVALID_IMAGE_TYPE',
-          ),
-        );
+  fileFilter: (_req, file, callback) => {
+    if (!allowedMimeTypes.has(file.mimetype)) {
+      callback(
+        new AppError('Unsupported image type', 400, 'INVALID_IMAGE_TYPE'),
+      );
 
-        return;
-      }
+      return;
+    }
 
-      callback(null, true);
-    },
-  });
+    callback(null, true);
+  },
+});

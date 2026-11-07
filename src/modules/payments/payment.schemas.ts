@@ -17,7 +17,7 @@ export const createPaymentSchema = z.object({
 
   amount: z
     .string()
-    .regex(/^\d+(\.\d{1,2})?$/, 'Amount must be a valid monetary value'),
+    .regex(/^\d+(\.\d{1,4})?$/, 'Amount must be a valid monetary value'),
 
   currency: z
     .string()
@@ -73,7 +73,7 @@ export const paymentListQuerySchema = z.object({
 export const refundPaymentSchema = z.object({
   amount: z
     .string()
-    .regex(/^\d+(\.\d{1,2})?$/, 'Amount must be a valid monetary value')
+    .regex(/^\d+(\.\d{1,4})?$/, 'Amount must be a valid monetary value')
     .optional(),
 });
 // Initiation accepts no client-supplied amounts, currency, status, or provider.

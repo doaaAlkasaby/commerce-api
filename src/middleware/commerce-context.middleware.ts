@@ -13,8 +13,8 @@ export async function commerceContextMiddleware(
     const userId = req.user?.userId;
 
     const context = await commerceContextService.resolve({
-      countryCode: countryHeader,
-      userId,
+      countryCode: countryHeader ?? null,
+      userId: userId ?? null,
     });
 
     req.commerceContext = context;

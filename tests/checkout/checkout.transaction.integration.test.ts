@@ -1,3 +1,6 @@
+import { CouponRepository } from '../../src/modules/coupons/coupon.repository.js';
+import { CartService } from '../../src/modules/cart/cart.service.js';
+import { createProductRepository } from '../../src/modules/products/product.repository.js';
 import type { CheckoutPreviewInput } from '../../src/modules/checkout/checkout.types.js';
 import type {
   ShippingProfile,
@@ -71,6 +74,7 @@ const fixture = `checkout-it-${crypto.randomUUID()}`;
 suite('checkout transaction against PostgreSQL', () => {
   let tenantId: string;
   let userId: string;
+  let foreignAccessUserId: string;
   let countryCode: string;
   let addressId: string;
   let inventoryId: string;
@@ -99,6 +103,16 @@ suite('checkout transaction against PostgreSQL', () => {
       },
     });
     userId = user.id;
+    foreignAccessUserId = (
+      await testPrisma.user.create({
+        data: {
+          email: `${fixture}-foreign-access@example.test`,
+          passwordHash: 'not-a-login',
+          firstName: 'Foreign',
+          lastName: 'Customer',
+        },
+      })
+    ).id;
     const tenant = await testPrisma.tenant.create({
       data: {
         name: 'Checkout Integration Tenant',
@@ -279,6 +293,7 @@ suite('checkout transaction against PostgreSQL', () => {
     });
     await testPrisma.tenant.delete({ where: { id: tenantId } });
     await testPrisma.address.delete({ where: { id: addressId } });
+    await testPrisma.user.delete({ where: { id: foreignAccessUserId } });
     await testPrisma.user.delete({ where: { id: userId } });
     await testPrisma.country.delete({ where: { code: countryCode } });
   });
@@ -512,6 +527,322 @@ suite('checkout transaction against PostgreSQL', () => {
     expect(new Prisma.Decimal(result.order.taxAmount).equals('1.90')).toBe(
       true,
     );
+  });
+
+  describe('currency-aware money persistence and checkout', () => {
+    it('validates effective coupon values on partial type and amount updates', async () => {
+      const coupons = new CouponRepository(testPrisma);
+      try {
+        await testPrisma.tenant.update({
+          where: { id: tenantId },
+          data: { defaultCurrency: 'KWD' },
+        });
+        await coupons.update(tenantId, couponId, { discountValue: '0.001' });
+        await expect(
+          coupons.update(tenantId, couponId, { discountType: 'PERCENTAGE' }),
+        ).rejects.toMatchObject({ statusCode: 400, code: 'INVALID_DISCOUNT' });
+        expect((await coupons.findById(tenantId, couponId))?.discountType).toBe(
+          'FIXED_AMOUNT',
+        );
+        await testPrisma.tenant.update({
+          where: { id: tenantId },
+          data: { defaultCurrency: 'USD' },
+        });
+        await expect(
+          coupons.update(tenantId, couponId, { discountValue: '0.001' }),
+        ).rejects.toMatchObject({
+          statusCode: 400,
+          code: 'INVALID_MONETARY_PRECISION',
+        });
+      } finally {
+        await testPrisma.coupon.update({
+          where: { id: couponId },
+          data: { discountType: 'FIXED_AMOUNT', discountValue: '2' },
+        });
+      }
+    });
+
+    it.each([
+      ['USD', '12.345'],
+      ['JPY', '1234.56'],
+      ['KWD', '0.0001'],
+      ['KWD', '10000000000'],
+    ])(
+      'rejects invalid %s catalog price %s before storage',
+      async (currency, price) => {
+        await testPrisma.tenant.update({
+          where: { id: tenantId },
+          data: { defaultCurrency: currency },
+        });
+        await expect(
+          createProductRepository(testPrisma).update(tenantId, productId, {
+            basePrice: price,
+          }),
+        ).rejects.toMatchObject({ statusCode: 400 });
+        expect(
+          (
+            await testPrisma.product.findUniqueOrThrow({
+              where: { id: productId },
+            })
+          ).basePrice.equals('20'),
+        ).toBe(true);
+      },
+    );
+    it.each([
+      [false, false],
+      [true, false],
+      [false, true],
+      [true, true],
+    ])(
+      'calculates KWD inclusive=%s fixed-coupon=%s and shipping threshold exactly',
+      async (inclusive, fixed) => {
+        const rules = await testPrisma.shippingRule.findMany({
+          where: { method: { zone: { profileId: shippingProfileId } } },
+        });
+        try {
+          await testPrisma.tenant.update({
+            where: { id: tenantId },
+            data: { defaultCurrency: 'KWD' },
+          });
+          await testPrisma.taxProfile.update({
+            where: { id: taxProfileId },
+            data: { currency: 'KWD', pricesIncludeTax: inclusive },
+          });
+          await testPrisma.shippingProfile.update({
+            where: { id: shippingProfileId },
+            data: { currency: 'KWD' },
+          });
+          await testPrisma.product.update({
+            where: { id: productId },
+            data: { basePrice: '1.005' },
+          });
+          await testPrisma.coupon.update({
+            where: { id: couponId },
+            data: {
+              discountType: fixed ? 'FIXED_AMOUNT' : 'PERCENTAGE',
+              discountValue: fixed ? '0.001' : '10',
+              maximumDiscountAmount: fixed ? null : '0.101',
+            },
+          });
+          for (const rule of rules)
+            await testPrisma.shippingRule.update({
+              where: { id: rule.id },
+              data: {
+                minOrderAmount: rule.minOrderAmount ? '1.909' : null,
+                flatRate: rule.minOrderAmount ? '0' : '0.123',
+              },
+            });
+          const result = await runCheckout();
+          const stored = await testPrisma.order.findUniqueOrThrow({
+            where: { id: result.order.id },
+            include: { items: true },
+          });
+          expect(stored.subtotal.equals('2.010')).toBe(true);
+          expect(stored.discountAmount.equals(fixed ? '0.001' : '0.101')).toBe(
+            true,
+          );
+          expect(stored.shippingAmount.equals('0')).toBe(true);
+          expect(
+            stored.taxAmount.equals(
+              fixed
+                ? inclusive
+                  ? '0.096'
+                  : '0.100'
+                : inclusive
+                  ? '0.091'
+                  : '0.095',
+            ),
+          ).toBe(true);
+          expect(
+            stored.totalAmount.equals(
+              fixed
+                ? inclusive
+                  ? '2.009'
+                  : '2.109'
+                : inclusive
+                  ? '1.909'
+                  : '2.004',
+            ),
+          ).toBe(true);
+        } finally {
+          await testPrisma.taxProfile.update({
+            where: { id: taxProfileId },
+            data: { pricesIncludeTax: false },
+          });
+          await testPrisma.coupon.update({
+            where: { id: couponId },
+            data: {
+              discountType: 'FIXED_AMOUNT',
+              discountValue: '2',
+              maximumDiscountAmount: null,
+            },
+          });
+          for (const rule of rules)
+            await testPrisma.shippingRule.update({
+              where: { id: rule.id },
+              data: rule,
+            });
+        }
+      },
+    );
+
+    it.each([
+      ['KWD', '0.001', '0.002'],
+      ['USD', '0.01', '0.02'],
+      ['SAR', '12.34', '24.68'],
+      ['AED', '12.34', '24.68'],
+      ['EGP', '12.34', '24.68'],
+      ['JPY', '123', '246'],
+      ['CLF', '0.0001', '0.0002'],
+    ])(
+      'persists exact %s prices, quantities, preview, payment and immutable currency',
+      async (currency, price, expectedSubtotal) => {
+        await testPrisma.tenant.update({
+          where: { id: tenantId },
+          data: { defaultCurrency: currency },
+        });
+        await testPrisma.taxProfile.update({
+          where: { id: taxProfileId },
+          data: { currency },
+        });
+        await testPrisma.shippingProfile.update({
+          where: { id: shippingProfileId },
+          data: { currency },
+        });
+        await testPrisma.product.update({
+          where: { id: productId },
+          data: { basePrice: price },
+        });
+        const input: CheckoutPreviewInput = {
+          shippingAddressId: addressId,
+          billingSameAsShipping: true,
+          shippingMethodCode: `${fixture}-standard`,
+        };
+        const service = new CheckoutService();
+        const cart = await new CartService().getCart(tenantId, userId);
+        expect(new Prisma.Decimal(cart.subtotal).equals(expectedSubtotal)).toBe(
+          true,
+        );
+        const preview = await service.preview(input, { tenantId, userId });
+        const idempotencyKey = crypto.randomUUID();
+        const result = await service.checkout(
+          {
+            ...input,
+            paymentMethod: PaymentMethod.CASH_ON_DELIVERY,
+            paymentProvider: PaymentProvider.NONE,
+          },
+          { tenantId, userId, idempotencyKey },
+        );
+        expect(
+          new Prisma.Decimal(result.order.subtotal).equals(expectedSubtotal),
+        ).toBe(true);
+        expect(result.order.totalAmount).toBe(preview.totalAmount);
+        const stored = await testPrisma.order.findUniqueOrThrow({
+          where: { id: result.order.id },
+          include: { items: true, payments: true },
+        });
+        expect(stored.items[0]!.unitPrice.equals(price)).toBe(true);
+        expect(stored.payments[0]!.amount.equals(stored.totalAmount)).toBe(
+          true,
+        );
+        expect(stored.currency).toBe(currency);
+        const expectedTax = new Prisma.Decimal(expectedSubtotal)
+          .mul('0.05')
+          .toDecimalPlaces(
+            currency === 'JPY'
+              ? 0
+              : currency === 'KWD'
+                ? 3
+                : currency === 'CLF'
+                  ? 4
+                  : 2,
+            Prisma.Decimal.ROUND_HALF_UP,
+          );
+        expect(stored.taxAmount.equals(expectedTax)).toBe(true);
+        expect(
+          stored.totalAmount.equals(
+            new Prisma.Decimal(expectedSubtotal).add('3').add(expectedTax),
+          ),
+        ).toBe(true);
+        await testPrisma.tenant.update({
+          where: { id: tenantId },
+          data: { defaultCurrency: currency === 'USD' ? 'KWD' : 'USD' },
+        });
+        const replay = await service.checkout(
+          {
+            ...input,
+            paymentMethod: PaymentMethod.CASH_ON_DELIVERY,
+            paymentProvider: PaymentProvider.NONE,
+          },
+          { tenantId, userId, idempotencyKey },
+        );
+        expect(replay.order.id).toBe(result.order.id);
+        expect(replay.order.currency).toBe(currency);
+        expect(replay.order.totalAmount).toBe(result.order.totalAmount);
+        await new PaymentService().initiatePayment(
+          tenantId,
+          userId,
+          stored.payments[0]!.id,
+        );
+        const historical = await testPrisma.order.findUniqueOrThrow({
+          where: { id: stored.id },
+          include: { payments: true },
+        });
+        expect(historical.currency).toBe(currency);
+        expect(historical.totalAmount.equals(stored.totalAmount)).toBe(true);
+        expect(historical.payments[0]!.currency).toBe(currency);
+      },
+    );
+  });
+
+  it('persists a database-time online deadline without exposing new API fields', async () => {
+    const [before] = await testPrisma.$queryRaw<
+      Array<{ now: Date }>
+    >`SELECT clock_timestamp() AS now`;
+    const result = await runCheckout();
+    const [after] = await testPrisma.$queryRaw<
+      Array<{ now: Date }>
+    >`SELECT clock_timestamp() AS now`;
+    const stored = await testPrisma.order.findUniqueOrThrow({
+      where: { id: result.order.id },
+    });
+    expect(stored.reservationExpiresAt?.getTime()).toBeGreaterThanOrEqual(
+      before!.now.getTime() + env.RESERVATION_TTL_SECONDS * 1000,
+    );
+    expect(stored.reservationExpiresAt?.getTime()).toBeLessThanOrEqual(
+      after!.now.getTime() + env.RESERVATION_TTL_SECONDS * 1000,
+    );
+    expect(result.order).not.toHaveProperty('reservationExpiresAt');
+    expect(result.order).not.toHaveProperty('recoveryJob');
+  });
+  it('keeps COD deadlines absent and idempotent checkout snapshots unchanged', async () => {
+    const input: CheckoutInput = {
+      shippingAddressId: addressId,
+      billingSameAsShipping: true,
+      shippingMethodCode: `${fixture}-standard`,
+      paymentMethod: PaymentMethod.CASH_ON_DELIVERY,
+      paymentProvider: PaymentProvider.NONE,
+    };
+    const context = { tenantId, userId, idempotencyKey: crypto.randomUUID() };
+    const service = new CheckoutService();
+    const result = await service.checkout(input, context);
+    const replay = await service.checkout(input, context);
+    expect(result.idempotent).toBe(false);
+    expect(replay.idempotent).toBe(true);
+    expect(replay.order).toEqual(result.order);
+    expect(replay.payment).toEqual(result.payment);
+    expect(
+      (
+        await testPrisma.order.findUniqueOrThrow({
+          where: { id: result.order.id },
+        })
+      ).reservationExpiresAt,
+    ).toBeNull();
+    expect(
+      await testPrisma.recoveryJob.count({
+        where: { orderId: result.order.id },
+      }),
+    ).toBe(0);
   });
 
   it('rejects a shipping profile configured in another currency', async () => {
@@ -2062,7 +2393,7 @@ suite('checkout transaction against PostgreSQL', () => {
       app.use(express.json());
       app.use('/payments', paymentRoutes);
       app.use(errorMiddleware);
-      const token = await createAccessToken(crypto.randomUUID());
+      const token = await createAccessToken(foreignAccessUserId);
       const initiated = await request(app)
         .post(`/payments/${result.payment!.id}/initiate`)
         .set('Authorization', `Bearer ${token}`)
@@ -2709,7 +3040,7 @@ suite('checkout transaction against PostgreSQL', () => {
               .send({ status: 'PAID' })
           ).status,
         ).toBe(403);
-        const other = await createAccessToken(crypto.randomUUID());
+        const other = await createAccessToken(foreignAccessUserId);
         expect(
           (
             await request(app)

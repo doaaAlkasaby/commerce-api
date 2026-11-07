@@ -1,3 +1,4 @@
+import { parseDecimal } from '../../common/pricing/money.js';
 import { AppError } from '../../common/errors/app-error.js';
 
 import type { ProductVariantRepository } from './product-variant.repository.js';
@@ -77,9 +78,9 @@ export class ProductVariantService {
       return;
     }
 
-    const amount = Number(discount.value);
+    const amount = parseDecimal(discount.value);
 
-    if (!Number.isFinite(amount) || amount <= 0) {
+    if (!amount.isFinite() || amount.lte(0)) {
       throw new AppError(
         'Discount value must be greater than zero',
         400,
@@ -87,7 +88,10 @@ export class ProductVariantService {
       );
     }
 
-    if (discount.type === 'PERCENTAGE' && amount > 100) {
+    if (
+      discount.type === 'PERCENTAGE' &&
+      (amount.gt(100) || amount.decimalPlaces() > 2)
+    ) {
       throw new AppError(
         'Percentage discount cannot exceed 100%',
         400,
@@ -109,7 +113,10 @@ export class ProductVariantService {
   }
 
   async create(tenantId: string, input: CreateProductVariantInput) {
-    const product = await this.productRepository.findById(input.productId, tenantId);
+    const product = await this.productRepository.findById(
+      input.productId,
+      tenantId,
+    );
 
     if (!product) {
       throw new AppError('Product not found', 404, 'PRODUCT_NOT_FOUND');

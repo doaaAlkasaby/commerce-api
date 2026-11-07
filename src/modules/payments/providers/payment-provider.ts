@@ -4,6 +4,7 @@ import type {
 } from '../../../generated/prisma/client.js';
 
 import type {
+  VerifiedProviderPayment,
   PaymentProviderCreateInput,
   PaymentProviderCreateResult,
 } from '../payment.types.js';
@@ -13,6 +14,11 @@ export interface PaymentProviderAdapter {
   // Opt in only when repeated createPayment calls with the same stable key are
   // guaranteed not to create another provider intent. Absent means unsupported.
   readonly supportsIdempotentInitiation?: boolean;
+
+  validatePayment?(
+    input: Pick<PaymentProviderCreateInput, 'amount' | 'currency'>,
+  ): void;
+  getPaymentStatus?(invoiceId: string): Promise<VerifiedProviderPayment>;
 
   createPayment(
     input: PaymentProviderCreateInput,
