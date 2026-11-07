@@ -1,3 +1,7 @@
+import { OrderPolicyRepository } from '../warehouses/order-policy.repository.js';
+import { enforceOrderPolicy } from '../warehouses/order-policy.service.js';
+import { AllocationRepository } from '../warehouses/allocation.repository.js';
+import { AllocationService } from '../warehouses/allocation.service.js';
 import { env } from '../../config/env.js';
 import {
   checkoutFingerprint,
@@ -130,6 +134,17 @@ export class CheckoutService {
      */
 
     const result = await prisma.$transaction(async (tx) => {
+      const membership = await checkoutRepository.membership(
+        tx,
+        tenantId,
+        userId,
+      );
+      if (!membership || membership.status !== 'ACTIVE')
+        throw new AppError(
+          'Active tenant membership is required',
+          403,
+          'FORBIDDEN',
+        );
       // Scoped transaction lock precedes coupon, order and inventory locks.
       // No durable claim survives a rollback; another instance may safely retry.
       if (
@@ -199,6 +214,7 @@ export class CheckoutService {
         taxCents,
         totalCents,
         taxCalculationTime,
+        allocation,
       } = await this.calculateCheckout(tx, input, { tenantId, userId }, true);
 
       /*
@@ -257,6 +273,17 @@ export class CheckoutService {
               }
             : Prisma.DbNull,
 
+          warehouseId: allocation.warehouse.id,
+          fulfillmentSnapshot: {
+            warehouseId: allocation.warehouse.id,
+            code: allocation.warehouse.code,
+            name: allocation.warehouse.name,
+            countryCode: allocation.warehouse.countryCode,
+            address: allocation.warehouse.address,
+            city: allocation.warehouse.city,
+            latitude: allocation.warehouse.latitude?.toString() ?? null,
+            longitude: allocation.warehouse.longitude?.toString() ?? null,
+          },
           status: orderStatus,
 
           paymentStatus: PaymentStatus.PENDING,
@@ -421,7 +448,9 @@ export class CheckoutService {
       for (const item of [...cart.items].sort((a, b) =>
         a.variantId.localeCompare(b.variantId),
       )) {
-        const inventory = item.variant.inventory;
+        const inventory = item.variant.inventory.find(
+          (stock) => stock.warehouseId === allocation.warehouse.id,
+        );
 
         if (!inventory) {
           throw new AppError(
@@ -615,6 +644,18 @@ export class CheckoutService {
     lockCoupon: boolean,
   ) {
     const { tenantId, userId } = context;
+    if (lockCoupon) await checkoutRepository.lockTenant(tx, tenantId);
+    const membership = await checkoutRepository.membership(
+      tx,
+      tenantId,
+      userId,
+    );
+    if (!membership || membership.status !== 'ACTIVE')
+      throw new AppError(
+        'Active tenant membership is required',
+        403,
+        'FORBIDDEN',
+      );
     input = {
       ...input,
       billingSameAsShipping: input.billingSameAsShipping ?? true,
@@ -788,7 +829,7 @@ export class CheckoutService {
       /*
        * Inventory must exist.
        */
-      if (!inventory) {
+      if (!inventory.length) {
         throw new AppError(
           `Inventory is not configured for SKU "${variant.sku}"`,
           409,
@@ -799,7 +840,10 @@ export class CheckoutService {
       /*
        * Available quantity.
        */
-      const availableQuantity = inventory.quantity - inventory.reservedQuantity;
+      const availableQuantity = Math.max(
+        0,
+        ...inventory.map((stock) => stock.quantity - stock.reservedQuantity),
+      );
 
       if (availableQuantity < cartItem.quantity) {
         throw new AppError(
@@ -1105,29 +1149,61 @@ export class CheckoutService {
     // Shipping minimums use discounted merchandise after coupons, before tax
     // and shipping. Keep this derived from the canonical checkout amounts.
     const shippingEligibleSubtotalCents = subtotalCents - couponDiscountCents;
-
-    const shippingResult = await shippingService.calculate({
-      tenantId,
-      scopeKey: DEFAULT_SCOPE_KEY,
+    enforceOrderPolicy(
+      await new OrderPolicyRepository(tx).find(tenantId),
+      cart.items,
       currency,
-      orderSubtotalCents: shippingEligibleSubtotalCents,
-      destination: {
-        countryCode: shippingAddress.countryCode,
-        regionCode: shippingAddress.state,
-        city: shippingAddress.city,
-        latitude:
-          shippingAddress.latitude === null
-            ? null
-            : Number(shippingAddress.latitude),
-        longitude:
-          shippingAddress.longitude === null
-            ? null
-            : Number(shippingAddress.longitude),
+      discountedTaxableItems.reduce(
+        (sum, item) => sum + item.taxableAmountCents,
+        0n,
+      ),
+    );
+
+    const allocation = await new AllocationService(
+      new AllocationRepository(tx),
+      shippingService,
+    ).allocate(
+      {
+        tenantId,
+        scopeKey: DEFAULT_SCOPE_KEY,
+        currency,
+        orderSubtotalCents: shippingEligibleSubtotalCents,
+        destination: {
+          countryCode: shippingAddress.countryCode,
+          regionCode: shippingAddress.state,
+          city: shippingAddress.city,
+          latitude:
+            shippingAddress.latitude === null
+              ? null
+              : Number(shippingAddress.latitude),
+          longitude:
+            shippingAddress.longitude === null
+              ? null
+              : Number(shippingAddress.longitude),
+        },
+        ...(input.shippingMethodCode !== undefined
+          ? { methodCode: input.shippingMethodCode }
+          : {}),
       },
-      ...(input.shippingMethodCode !== undefined
-        ? { methodCode: input.shippingMethodCode }
-        : {}),
-    });
+      cart.items.map((item) => ({
+        variantId: item.variantId,
+        quantity: item.quantity,
+      })),
+    );
+    if (
+      lockCoupon &&
+      !(await checkoutRepository.lockWarehouse(
+        tx,
+        tenantId,
+        allocation.warehouse.id,
+      ))
+    )
+      throw new AppError(
+        'Fulfillment source is no longer available',
+        409,
+        'NO_ELIGIBLE_FULFILLMENT_WAREHOUSE',
+      );
+    const shippingResult = allocation.shipping;
 
     const shippingCents = shippingResult.amountCents;
 
@@ -1208,6 +1284,7 @@ export class CheckoutService {
       taxCents,
       totalCents,
       taxCalculationTime,
+      allocation,
     };
   }
 
@@ -1231,6 +1308,10 @@ export class CheckoutService {
           coupon,
         } = calculated;
         return {
+          fulfillment: {
+            warehouseId: calculated.allocation.warehouse.id,
+            warehouseCode: calculated.allocation.warehouse.code,
+          },
           estimated: true,
           currency,
           items: items.map((item) => ({
@@ -1296,6 +1377,76 @@ export class CheckoutService {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
     );
+  }
+
+  async shippingOptions(
+    input: CheckoutPreviewInput,
+    context: CheckoutPreviewContext,
+  ) {
+    const address = await checkoutRepository.ownedAddress(
+      context.userId,
+      input.shippingAddressId,
+    );
+    if (!address)
+      throw new AppError(
+        'Shipping address not found',
+        404,
+        'SHIPPING_ADDRESS_NOT_FOUND',
+      );
+    const profile = await new ShippingRepository(prisma).findProfile(
+      context.tenantId,
+      address.countryCode,
+    );
+    if (!profile)
+      throw new AppError(
+        'Shipping is not configured for this country',
+        400,
+        'SHIPPING_PROFILE_NOT_CONFIGURED',
+      );
+    const codes = input.shippingMethodCode
+      ? [input.shippingMethodCode]
+      : [
+          ...new Set(
+            profile.zones.flatMap((zone) =>
+              zone.methods.map((method) => method.code),
+            ),
+          ),
+        ].sort();
+    const options = [];
+    for (const methodCode of codes) {
+      try {
+        const preview = await this.preview(
+          { ...input, shippingMethodCode: methodCode },
+          context,
+        );
+        options.push({
+          ...preview.shipping,
+          fulfillment: preview.fulfillment,
+          totalAmount: preview.totalAmount,
+        });
+      } catch (error) {
+        if (
+          !(error instanceof AppError) ||
+          !new Set([
+            'NO_ELIGIBLE_FULFILLMENT_WAREHOUSE',
+            'INSUFFICIENT_STOCK',
+            'SHIPPING_METHOD_NOT_AVAILABLE',
+            'SHIPPING_NOT_AVAILABLE',
+            'SHIPPING_ZONE_NOT_AVAILABLE',
+            'DELIVERY_COORDINATES_REQUIRED',
+            'SHIPPING_ORIGIN_COORDINATES_REQUIRED',
+          ]).has(error.code)
+        )
+          throw error;
+      }
+    }
+    if (!options.length)
+      throw new AppError(
+        'No shipping option can fulfill this cart',
+        409,
+        'NO_ELIGIBLE_FULFILLMENT_WAREHOUSE',
+      );
+    return { estimated: true, options };
   }
 
   /*

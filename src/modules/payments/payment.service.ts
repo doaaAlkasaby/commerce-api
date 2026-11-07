@@ -496,6 +496,7 @@ export class PaymentService {
           status: true,
           paymentStatus: true,
           totalAmount: true,
+          warehouseId: true,
           currency: true,
         },
       }),
@@ -550,7 +551,11 @@ export class PaymentService {
         where: {
           referenceId: order.id,
           type: 'RELEASE',
-          inventory: { variant: { product: { tenantId } } },
+          inventory: {
+            tenantId,
+            ...(order.warehouseId ? { warehouseId: order.warehouseId } : {}),
+            variant: { product: { tenantId } },
+          },
         },
       });
       if (released)

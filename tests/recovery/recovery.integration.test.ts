@@ -1,3 +1,7 @@
+import {
+  createInventoryFixture,
+  deleteFixtureTenants,
+} from '../helpers/warehouse.js';
 import { PaymentService } from '../../src/modules/payments/payment.service.js';
 import { randomUUID, createHmac } from 'node:crypto';
 import { spawn } from 'node:child_process';
@@ -68,6 +72,7 @@ let tenantId: string,
   productId: string,
   variantId: string,
   inventoryId: string,
+  backupInventoryId: string,
   orderId: string,
   paymentId: string;
 let amount = '0.001',
@@ -205,8 +210,34 @@ describe('PostgreSQL recovery worker', () => {
         data: { productId, sku: fixture, combinationKey: 'default' },
       })
     ).id;
-    inventoryId = (
-      await testPrisma.inventory.create({ data: { variantId, quantity: 10 } })
+    const originalStock = await createInventoryFixture({
+      data: { variantId, quantity: 10 },
+    });
+    inventoryId = originalStock.id;
+    const originalSource = await testPrisma.warehouse.findUniqueOrThrow({
+      where: { id: originalStock.warehouseId },
+    });
+    // Recovery must follow the reservation even after a different warehouse
+    // becomes the merchant's default source.
+    await testPrisma.warehouse.update({
+      where: { id: originalSource.id },
+      data: { isDefault: false },
+    });
+    const backup = await testPrisma.warehouse.create({
+      data: {
+        tenantId,
+        code: 'recovery-backup',
+        name: 'Recovery backup fixture',
+        countryCode: originalSource.countryCode,
+        city: originalSource.city,
+        address: originalSource.address,
+        isDefault: true,
+      },
+    });
+    backupInventoryId = (
+      await testPrisma.inventory.create({
+        data: { tenantId, warehouseId: backup.id, variantId, quantity: 100 },
+      })
     ).id;
   });
   beforeEach(async () => {
@@ -289,11 +320,16 @@ describe('PostgreSQL recovery worker', () => {
     await testPrisma.inventoryTransaction.deleteMany({
       where: { inventoryId },
     });
+    expect(
+      await testPrisma.inventory.findUniqueOrThrow({
+        where: { id: backupInventoryId },
+      }),
+    ).toMatchObject({ quantity: 100, reservedQuantity: 0 });
   });
   afterAll(async () => {
     await testPrisma.product.deleteMany({ where: { tenantId } });
     await testPrisma.category.deleteMany({ where: { tenantId } });
-    await testPrisma.tenant.deleteMany({
+    await deleteFixtureTenants({
       where: { id: { in: [tenantId, otherTenantId] } },
     });
     await testPrisma.user.delete({ where: { id: userId } });

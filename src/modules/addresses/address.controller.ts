@@ -23,6 +23,8 @@ export class AddressController {
       state: input.state ?? null,
       postalCode: input.postalCode ?? null,
       phone: input.phone ?? null,
+      latitude: input.latitude ?? null,
+      longitude: input.longitude ?? null,
     });
 
     res.status(201).json({
@@ -88,6 +90,8 @@ export class AddressController {
         ? { postalCode: input.postalCode }
         : {}),
       ...(input.country !== undefined ? { country: input.country } : {}),
+      ...(input.latitude !== undefined ? { latitude: input.latitude } : {}),
+      ...(input.longitude !== undefined ? { longitude: input.longitude } : {}),
       ...(input.phone !== undefined ? { phone: input.phone } : {}),
       ...(input.isDefaultShipping !== undefined
         ? { isDefaultShipping: input.isDefaultShipping }

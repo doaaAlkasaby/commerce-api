@@ -1,4 +1,6 @@
 export interface CreateAddressInput {
+  latitude?: number | null;
+  longitude?: number | null;
   label?: string | null;
 
   firstName: string;
@@ -21,6 +23,8 @@ export interface CreateAddressInput {
 }
 
 export interface UpdateAddressInput {
+  latitude?: number | null;
+  longitude?: number | null;
   label?: string | null;
 
   firstName?: string;

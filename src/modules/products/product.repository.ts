@@ -147,7 +147,7 @@ export class ProductRepository {
           select: {
             ...productVariantSelect,
 
-            inventory: true,
+            inventory: { where: { tenantId, warehouse: { isActive: true } } },
           },
         },
       },

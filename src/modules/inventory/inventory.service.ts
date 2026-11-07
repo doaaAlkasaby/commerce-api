@@ -57,9 +57,11 @@ export class InventoryService {
     for (const item of [...order.items].sort((a, b) =>
       a.variantId.localeCompare(b.variantId),
     )) {
-      const inventory = await repository.findByVariantId(
+      const inventory = await repository.findReservedInventory(
         tenantId,
+        orderId,
         item.variantId,
+        order.warehouseId,
       );
       if (!inventory) {
         throw new AppError(
@@ -155,9 +157,11 @@ export class InventoryService {
     for (const item of [...order.items].sort((a, b) =>
       a.variantId.localeCompare(b.variantId),
     )) {
-      const inventory = await repository.findByVariantId(
+      const inventory = await repository.findReservedInventory(
         tenantId,
+        orderId,
         item.variantId,
+        order.warehouseId,
       );
       if (!inventory) continue;
 
@@ -271,6 +275,7 @@ export class InventoryService {
     const exists = await this.repository.existsByVariantId(
       tenantId,
       input.variantId,
+      input.warehouseId,
     );
 
     if (exists) {
@@ -282,7 +287,7 @@ export class InventoryService {
     }
 
     const inventory = await this.repository
-      .create(tenantId, input.variantId, quantity)
+      .create(tenantId, input.variantId, quantity, input.warehouseId)
       .catch((error: unknown) => {
         if (isPrismaUniqueConstraintError(error)) {
           throw new AppError(

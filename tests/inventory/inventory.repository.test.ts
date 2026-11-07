@@ -1,3 +1,4 @@
+import { fixtureWarehouse } from '../helpers/warehouse.js';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { testPrisma } from '../../src/config/test-database.js';
 import { InventoryRepository } from '../../src/modules/inventory/inventory.repository.js';
@@ -16,6 +17,7 @@ describe('Inventory repository and transactional service', () => {
 
   beforeAll(async () => {
     await tenant.create();
+    await fixtureWarehouse(tenant.id);
     const category = await testPrisma.category.create({
       data: { tenantId: tenant.id, name: 'Inventory', slug: 'inventory' },
     });

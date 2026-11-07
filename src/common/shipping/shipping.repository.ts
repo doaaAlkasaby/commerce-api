@@ -11,6 +11,7 @@ export class ShippingRepository {
         tenantId,
         countryCode,
         isActive: true,
+        country: { isActive: true },
       },
       include: {
         zones: {
@@ -24,6 +25,7 @@ export class ShippingRepository {
               },
               include: {
                 rules: {
+                  where: { isActive: true },
                   orderBy: [
                     {
                       priority: 'desc',

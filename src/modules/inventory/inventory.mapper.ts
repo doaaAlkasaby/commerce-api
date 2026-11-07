@@ -11,6 +11,7 @@ export const mapInventory = (
   inventory: InventoryWithVariant,
 ): InventoryResponse => {
   return {
+    warehouseId: inventory.warehouseId,
     id: inventory.id,
 
     variantId: inventory.variantId,

@@ -47,6 +47,8 @@ export interface CheckoutOrderItemResponse {
 }
 
 export interface CheckoutOrderResponse {
+  warehouseId: string | null;
+  fulfillmentSnapshot: import('../../generated/prisma/client.js').Prisma.JsonValue;
   id: string;
   orderNumber: string;
   status: OrderStatus;

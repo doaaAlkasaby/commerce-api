@@ -3,6 +3,7 @@ import type {
   PrismaClient,
   InventoryTransactionType,
 } from '../../generated/prisma/client.js';
+import { AppError } from '../../common/errors/app-error.js';
 
 type PrismaExecutor = PrismaClient | Prisma.TransactionClient;
 
@@ -59,17 +60,77 @@ export type InventoryWithVariant = Prisma.InventoryGetPayload<{
 export class InventoryRepository {
   constructor(private readonly prisma: PrismaExecutor) {}
 
-  async create(tenantId: string, variantId: string, quantity = 0) {
-    const variant = await this.prisma.productVariant.findFirst({ where: { id: variantId, product: { tenantId } }, select: { id: true } });
+  async create(
+    tenantId: string,
+    variantId: string,
+    quantity = 0,
+    requestedWarehouseId?: string,
+  ) {
+    const variant = await this.prisma.productVariant.findFirst({
+      where: { id: variantId, product: { tenantId } },
+      select: { id: true },
+    });
     if (!variant) throw new Error('Variant does not belong to this tenant');
+    const warehouseId = await this.resolveWarehouse(
+      tenantId,
+      requestedWarehouseId,
+    );
     return this.prisma.inventory.create({
       data: {
         variantId,
+        tenantId,
+        warehouseId,
         quantity,
         reservedQuantity: 0,
       },
       include: inventoryInclude,
     });
+  }
+
+  async resolveWarehouse(tenantId: string, id?: string) {
+    const warehouse = await this.prisma.warehouse.findFirst({
+      where: {
+        tenantId,
+        isActive: true,
+        ...(id ? { id } : { isDefault: true }),
+      },
+      select: { id: true },
+    });
+    if (!warehouse)
+      throw new AppError(
+        'An active tenant warehouse is required',
+        409,
+        'WAREHOUSE_NOT_CONFIGURED',
+      );
+    return warehouse.id;
+  }
+
+  async findReservedInventory(
+    tenantId: string,
+    orderId: string,
+    variantId: string,
+    warehouseId?: string | null,
+  ) {
+    const transactions = await this.prisma.inventoryTransaction.findMany({
+      where: {
+        type: 'RESERVATION',
+        referenceId: orderId,
+        inventory: {
+          tenantId,
+          variantId,
+          ...(warehouseId ? { warehouseId } : {}),
+        },
+      },
+      include: { inventory: true },
+      take: 2,
+    });
+    if (transactions.length > 1)
+      throw new AppError(
+        'Original inventory reservation is ambiguous',
+        409,
+        'ORDER_INVENTORY_RESERVATION_AMBIGUOUS',
+      );
+    return transactions[0]?.inventory ?? null;
   }
 
   async findById(tenantId: string, id: string) {
@@ -82,20 +143,36 @@ export class InventoryRepository {
     });
   }
 
-  async findByVariantId(tenantId: string, variantId: string) {
+  async findByVariantId(
+    tenantId: string,
+    variantId: string,
+    warehouseId?: string,
+  ) {
     return this.prisma.inventory.findFirst({
       where: {
         variantId,
+        warehouse: {
+          tenantId,
+          ...(warehouseId ? { id: warehouseId } : { isDefault: true }),
+        },
         variant: { product: { tenantId } },
       },
       include: inventoryInclude,
     });
   }
 
-  async existsByVariantId(tenantId: string, variantId: string): Promise<boolean> {
+  async existsByVariantId(
+    tenantId: string,
+    variantId: string,
+    warehouseId?: string,
+  ): Promise<boolean> {
     const inventory = await this.prisma.inventory.findFirst({
       where: {
         variantId,
+        warehouse: {
+          tenantId,
+          ...(warehouseId ? { id: warehouseId } : { isDefault: true }),
+        },
         variant: { product: { tenantId } },
       },
       select: {
@@ -115,15 +192,23 @@ export class InventoryRepository {
     });
   }
 
-  async findMany(tenantId: string, params: {
-    page: number;
-    limit: number;
-    variantId?: string;
-    lowStock?: number;
-  }) {
-    const { page, limit, variantId, lowStock } = params;
+  async findMany(
+    tenantId: string,
+    params: {
+      warehouseId?: string;
+      page: number;
+      limit: number;
+      variantId?: string;
+      lowStock?: number;
+    },
+  ) {
+    const { page, limit, variantId, lowStock, warehouseId } = params;
 
-    const where: Prisma.InventoryWhereInput = { variant: { product: { tenantId } } };
+    const where: Prisma.InventoryWhereInput = {
+      tenantId,
+      ...(warehouseId ? { warehouseId } : {}),
+      variant: { product: { tenantId } },
+    };
 
     if (variantId) {
       where.variantId = variantId;
@@ -175,7 +260,12 @@ export class InventoryRepository {
      *
      * We first obtain matching inventory IDs.
      */
-    const ids = await this.findLowStockIds(tenantId, lowStock, variantId);
+    const ids = await this.findLowStockIds(
+      tenantId,
+      lowStock,
+      variantId,
+      warehouseId,
+    );
 
     const total = ids.length;
 
@@ -211,6 +301,7 @@ export class InventoryRepository {
     tenantId: string,
     lowStock: number,
     variantId?: string,
+    warehouseId?: string,
   ): Promise<string[]> {
     if (variantId) {
       return this.prisma.$queryRaw<Array<{ id: string }>>`
@@ -219,6 +310,7 @@ export class InventoryRepository {
         JOIN "ProductVariant" pv ON pv."id" = i."variantId"
         JOIN "Product" p ON p."id" = pv."productId"
         WHERE i."variantId" = ${variantId}
+          AND (${warehouseId ?? null}::text IS NULL OR i."warehouseId" = ${warehouseId ?? null})
           AND p."tenantId" = ${tenantId}
           AND (
             i."quantity" -
@@ -238,6 +330,7 @@ export class InventoryRepository {
         i."reservedQuantity"
       ) <= ${lowStock}
         AND p."tenantId" = ${tenantId}
+        AND (${warehouseId ?? null}::text IS NULL OR i."warehouseId" = ${warehouseId ?? null})
       ORDER BY i."updatedAt" DESC
     `.then((rows) => rows.map((row) => row.id));
   }
@@ -248,7 +341,11 @@ export class InventoryRepository {
    * --------------------------------------------------
    */
 
-  async stockIn(tenantId: string, inventoryId: string, quantity: number): Promise<number> {
+  async stockIn(
+    tenantId: string,
+    inventoryId: string,
+    quantity: number,
+  ): Promise<number> {
     return this.prisma.$executeRaw`
       UPDATE "Inventory"
       SET
@@ -270,7 +367,11 @@ export class InventoryRepository {
    * --------------------------------------------------
    */
 
-  async stockOut(tenantId: string, inventoryId: string, quantity: number): Promise<number> {
+  async stockOut(
+    tenantId: string,
+    inventoryId: string,
+    quantity: number,
+  ): Promise<number> {
     return this.prisma.$executeRaw`
       UPDATE "Inventory"
       SET
@@ -301,7 +402,11 @@ export class InventoryRepository {
    * --------------------------------------------------
    */
 
-  async adjustment(tenantId: string, inventoryId: string, quantity: number): Promise<number> {
+  async adjustment(
+    tenantId: string,
+    inventoryId: string,
+    quantity: number,
+  ): Promise<number> {
     return this.prisma.$executeRaw`
       UPDATE "Inventory"
       SET
@@ -327,7 +432,11 @@ export class InventoryRepository {
    * --------------------------------------------------
    */
 
-  async reserve(tenantId: string, inventoryId: string, quantity: number): Promise<number> {
+  async reserve(
+    tenantId: string,
+    inventoryId: string,
+    quantity: number,
+  ): Promise<number> {
     return this.prisma.$executeRaw`
       UPDATE "Inventory"
       SET
@@ -351,7 +460,11 @@ export class InventoryRepository {
    * --------------------------------------------------
    */
 
-  async release(tenantId: string, inventoryId: string, quantity: number): Promise<number> {
+  async release(
+    tenantId: string,
+    inventoryId: string,
+    quantity: number,
+  ): Promise<number> {
     return this.prisma.$executeRaw`
       UPDATE "Inventory"
       SET
@@ -385,7 +498,11 @@ export class InventoryRepository {
    * --------------------------------------------------
    */
 
-  async sale(tenantId: string, inventoryId: string, quantity: number): Promise<number> {
+  async sale(
+    tenantId: string,
+    inventoryId: string,
+    quantity: number,
+  ): Promise<number> {
     return this.prisma.$executeRaw`
       UPDATE "Inventory"
       SET
@@ -412,14 +529,20 @@ export class InventoryRepository {
    * --------------------------------------------------
    */
 
-  async createTransaction(tenantId: string, data: {
-    inventoryId: string;
-    type: InventoryTransactionType;
-    quantity: number;
-    referenceId?: string | null;
-    reason?: string | null;
-  }) {
-    const inventory = await this.prisma.inventory.findFirst({ where: { id: data.inventoryId, variant: { product: { tenantId } } }, select: { id: true } });
+  async createTransaction(
+    tenantId: string,
+    data: {
+      inventoryId: string;
+      type: InventoryTransactionType;
+      quantity: number;
+      referenceId?: string | null;
+      reason?: string | null;
+    },
+  ) {
+    const inventory = await this.prisma.inventory.findFirst({
+      where: { id: data.inventoryId, variant: { product: { tenantId } } },
+      select: { id: true },
+    });
     if (!inventory) throw new Error('Inventory does not belong to this tenant');
     return this.prisma.inventoryTransaction.create({
       data: {

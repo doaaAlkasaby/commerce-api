@@ -8,6 +8,7 @@ export interface ShippingAddress {
 }
 
 export interface ShippingCalculationInput {
+  origin?: { latitude: number | null; longitude: number | null };
   tenantId: string;
   scopeKey: string;
 

@@ -10,14 +10,8 @@ import type {
   CheckoutPaymentResponse,
 } from './checkout.types.js';
 
-const toRecord = (
-  value: unknown,
-): Record<string, unknown> => {
-  if (
-    value !== null &&
-    typeof value === 'object' &&
-    !Array.isArray(value)
-  ) {
+const toRecord = (value: unknown): Record<string, unknown> => {
+  if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
     return value as Record<string, unknown>;
   }
 
@@ -34,14 +28,10 @@ export const mapCheckoutOrderItem = (
   sku: item.sku,
   quantity: item.quantity,
   unitPrice: item.unitPrice.toString(),
-  itemDiscountAmount:
-    item.itemDiscountAmount.toString(),
-  finalUnitPrice:
-    item.finalUnitPrice.toString(),
+  itemDiscountAmount: item.itemDiscountAmount.toString(),
+  finalUnitPrice: item.finalUnitPrice.toString(),
   totalPrice: item.totalPrice.toString(),
-  variantSnapshot: toRecord(
-    item.variantSnapshot,
-  ),
+  variantSnapshot: toRecord(item.variantSnapshot),
 });
 
 export const mapCheckoutOrder = (
@@ -49,38 +39,27 @@ export const mapCheckoutOrder = (
     items: OrderItem[];
   },
 ): CheckoutOrderResponse => ({
+  warehouseId: order.warehouseId,
+  fulfillmentSnapshot: order.fulfillmentSnapshot,
   id: order.id,
   orderNumber: order.orderNumber,
   status: order.status,
   paymentStatus: order.paymentStatus,
   currency: order.currency,
   subtotal: order.subtotal.toString(),
-  discountAmount:
-    order.discountAmount.toString(),
-  shippingAmount:
-    order.shippingAmount.toString(),
-  taxAmount:
-    order.taxAmount.toString(),
-  totalAmount:
-    order.totalAmount.toString(),
-  shippingAddress: toRecord(
-    order.shippingAddress,
-  ),
-  billingAddress: toRecord(
-    order.billingAddress,
-  ),
-  items: order.items.map(
-    mapCheckoutOrderItem,
-  ),
-  shippingMethodId:
-  order.shippingMethodId,
+  discountAmount: order.discountAmount.toString(),
+  shippingAmount: order.shippingAmount.toString(),
+  taxAmount: order.taxAmount.toString(),
+  totalAmount: order.totalAmount.toString(),
+  shippingAddress: toRecord(order.shippingAddress),
+  billingAddress: toRecord(order.billingAddress),
+  items: order.items.map(mapCheckoutOrderItem),
+  shippingMethodId: order.shippingMethodId,
 
-shippingMethodCode:
-  order.shippingMethodCode,
+  shippingMethodCode: order.shippingMethodCode,
 
-shippingMethodName:
-  order.shippingMethodName,
-  
+  shippingMethodName: order.shippingMethodName,
+
   createdAt: order.createdAt.toISOString(),
   updatedAt: order.updatedAt.toISOString(),
 });
@@ -94,8 +73,6 @@ export const mapCheckoutPayment = (
   status: payment.status,
   amount: payment.amount.toString(),
   currency: payment.currency,
-  providerPaymentId:
-    payment.providerPaymentId,
-  providerTransactionId:
-    payment.providerTransactionId,
+  providerPaymentId: payment.providerPaymentId,
+  providerTransactionId: payment.providerTransactionId,
 });

@@ -3,6 +3,31 @@ import type { Prisma, PrismaClient } from '../../generated/prisma/client.js';
 export class CheckoutRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
+  membership(tx: Prisma.TransactionClient, tenantId: string, userId: string) {
+    return tx.tenantMember.findUnique({
+      where: { tenantId_userId: { tenantId, userId } },
+    });
+  }
+
+  async lockTenant(tx: Prisma.TransactionClient, tenantId: string) {
+    await tx.$queryRaw`SELECT "id" FROM "Tenant" WHERE "id"=${tenantId} FOR SHARE`;
+  }
+
+  async lockWarehouse(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    warehouseId: string,
+  ) {
+    const rows = await tx.$queryRaw<
+      Array<{ id: string }>
+    >`SELECT "id" FROM "Warehouse" WHERE "id"=${warehouseId} AND "tenantId"=${tenantId} AND "isActive" FOR SHARE`;
+    return rows.length === 1;
+  }
+
+  ownedAddress(userId: string, id: string) {
+    return this.prisma.address.findFirst({ where: { id, userId } });
+  }
+
   async reservationDeadline(
     tx: Prisma.TransactionClient,
     ttlSeconds: number,

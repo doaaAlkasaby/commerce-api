@@ -1,3 +1,9 @@
+import { createShippingProfileFixture } from '../helpers/warehouse.js';
+import { createCartFixture } from '../helpers/warehouse.js';
+import {
+  createInventoryFixture,
+  deleteFixtureTenants,
+} from '../helpers/warehouse.js';
 import {
   afterAll,
   afterEach,
@@ -196,10 +202,10 @@ suite('inventory concurrency against PostgreSQL', () => {
     variantBId = variantB.id;
 
     const [inventoryA, inventoryB] = await Promise.all([
-      testPrisma.inventory.create({
+      createInventoryFixture({
         data: { variantId: variantAId, quantity: 5, reservedQuantity: 0 },
       }),
-      testPrisma.inventory.create({
+      createInventoryFixture({
         data: { variantId: variantBId, quantity: 5, reservedQuantity: 0 },
       }),
     ]);
@@ -207,10 +213,10 @@ suite('inventory concurrency against PostgreSQL', () => {
     inventoryBId = inventoryB.id;
 
     const [cartA, cartB] = await Promise.all([
-      testPrisma.cart.create({
+      createCartFixture({
         data: { tenantId: tenantAId, userId: userAId },
       }),
-      testPrisma.cart.create({
+      createCartFixture({
         data: { tenantId: tenantAId, userId: userBId },
       }),
     ]);
@@ -229,7 +235,7 @@ suite('inventory concurrency against PostgreSQL', () => {
     await testPrisma.taxRule.create({
       data: { taxCategoryId: taxCategoryAId, countryCode, rate: 0 },
     });
-    const shippingProfile = await testPrisma.shippingProfile.create({
+    const shippingProfile = await createShippingProfileFixture({
       data: { tenantId: tenantAId, countryCode, currency: 'USD' },
     });
     const zone = await testPrisma.shippingZone.create({
@@ -293,7 +299,7 @@ suite('inventory concurrency against PostgreSQL', () => {
     await testPrisma.category.deleteMany({
       where: { id: { in: [categoryAId, categoryBId] } },
     });
-    await testPrisma.tenant.deleteMany({
+    await deleteFixtureTenants({
       where: { id: { in: [tenantAId, tenantBId] } },
     });
     await testPrisma.user.deleteMany({

@@ -1,3 +1,4 @@
+import { deleteFixtureTenant } from '../helpers/warehouse.js';
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import request from 'supertest';
@@ -54,9 +55,9 @@ describe('Phase 1 public API compatibility', () => {
       await testPrisma.tenantMember.deleteMany({ where: { userId } });
       await testPrisma.user.delete({ where: { id: userId } });
     }
-    if (tenantId) await testPrisma.tenant.delete({ where: { id: tenantId } });
+    if (tenantId) await deleteFixtureTenant({ where: { id: tenantId } });
     if (contextTenantId)
-      await testPrisma.tenant.delete({ where: { id: contextTenantId } });
+      await deleteFixtureTenant({ where: { id: contextTenantId } });
     await testPrisma.country.deleteMany({
       where: { code: countryCode, name: `Phase 1 ${marker}` },
     });
@@ -76,17 +77,17 @@ describe('Phase 1 public API compatibility', () => {
     });
   });
 
-  it('returns the established country error envelope and status', async () => {
-    for (const [header, code] of [
-      ['', 'COUNTRY_REQUIRED'],
-      ['!!', 'COUNTRY_NOT_SUPPORTED'],
-    ]) {
+  it('allows tenant catalog browsing without a shopping country or with an unsupported preference', async () => {
+    for (const header of ['', '!!', 'EG', 'KW']) {
       const response = await request(app)
         .get('/api/v1/products')
         .set('X-Tenant-Slug', tenantSlug)
         .set('X-Country-Code', header);
-      expect(response.status).toBe(400);
-      expect(response.body).toMatchObject({ success: false, code });
+      expect(response.status).toBe(200);
+      expect(response.body).toMatchObject({
+        success: true,
+        data: { items: [] },
+      });
     }
   });
 

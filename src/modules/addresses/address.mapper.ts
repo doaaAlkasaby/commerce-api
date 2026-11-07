@@ -16,6 +16,8 @@ export const mapAddress = (address: {
   state: string | null;
   postalCode: string | null;
   countryCode: string;
+  latitude?: { toNumber(): number } | null;
+  longitude?: { toNumber(): number } | null;
 
   phone: string | null;
 
@@ -42,6 +44,8 @@ export const mapAddress = (address: {
     state: address.state,
     postalCode: address.postalCode,
     country: address.countryCode,
+    latitude: address.latitude?.toNumber() ?? null,
+    longitude: address.longitude?.toNumber() ?? null,
 
     phone: address.phone,
 

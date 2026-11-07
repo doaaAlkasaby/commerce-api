@@ -74,6 +74,8 @@ const mapPayment = (payment: Payment): OrderPaymentResponse => ({
 });
 
 export const mapOrder = (order: OrderWithRelations): OrderResponse => ({
+  warehouseId: order.warehouseId,
+  fulfillmentSnapshot: order.fulfillmentSnapshot,
   id: order.id,
 
   orderNumber: order.orderNumber,

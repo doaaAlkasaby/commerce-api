@@ -1,3 +1,11 @@
+import { ensureFixtureMembership } from '../helpers/warehouse.js';
+import { createShippingProfileFixture } from '../helpers/warehouse.js';
+import { createCartFixture } from '../helpers/warehouse.js';
+import {
+  createInventoryFixture,
+  deleteFixtureTenant,
+  deleteFixtureTenants,
+} from '../helpers/warehouse.js';
 import { CouponRepository } from '../../src/modules/coupons/coupon.repository.js';
 import { CartService } from '../../src/modules/cart/cart.service.js';
 import { createProductRepository } from '../../src/modules/products/product.repository.js';
@@ -168,11 +176,11 @@ suite('checkout transaction against PostgreSQL', () => {
       },
     });
     variantId = variant.id;
-    const inventory = await testPrisma.inventory.create({
+    const inventory = await createInventoryFixture({
       data: { variantId, quantity: 10, reservedQuantity: 0 },
     });
     inventoryId = inventory.id;
-    const cart = await testPrisma.cart.create({ data: { tenantId, userId } });
+    const cart = await createCartFixture({ data: { tenantId, userId } });
     cartId = cart.id;
 
     const coupon = await testPrisma.coupon.create({
@@ -199,7 +207,7 @@ suite('checkout transaction against PostgreSQL', () => {
     await testPrisma.taxRule.create({
       data: { taxCategoryId: taxCategory.id, countryCode, rate: 5 },
     });
-    const shippingProfile = await testPrisma.shippingProfile.create({
+    const shippingProfile = await createShippingProfileFixture({
       data: {
         tenantId,
         countryCode,
@@ -234,6 +242,7 @@ suite('checkout transaction against PostgreSQL', () => {
   });
 
   beforeEach(async () => {
+    await ensureFixtureMembership(tenantId, userId);
     await testPrisma.cartItem.deleteMany({ where: { cartId } });
     await testPrisma.product.update({
       where: { id: productId },
@@ -291,7 +300,7 @@ suite('checkout transaction against PostgreSQL', () => {
     await testPrisma.taxRule.deleteMany({
       where: { taxCategory: { tenantId } },
     });
-    await testPrisma.tenant.delete({ where: { id: tenantId } });
+    await deleteFixtureTenant({ where: { id: tenantId } });
     await testPrisma.address.delete({ where: { id: addressId } });
     await testPrisma.user.delete({ where: { id: foreignAccessUserId } });
     await testPrisma.user.delete({ where: { id: userId } });
@@ -912,10 +921,10 @@ suite('checkout transaction against PostgreSQL', () => {
         taxCategoryId: taxCategory.id,
       },
     });
-    const inventory = await testPrisma.inventory.create({
+    const inventory = await createInventoryFixture({
       data: { variantId: variant.id, quantity: 10, reservedQuantity: 0 },
     });
-    const cart = await testPrisma.cart.create({
+    const cart = await createCartFixture({
       data: { tenantId: otherTenant.id, userId },
     });
     await testPrisma.cartItem.create({
@@ -933,7 +942,7 @@ suite('checkout transaction against PostgreSQL', () => {
     await testPrisma.taxRule.create({
       data: { taxCategoryId: taxCategory.id, countryCode, rate: 5 },
     });
-    const profile = await testPrisma.shippingProfile.create({
+    const profile = await createShippingProfileFixture({
       data: {
         tenantId: otherTenant.id,
         countryCode,
@@ -995,7 +1004,7 @@ suite('checkout transaction against PostgreSQL', () => {
       await testPrisma.taxRule.deleteMany({
         where: { taxCategory: { tenantId: otherTenant.id } },
       });
-      await testPrisma.tenant.delete({ where: { id: otherTenant.id } });
+      await deleteFixtureTenant({ where: { id: otherTenant.id } });
     }
   });
 
@@ -1083,6 +1092,7 @@ suite('checkout transaction against PostgreSQL', () => {
     };
 
     beforeEach(async () => {
+      await ensureFixtureMembership(tenantId, userId);
       await testPrisma.address.update({
         where: { id: addressId },
         data: originalAddress(),
@@ -1409,7 +1419,7 @@ suite('checkout transaction against PostgreSQL', () => {
           new OrderService().getMyOrder(tenantId, crypto.randomUUID(), id),
         ).rejects.toMatchObject({ code: 'ORDER_NOT_FOUND' });
       } finally {
-        await testPrisma.tenant.delete({ where: { id: other.id } });
+        await deleteFixtureTenant({ where: { id: other.id } });
       }
     });
 
@@ -1428,7 +1438,7 @@ suite('checkout transaction against PostgreSQL', () => {
         expect(await detail(id)).toEqual(before);
       } finally {
         const { zones, ...profileData } = profile;
-        await testPrisma.shippingProfile.create({ data: profileData });
+        await createShippingProfileFixture({ data: profileData });
         for (const zone of zones) {
           const { methods, ...zoneData } = zone;
           await testPrisma.shippingZone.create({ data: zoneData });
@@ -1512,7 +1522,7 @@ suite('checkout transaction against PostgreSQL', () => {
       await testPrisma.taxRule.deleteMany({
         where: { taxCategory: { tenantId: { in: extraTenants } } },
       });
-      await testPrisma.tenant.deleteMany({
+      await deleteFixtureTenants({
         where: { id: { in: extraTenants } },
       });
       await testPrisma.cart.deleteMany({
@@ -1804,7 +1814,7 @@ suite('checkout transaction against PostgreSQL', () => {
           longitude: '31',
         },
       });
-      const cart = await testPrisma.cart.create({
+      const cart = await createCartFixture({
         data: { tenantId, userId: user.id },
       });
       await testPrisma.cartItem.create({
@@ -1854,10 +1864,10 @@ suite('checkout transaction against PostgreSQL', () => {
           taxCategoryId: tax.id,
         },
       });
-      await testPrisma.inventory.create({
+      await createInventoryFixture({
         data: { variantId: variant.id, quantity: 10 },
       });
-      const cart = await testPrisma.cart.create({
+      const cart = await createCartFixture({
         data: { tenantId: other.id, userId },
       });
       await testPrisma.cartItem.create({
@@ -1875,7 +1885,7 @@ suite('checkout transaction against PostgreSQL', () => {
       await testPrisma.taxRule.create({
         data: { taxCategoryId: tax.id, countryCode, rate: '5' },
       });
-      const profile = await testPrisma.shippingProfile.create({
+      const profile = await createShippingProfileFixture({
         data: {
           tenantId: other.id,
           countryCode,
@@ -2067,6 +2077,7 @@ suite('checkout transaction against PostgreSQL', () => {
         idempotencyKey: key,
       });
     beforeEach(async () => {
+      await ensureFixtureMembership(tenantId, userId);
       await testPrisma.inventory.update({
         where: { id: inventoryId },
         data: { quantity: 10 },
@@ -2410,9 +2421,7 @@ suite('checkout transaction against PostgreSQL', () => {
 
     it('does not trust customer-supplied success notifications', async () => {
       const result = await createCheckout();
-      await testPrisma.tenantMember.create({
-        data: { tenantId, userId, role: 'CUSTOMER' },
-      });
+      await ensureFixtureMembership(tenantId, userId);
       const app = express();
       app.use(express.json());
       app.use('/payments', paymentRoutes);
@@ -2592,6 +2601,7 @@ suite('checkout transaction against PostgreSQL', () => {
     let result: CheckoutResult;
     let key: string;
     beforeEach(async () => {
+      await ensureFixtureMembership(tenantId, userId);
       await testPrisma.inventory.update({
         where: { id: inventoryId },
         data: { quantity: 10 },
@@ -3017,9 +3027,7 @@ suite('checkout transaction against PostgreSQL', () => {
       app.use('/orders', orderRoutes);
       app.use('/payments', paymentRoutes);
       app.use(errorMiddleware);
-      await testPrisma.tenantMember.create({
-        data: { tenantId, userId, role: 'CUSTOMER' },
-      });
+      await ensureFixtureMembership(tenantId, userId);
       try {
         const token = await createAccessToken(userId);
         expect(
@@ -3101,6 +3109,7 @@ suite('checkout transaction against PostgreSQL', () => {
       });
     };
     beforeEach(async () => {
+      await ensureFixtureMembership(tenantId, userId);
       categoryId = (
         await testPrisma.productVariant.findUniqueOrThrow({
           where: { id: variantId },
@@ -3153,7 +3162,7 @@ suite('checkout transaction against PostgreSQL', () => {
       await testPrisma.taxCategory.deleteMany({
         where: { id: { in: categories } },
       });
-      await testPrisma.tenant.deleteMany({ where: { id: { in: tenants } } });
+      await deleteFixtureTenants({ where: { id: { in: tenants } } });
       await testPrisma.taxCategory.update({
         where: { id: categoryId },
         data: { isActive: true, treatment: 'STANDARD' },
@@ -3220,7 +3229,7 @@ suite('checkout transaction against PostgreSQL', () => {
           taxCategoryId: tax.id,
         },
       });
-      await testPrisma.inventory.create({
+      await createInventoryFixture({
         data: { variantId: variant.id, quantity: 100 },
       });
       await testPrisma.cartItem.create({
@@ -3897,6 +3906,7 @@ suite('checkout transaction against PostgreSQL', () => {
     });
     const context = () => ({ tenantId, userId });
     beforeEach(async () => {
+      await ensureFixtureMembership(tenantId, userId);
       key = crypto.randomUUID();
       taxCategoryId = (
         await testPrisma.productVariant.findUniqueOrThrow({
@@ -3973,7 +3983,7 @@ suite('checkout transaction against PostgreSQL', () => {
         await testPrisma.taxRule.deleteMany({
           where: { taxCategory: { tenantId: id } },
         });
-        await testPrisma.tenant.delete({ where: { id } });
+        await deleteFixtureTenant({ where: { id } });
       }
       await testPrisma.cart.deleteMany({
         where: { userId: { in: addedUsers } },
@@ -4200,10 +4210,10 @@ suite('checkout transaction against PostgreSQL', () => {
           taxCategoryId: tax.id,
         },
       });
-      await testPrisma.inventory.create({
+      await createInventoryFixture({
         data: { variantId: variant.id, quantity: 10 },
       });
-      const cart = await testPrisma.cart.create({
+      const cart = await createCartFixture({
         data: { tenantId: tenant.id, userId },
       });
       await testPrisma.cartItem.create({
@@ -4221,7 +4231,7 @@ suite('checkout transaction against PostgreSQL', () => {
       await testPrisma.taxRule.create({
         data: { taxCategoryId: tax.id, countryCode, rate: '10' },
       });
-      const profile = await testPrisma.shippingProfile.create({
+      const profile = await createShippingProfileFixture({
         data: {
           tenantId: tenant.id,
           countryCode,
@@ -4329,7 +4339,7 @@ suite('checkout transaction against PostgreSQL', () => {
             taxCategoryId: tax.id,
           },
         });
-        await testPrisma.inventory.create({
+        await createInventoryFixture({
           data: { variantId: variant.id, quantity: 10 },
         });
         await testPrisma.cartItem.create({
@@ -4771,7 +4781,9 @@ suite('checkout transaction against PostgreSQL', () => {
       const other = await foreignAddress();
       const before = await databaseState();
       await expect(
-        service.preview(input(), { tenantId, userId: other.userId }),
+        ensureFixtureMembership(tenantId, other.userId).then(() =>
+          service.preview(input(), { tenantId, userId: other.userId }),
+        ),
       ).rejects.toMatchObject({ code: 'CART_EMPTY' });
       const response = await httpPreview(
         { ...input(), cartId },

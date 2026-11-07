@@ -81,6 +81,8 @@ export interface OrderPaymentResponse {
 }
 
 export interface OrderResponse {
+  warehouseId: string | null;
+  fulfillmentSnapshot: import('../../generated/prisma/client.js').Prisma.JsonValue;
   id: string;
   orderNumber: string;
 

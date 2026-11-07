@@ -1,3 +1,9 @@
+import { createShippingProfileFixture } from '../helpers/warehouse.js';
+import { createCartFixture } from '../helpers/warehouse.js';
+import {
+  createInventoryFixture,
+  deleteFixtureTenants,
+} from '../helpers/warehouse.js';
 import { metrics } from '../../src/common/observability/metrics.js';
 import { verifyMyFatoorahWebhook } from '../../src/modules/payments/myfatoorah.webhook.js';
 import { randomUUID, createHmac } from 'node:crypto';
@@ -221,7 +227,7 @@ describe('MyFatoorah Kuwait V2 integration against PostgreSQL', () => {
       },
     });
     variantId = variant.id;
-    const inventory = await testPrisma.inventory.create({
+    const inventory = await createInventoryFixture({
       data: { variantId, quantity: 10, reservedQuantity: 1 },
     });
     inventoryId = inventory.id;
@@ -238,7 +244,7 @@ describe('MyFatoorah Kuwait V2 integration against PostgreSQL', () => {
       },
     });
     addressId = address.id;
-    const cart = await testPrisma.cart.create({ data: { tenantId, userId } });
+    const cart = await createCartFixture({ data: { tenantId, userId } });
     cartId = cart.id;
     const taxCategory = await testPrisma.taxCategory.create({
       data: {
@@ -260,7 +266,7 @@ describe('MyFatoorah Kuwait V2 integration against PostgreSQL', () => {
         isTaxRegistered: false,
       },
     });
-    const profile = await testPrisma.shippingProfile.create({
+    const profile = await createShippingProfileFixture({
       data: {
         tenantId,
         countryCode,
@@ -389,7 +395,7 @@ describe('MyFatoorah Kuwait V2 integration against PostgreSQL', () => {
     await testPrisma.product.deleteMany({ where: { tenantId } });
     await testPrisma.category.deleteMany({ where: { tenantId } });
     await testPrisma.address.deleteMany({ where: { userId } });
-    await testPrisma.tenant.deleteMany({
+    await deleteFixtureTenants({
       where: { id: { in: [tenantId, otherTenantId] } },
     });
     await testPrisma.user.deleteMany({

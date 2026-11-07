@@ -1,3 +1,5 @@
+import { OrderPolicyRepository } from '../warehouses/order-policy.repository.js';
+import { enforceOrderPolicy } from '../warehouses/order-policy.service.js';
 import { tenantCurrency } from '../../common/pricing/money.repository.js';
 import { ProductStatus } from '../../generated/prisma/client.js';
 
@@ -52,7 +54,7 @@ export class CartService {
 
       include: {
         product: true,
-        inventory: true,
+        inventory: { where: { tenantId, warehouse: { isActive: true } } },
       },
     });
 
@@ -85,7 +87,7 @@ export class CartService {
     /**
      * Inventory record is required.
      */
-    if (!variant.inventory) {
+    if (!variant.inventory.length) {
       throw new AppError(
         'Inventory is not configured for this variant',
         409,
@@ -116,8 +118,12 @@ export class CartService {
      *
      * Cart itself does not reserve anything.
      */
-    const availableQuantity =
-      variant.inventory.quantity - variant.inventory.reservedQuantity;
+    const availableQuantity = Math.max(
+      0,
+      ...variant.inventory.map(
+        (stock) => stock.quantity - stock.reservedQuantity,
+      ),
+    );
 
     if (requestedQuantity > availableQuantity) {
       throw new AppError(
@@ -127,6 +133,17 @@ export class CartService {
       );
     }
 
+    const policyCart = await cartRepository.findByUserId(tenantId, userId);
+    const policyItems =
+      policyCart?.items
+        .filter((item) => item.variantId !== input.variantId)
+        .map((item) => ({ quantity: item.quantity })) ?? [];
+    policyItems.push({ quantity: requestedQuantity });
+    enforceOrderPolicy(
+      await new OrderPolicyRepository(prisma).find(tenantId),
+      policyItems,
+      await tenantCurrency(tenantId),
+    );
     await cartRepository.addItem(
       tenantId,
       userId,
@@ -154,7 +171,7 @@ export class CartService {
 
       include: {
         product: true,
-        inventory: true,
+        inventory: { where: { tenantId, warehouse: { isActive: true } } },
       },
     });
 
@@ -178,7 +195,7 @@ export class CartService {
       );
     }
 
-    if (!variant.inventory) {
+    if (!variant.inventory.length) {
       throw new AppError(
         'Inventory is not configured for this variant',
         409,
@@ -196,8 +213,12 @@ export class CartService {
       throw new AppError('Cart item not found', 404, 'CART_ITEM_NOT_FOUND');
     }
 
-    const availableQuantity =
-      variant.inventory.quantity - variant.inventory.reservedQuantity;
+    const availableQuantity = Math.max(
+      0,
+      ...variant.inventory.map(
+        (stock) => stock.quantity - stock.reservedQuantity,
+      ),
+    );
 
     if (input.quantity > availableQuantity) {
       throw new AppError(
@@ -207,6 +228,14 @@ export class CartService {
       );
     }
 
+    const policyCart = await cartRepository.findByUserId(tenantId, userId);
+    enforceOrderPolicy(
+      await new OrderPolicyRepository(prisma).find(tenantId),
+      (policyCart?.items ?? []).map((item) => ({
+        quantity: item.variantId === variantId ? input.quantity : item.quantity,
+      })),
+      await tenantCurrency(tenantId),
+    );
     const result = await cartRepository.updateItem(
       tenantId,
       userId,

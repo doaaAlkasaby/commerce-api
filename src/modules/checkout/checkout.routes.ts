@@ -5,6 +5,7 @@ import { Router } from 'express';
 import { validate } from '../../common/validation/validate.js';
 
 import { authenticate } from '../../middleware/auth.middleware.js';
+import { tenantMemberMiddleware } from '../../middleware/tenant-member.middleware.js';
 
 import { requireVerifiedEmail } from '../../middleware/verified-email.middleware.js';
 
@@ -15,10 +16,20 @@ import { checkoutController } from './checkout.controller.js';
 const router = Router();
 
 router.use(tenantMiddleware);
+router.post(
+  '/shipping-options',
+  authenticate,
+  tenantMemberMiddleware,
+  sensitiveRateLimiter,
+  requireVerifiedEmail,
+  validate(checkoutPreviewSchema, 'body'),
+  checkoutController.shippingOptions,
+);
 
 router.post(
   '/preview',
   authenticate,
+  tenantMemberMiddleware,
   sensitiveRateLimiter,
   requireVerifiedEmail,
   validate(checkoutPreviewSchema, 'body'),
@@ -28,6 +39,7 @@ router.post(
 router.post(
   '/',
   authenticate,
+  tenantMemberMiddleware,
   sensitiveRateLimiter,
   requireVerifiedEmail,
   validate(checkoutSchema, 'body'),

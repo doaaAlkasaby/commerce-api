@@ -1,3 +1,4 @@
+import { deleteFixtureTenants } from '../helpers/warehouse.js';
 import { emailVerificationService } from '../../src/modules/auth/email-verification.service.instance.js';
 import { randomUUID } from 'node:crypto';
 import {
@@ -209,7 +210,7 @@ describe('security boundaries against PostgreSQL', () => {
     await testPrisma.tenantMember.deleteMany({
       where: { tenantId: { in: [tenantId, otherTenantId] } },
     });
-    await testPrisma.tenant.deleteMany({
+    await deleteFixtureTenants({
       where: { id: { in: [tenantId, otherTenantId] } },
     });
     await testPrisma.user.deleteMany({

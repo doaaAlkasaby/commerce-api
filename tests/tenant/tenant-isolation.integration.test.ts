@@ -1,3 +1,6 @@
+import { createShippingProfileFixture } from '../helpers/warehouse.js';
+import { fixtureWarehouse } from '../helpers/warehouse.js';
+import { deleteFixtureTenants } from '../helpers/warehouse.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { NextFunction, Request, Response } from 'express';
 import { testPrisma } from '../../src/config/test-database.js';
@@ -84,10 +87,20 @@ suite('tenant isolation against PostgreSQL', () => {
     });
     userId = user.id;
     const a = await testPrisma.tenant.create({
-      data: { name: 'Tenant A', slug: `${fixture}-a`, code: `${fixture}-a`, defaultCurrency: 'EGP' },
+      data: {
+        name: 'Tenant A',
+        slug: `${fixture}-a`,
+        code: `${fixture}-a`,
+        defaultCurrency: 'EGP',
+      },
     });
     const b = await testPrisma.tenant.create({
-      data: { name: 'Tenant B', slug: `${fixture}-b`, code: `${fixture}-b`, defaultCurrency: 'USD' },
+      data: {
+        name: 'Tenant B',
+        slug: `${fixture}-b`,
+        code: `${fixture}-b`,
+        defaultCurrency: 'USD',
+      },
     });
     tenantA = a.id;
     tenantB = b.id;
@@ -229,8 +242,10 @@ suite('tenant isolation against PostgreSQL', () => {
     couponB = coupon.id;
 
     const [stockA, stockB] = await Promise.all([
-      inventory.create(tenantA, variantA, 11),
-      inventory.create(tenantB, variantB, 22),
+      (await fixtureWarehouse(tenantA),
+      inventory.create(tenantA, variantA, 11)),
+      (await fixtureWarehouse(tenantB),
+      inventory.create(tenantB, variantB, 22)),
     ]);
     inventoryA = stockA.id;
     inventoryB = stockB.id;
@@ -269,10 +284,10 @@ suite('tenant isolation against PostgreSQL', () => {
       }),
     ]);
     const [shippingA, shippingB] = await Promise.all([
-      testPrisma.shippingProfile.create({
+      createShippingProfileFixture({
         data: { tenantId: tenantA, countryCode, currency: 'USD' },
       }),
-      testPrisma.shippingProfile.create({
+      createShippingProfileFixture({
         data: { tenantId: tenantB, countryCode, currency: 'USD' },
       }),
     ]);
@@ -432,7 +447,7 @@ suite('tenant isolation against PostgreSQL', () => {
       });
     }
     if (tenantA)
-      await testPrisma.tenant.deleteMany({
+      await deleteFixtureTenants({
         where: { id: { in: [tenantA, tenantB] } },
       });
     if (userId || userAId || userBId || userCId || userDId || userEId)

@@ -23,6 +23,38 @@ export class ShippingService {
   async calculate(
     input: ShippingCalculationInput,
   ): Promise<ShippingCalculationResult> {
+    if (input.methodCode) return this.calculateSelected(input);
+    const profile = await this.repository.findProfile(
+      input.tenantId,
+      input.destination.countryCode,
+    );
+    if (!profile) return this.calculateSelected(input);
+    const zone = this.findZone(profile.zones, input.destination);
+    if (!zone) return this.calculateSelected(input);
+    let failure: AppError | undefined;
+    for (const method of zone.methods
+      .slice()
+      .sort(
+        (a, b) => a.sortOrder - b.sortOrder || a.code.localeCompare(b.code),
+      )) {
+      try {
+        return await this.calculateSelected({
+          ...input,
+          methodCode: method.code,
+        });
+      } catch (error) {
+        if (!(error instanceof AppError) || error.statusCode >= 500)
+          throw error;
+        failure = error;
+      }
+    }
+    if (failure) throw failure;
+    return this.calculateSelected(input);
+  }
+
+  private async calculateSelected(
+    input: ShippingCalculationInput,
+  ): Promise<ShippingCalculationResult> {
     const profile = await this.repository.findProfile(
       input.tenantId,
       input.destination.countryCode,
@@ -65,20 +97,26 @@ export class ShippingService {
     }
 
     const distanceKm = this.calculateDestinationDistance(
-      profile.originLatitude,
-      profile.originLongitude,
+      input.origin ? input.origin.latitude : profile.originLatitude,
+      input.origin ? input.origin.longitude : profile.originLongitude,
       input.destination.latitude,
       input.destination.longitude,
     );
 
-    const distanceIsRequired = method.rules.some(
-      (rule: Rule) =>
-        rule.maxDistanceKm != null &&
-        this.matchesOrderAmount(rule, input.orderSubtotalCents, input.currency),
+    const amountRules = method.rules.filter((rule) =>
+      this.matchesOrderAmount(rule, input.orderSubtotalCents, input.currency),
     );
+    const distanceIsRequired =
+      amountRules.length > 0 &&
+      amountRules.every((rule) => rule.maxDistanceKm != null);
 
     if (distanceKm == null && distanceIsRequired) {
-      if (profile.originLatitude == null && profile.originLongitude == null) {
+      if (
+        (input.origin ? input.origin.latitude : profile.originLatitude) ==
+          null &&
+        (input.origin ? input.origin.longitude : profile.originLongitude) ==
+          null
+      ) {
         throw new AppError(
           'Shipping origin coordinates are required to calculate delivery distance.',
           400,
@@ -115,7 +153,10 @@ export class ShippingService {
 
       shippingRuleId: rule.id,
 
-      amountCents: toMinorUnits(String(rule.flatRate), input.currency),
+      amountCents:
+        rule.rateType === 'FREE'
+          ? 0n
+          : toMinorUnits(String(rule.flatRate), input.currency),
 
       currency: profile.currency,
 
@@ -139,34 +180,27 @@ export class ShippingService {
     zones: Zone[],
     destination: ShippingCalculationInput['destination'],
   ) {
+    const normalize = (value: string | null | undefined) =>
+      value?.trim().toLowerCase();
     const countryMatches = zones.filter(
-      (zone) => zone.countryCode === destination.countryCode,
+      (zone) =>
+        zone.countryCode === destination.countryCode &&
+        (!zone.regionCode ||
+          normalize(zone.regionCode) === normalize(destination.regionCode)) &&
+        (!zone.city || normalize(zone.city) === normalize(destination.city)),
     );
 
     if (countryMatches.length === 0) {
       return null;
     }
 
-    const exactRegion = countryMatches.find(
-      (zone) => zone.regionCode && zone.regionCode === destination.regionCode,
-    );
-
-    if (exactRegion) {
-      return exactRegion;
-    }
-
-    const exactCity = countryMatches.find(
-      (zone) =>
-        zone.city &&
-        zone.city.toLowerCase() === destination.city?.toLowerCase(),
-    );
-
-    if (exactCity) {
-      return exactCity;
-    }
-
+    const specificity = (zone: Zone) =>
+      (zone.regionCode ? 2 : 0) + (zone.city ? 1 : 0);
     return (
-      countryMatches.find((zone) => !zone.regionCode && !zone.city) ?? null
+      countryMatches.sort(
+        (a, b) =>
+          specificity(b) - specificity(a) || a.code.localeCompare(b.code),
+      )[0] ?? null
     );
   }
 
@@ -234,6 +268,7 @@ export class ShippingService {
         continue;
       }
 
+      if (rule.maxDistanceKm != null && distanceKm == null) continue;
       if (!this.matchesDistance(rule, distanceKm)) {
         continue;
       }

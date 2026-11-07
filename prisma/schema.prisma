@@ -351,7 +351,7 @@ model ProductVariant {
 
   images ProductVariantImage[]
 
-  inventory Inventory?
+  inventory Inventory[]
 
   cartItems CartItem[]
 
@@ -400,7 +400,9 @@ model ProductVariantImage {
 
 model Inventory {
   id        String @id @default(uuid())
-  variantId String @unique
+  variantId String
+  tenantId String
+  warehouseId String
 
   quantity         Int @default(0)
   reservedQuantity Int @default(0)
@@ -411,6 +413,10 @@ model Inventory {
   variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
 
   transactions InventoryTransaction[]
+  warehouse Warehouse @relation(fields: [tenantId, warehouseId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([warehouseId, variantId])
+  @@index([tenantId, variantId])
 }
 
 model InventoryTransaction {
@@ -544,6 +550,9 @@ enum OrderStatus {
 }
 
 model Order {
+  warehouseId String?
+  fulfillmentSnapshot Json?
+  warehouse Warehouse? @relation(fields: [tenantId, warehouseId], references: [tenantId, id], onDelete: Restrict)
   id String @id @default(uuid())
 
   tenantId String
@@ -1235,8 +1244,8 @@ model ShippingMethod {
 }
 
 model ShippingRule {
-  // Preserve the historical flag without changing current rule selection.
-  isActive Boolean @default(true) @ignore
+  // Disabled rules remain available for historical shipping snapshots.
+  isActive Boolean @default(true)
   id String @id @default(uuid())
 
   methodId String
@@ -1281,6 +1290,8 @@ model Country {
   shippingProfiles ShippingProfile[]
 
   tenantsWithDefaultCountry Tenant[]
+  warehouses Warehouse[]
+  warehouseCoverage WarehouseCoverage[]
 
   @@index([isActive])
   @@index([currencyCode])
@@ -1307,6 +1318,7 @@ enum TenantMemberStatus {
 }
 
 model Tenant {
+  orderPolicy TenantOrderPolicy?
   id String @id @default(uuid())
 
   name      String
@@ -1351,8 +1363,62 @@ model Tenant {
 
   banners Banner[]
 
+  warehouses Warehouse[]
+
   @@index([status])
   @@index([defaultCountryCode])
+}
+
+// A physical fulfillment source. Its country is independent of its delivery coverage.
+model Warehouse {
+  id String @id @default(uuid())
+  tenantId String
+  code String
+  name String
+  description String?
+  countryCode String
+  region String?
+  city String
+  address String
+  latitude Decimal? @db.Decimal(10, 7)
+  longitude Decimal? @db.Decimal(10, 7)
+  isActive Boolean @default(true)
+  isDefault Boolean @default(false)
+  priority Int @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  country Country @relation(fields: [countryCode], references: [code], onDelete: Restrict)
+  inventory Inventory[]
+  orders Order[]
+  coverage WarehouseCoverage[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, code])
+  @@index([tenantId, isActive, priority])
+  @@index([countryCode])
+}
+
+model WarehouseCoverage {
+  tenantId String
+  warehouseId String
+  countryCode String
+  warehouse Warehouse @relation(fields: [tenantId, warehouseId], references: [tenantId, id], onDelete: Cascade)
+  country Country @relation(fields: [countryCode], references: [code], onDelete: Restrict)
+  @@id([warehouseId, countryCode])
+  @@index([tenantId, countryCode])
+}
+
+model TenantOrderPolicy {
+  tenantId String @id
+  minOrderAmount Decimal? @db.Decimal(14,4)
+  maxOrderAmount Decimal? @db.Decimal(14,4)
+  maxOrderItems Int?
+  maxDistinctItems Int?
+  maxQuantityPerItem Int?
+  updatedAt DateTime @updatedAt
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
 
 

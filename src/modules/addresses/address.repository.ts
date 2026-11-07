@@ -10,6 +10,13 @@ type PrismaTransaction = Prisma.TransactionClient;
 export class AddressRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
+  activeCountry(tx: PrismaTransaction, code: string) {
+    return tx.country.findFirst({
+      where: { code, isActive: true },
+      select: { code: true },
+    });
+  }
+
   async create(userId: string, data: CreateAddressInput) {
     return this.prisma.address.create({
       data: {
@@ -29,6 +36,8 @@ export class AddressRepository {
         state: data.state ?? null,
         postalCode: data.postalCode ?? null,
         countryCode: data.country,
+        latitude: data.latitude ?? null,
+        longitude: data.longitude ?? null,
 
         phone: data.phone ?? null,
 
@@ -62,6 +71,8 @@ export class AddressRepository {
         state: data.state ?? null,
         postalCode: data.postalCode ?? null,
         countryCode: data.country,
+        latitude: data.latitude ?? null,
+        longitude: data.longitude ?? null,
 
         phone: data.phone ?? null,
 

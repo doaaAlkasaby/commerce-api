@@ -8,6 +8,24 @@ import { checkoutService } from './checkout.service.instance.js';
 import type { CheckoutInput, CheckoutPreviewInput } from './checkout.types.js';
 
 export class CheckoutController {
+  shippingOptions: import('express').RequestHandler = async (
+    req,
+    res,
+    next,
+  ) => {
+    try {
+      res.json({
+        success: true,
+        message: null,
+        data: await checkoutService.shippingOptions(
+          req.validatedBody as CheckoutPreviewInput,
+          { tenantId: req.tenant!.tenantId, userId: req.user!.userId },
+        ),
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
   preview = async (
     req: Request,
     res: Response,

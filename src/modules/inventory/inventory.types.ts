@@ -1,8 +1,7 @@
-import type {
-  InventoryTransactionType,
-} from '../../generated/prisma/client.js';
+import type { InventoryTransactionType } from '../../generated/prisma/client.js';
 
 export interface CreateInventoryInput {
+  warehouseId?: string;
   variantId: string;
   quantity?: number;
 }
@@ -44,6 +43,7 @@ export interface SaleInput {
 }
 
 export interface InventoryListQuery {
+  warehouseId?: string;
   page: number;
   limit: number;
   variantId?: string;
@@ -51,6 +51,7 @@ export interface InventoryListQuery {
 }
 
 export interface InventoryResponse {
+  warehouseId: string;
   id: string;
   variantId: string;
 

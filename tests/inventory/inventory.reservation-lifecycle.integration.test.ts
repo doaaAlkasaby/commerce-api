@@ -1,4 +1,8 @@
 import {
+  createInventoryFixture,
+  deleteFixtureTenant,
+} from '../helpers/warehouse.js';
+import {
   afterAll,
   afterEach,
   beforeAll,
@@ -79,7 +83,7 @@ suite('inventory reservation lifecycle against PostgreSQL', () => {
       },
     });
     variantId = variant.id;
-    const inventory = await testPrisma.inventory.create({
+    const inventory = await createInventoryFixture({
       data: { variantId, quantity: 10, reservedQuantity: 0 },
     });
     inventoryId = inventory.id;
@@ -106,7 +110,7 @@ suite('inventory reservation lifecycle against PostgreSQL', () => {
     await cleanState();
     await testPrisma.product.delete({ where: { id: productId } });
     await testPrisma.category.delete({ where: { id: categoryId } });
-    await testPrisma.tenant.delete({ where: { id: tenantId } });
+    await deleteFixtureTenant({ where: { id: tenantId } });
     await testPrisma.user.delete({ where: { id: userId } });
   });
 

@@ -72,6 +72,13 @@ const mapDiscount = (entity: DiscountEntity) => {
 };
 
 const mapVariant = (variant: ProductVariant, product: ProductDetails) => {
+  const stock = variant.inventory
+    .slice()
+    .sort(
+      (a, b) =>
+        b.quantity - b.reservedQuantity - (a.quantity - a.reservedQuantity) ||
+        a.id.localeCompare(b.id),
+    )[0];
   const effectivePrice = calculateEffectivePrice(
     variant.price?.toString() ?? product.basePrice.toString(),
     mapDiscount(product),
@@ -112,16 +119,15 @@ const mapVariant = (variant: ProductVariant, product: ProductDetails) => {
       isPrimary: image.isPrimary,
     })),
 
-    inventory: variant.inventory
+    inventory: stock
       ? {
-          id: variant.inventory.id,
+          id: stock.id,
 
-          quantity: variant.inventory.quantity,
+          quantity: stock.quantity,
 
-          reservedQuantity: variant.inventory.reservedQuantity,
+          reservedQuantity: stock.reservedQuantity,
 
-          availableQuantity:
-            variant.inventory.quantity - variant.inventory.reservedQuantity,
+          availableQuantity: stock.quantity - stock.reservedQuantity,
         }
       : null,
   };

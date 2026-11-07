@@ -1,3 +1,4 @@
+import { deleteFixtureTenants } from './warehouse.js';
 import { randomUUID } from 'node:crypto';
 import { testPrisma } from '../../src/config/test-database.js';
 
@@ -23,7 +24,7 @@ export function catalogTenantFixture() {
       await testPrisma.product.deleteMany({ where: { tenantId: id } });
       await testPrisma.category.deleteMany({ where: { tenantId: id } });
       await testPrisma.brand.deleteMany({ where: { tenantId: id } });
-      await testPrisma.tenant.deleteMany({ where: { id } });
+      await deleteFixtureTenants({ where: { id } });
     },
   };
 }
