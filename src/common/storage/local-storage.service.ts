@@ -90,6 +90,9 @@ export const createLocalStorageService = (): StorageService => {
 
     delete: async (storageKey): Promise<void> => {
       const fullPath = safePath(storageKey);
+      // Bundled development art is immutable and shared by several fixture records.
+      // Removing/replacing a DB reference must not delete repository assets.
+      if (storageKey.startsWith('development-v82/')) return;
 
       try {
         await ensureInside(fullPath);

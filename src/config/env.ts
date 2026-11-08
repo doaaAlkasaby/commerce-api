@@ -1,6 +1,10 @@
 import { createHash } from 'node:crypto';
 import { securityConfigurationSchema } from './security-options.js';
 import { workerConfigurationSchema } from './worker-options.js';
+import {
+  emailConfigurationSchema,
+  validateEmailConfiguration,
+} from './email-options.js';
 import 'dotenv/config';
 import { z } from 'zod';
 import {
@@ -83,6 +87,7 @@ const envSchema = z
   })
   .extend(securityConfigurationSchema.shape)
   .extend(workerConfigurationSchema.shape)
+  .extend(emailConfigurationSchema.shape)
   .extend(databaseConfigurationSchema.shape)
   .extend(paymentConfigurationSchema.shape)
   .superRefine((config, ctx) => {
@@ -123,6 +128,7 @@ const envSchema = z
       });
   })
   .superRefine(validateDatabaseSecurity)
+  .superRefine(validateEmailConfiguration)
   .superRefine(validatePaymentConfiguration);
 
 const parsedEnv = envSchema.safeParse(process.env);

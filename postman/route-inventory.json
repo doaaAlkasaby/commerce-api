@@ -1,0 +1,4264 @@
+[
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/warehouses",
+    "source": "src/modules/warehouses/warehouse.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "GET /warehouses"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/warehouses/:id",
+    "source": "src/modules/warehouses/warehouse.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "GET /warehouses/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/warehouses",
+    "source": "src/modules/warehouses/warehouse.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [201],
+    "schemas": {
+      "body": {
+        "file": "src/modules/warehouses/warehouse.schemas.ts",
+        "name": "createWarehouseSchema",
+        "expression": "createWarehouseSchema"
+      }
+    },
+    "requestName": "POST /warehouses"
+  },
+  {
+    "method": "PATCH",
+    "path": "/{{apiPrefix}}/warehouses/:id",
+    "source": "src/modules/warehouses/warehouse.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "body": {
+        "file": "src/modules/warehouses/warehouse.schemas.ts",
+        "name": "updateWarehouseSchema",
+        "expression": "updateWarehouseSchema"
+      }
+    },
+    "requestName": "PATCH /warehouses/:id"
+  },
+  {
+    "method": "PUT",
+    "path": "/{{apiPrefix}}/warehouses/:id/coverage",
+    "source": "src/modules/warehouses/warehouse.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "PUT /warehouses/:id/coverage"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/order-policy",
+    "source": "src/modules/warehouses/order-policy.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "GET /order-policy"
+  },
+  {
+    "method": "PATCH",
+    "path": "/{{apiPrefix}}/order-policy",
+    "source": "src/modules/warehouses/order-policy.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "body": {
+        "file": "src/modules/warehouses/order-policy.service.ts",
+        "name": "orderPolicySchema",
+        "expression": "orderPolicySchema"
+      }
+    },
+    "requestName": "PATCH /order-policy"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/storefront/enroll",
+    "source": "src/modules/tenants/storefront.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200, 201],
+    "schemas": {},
+    "requestName": "POST /storefront/enroll"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/storefront",
+    "source": "src/modules/tenants/storefront.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "GET /storefront"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/health",
+    "source": "src/routes/health.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "GET /health"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/ready",
+    "source": "src/routes/health.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "GET /ready"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/countries",
+    "source": "src/modules/countries/country.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "GET /countries"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/auth/register",
+    "source": "src/modules/auth/auth.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [201],
+    "schemas": {
+      "body": {
+        "file": "src/modules/auth/auth.schemas.ts",
+        "name": "registerSchema",
+        "expression": "registerSchema"
+      }
+    },
+    "requestName": "POST /auth/register"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/auth/login",
+    "source": "src/modules/auth/auth.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "body": {
+        "file": "src/modules/auth/auth.schemas.ts",
+        "name": "loginSchema",
+        "expression": "loginSchema"
+      }
+    },
+    "requestName": "POST /auth/login"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/auth/refresh",
+    "source": "src/modules/auth/auth.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "body": {
+        "file": "src/modules/auth/auth.schemas.ts",
+        "name": "refreshSchema",
+        "expression": "refreshSchema"
+      }
+    },
+    "requestName": "POST /auth/refresh"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/auth/logout",
+    "source": "src/modules/auth/auth.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "body": {
+        "file": "src/modules/auth/auth.schemas.ts",
+        "name": "logoutSchema",
+        "expression": "logoutSchema"
+      }
+    },
+    "requestName": "POST /auth/logout"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/auth/verify-email",
+    "source": "src/modules/auth/auth.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "query": {
+        "file": "src/modules/auth/auth.schemas.ts",
+        "name": "verifyEmailSchema",
+        "expression": "verifyEmailSchema"
+      }
+    },
+    "requestName": "GET /auth/verify-email"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/auth/resend-verification",
+    "source": "src/modules/auth/auth.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "body": {
+        "file": "src/modules/auth/auth.schemas.ts",
+        "name": "resendVerificationSchema",
+        "expression": "resendVerificationSchema"
+      }
+    },
+    "requestName": "POST /auth/resend-verification"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/auth/forgot-password",
+    "source": "src/modules/auth/auth.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "body": {
+        "file": "src/modules/auth/auth.schemas.ts",
+        "name": "forgotPasswordSchema",
+        "expression": "forgotPasswordSchema"
+      }
+    },
+    "requestName": "POST /auth/forgot-password"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/auth/reset-password",
+    "source": "src/modules/auth/auth.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "body": {
+        "file": "src/modules/auth/auth.schemas.ts",
+        "name": "resetPasswordSchema",
+        "expression": "resetPasswordSchema"
+      }
+    },
+    "requestName": "POST /auth/reset-password"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/auth/change-password",
+    "source": "src/modules/auth/auth.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "body": {
+        "file": "src/modules/auth/auth.schemas.ts",
+        "name": "changePasswordSchema",
+        "expression": "changePasswordSchema"
+      }
+    },
+    "requestName": "POST /auth/change-password"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/auth/logout-all",
+    "source": "src/modules/auth/auth.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "POST /auth/logout-all"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/users/me",
+    "source": "src/modules/users/user.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "GET /users/me"
+  },
+  {
+    "method": "PATCH",
+    "path": "/{{apiPrefix}}/users/me",
+    "source": "src/modules/users/user.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "body": {
+        "file": "src/modules/users/user.schemas.ts",
+        "name": "updateProfileSchema",
+        "expression": "updateProfileSchema"
+      }
+    },
+    "requestName": "PATCH /users/me"
+  },
+  {
+    "method": "PATCH",
+    "path": "/{{apiPrefix}}/users/:id/status",
+    "source": "src/modules/users/user.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "adminAccessToken",
+      "management": false,
+      "globalAdmin": true
+    },
+    "statuses": [200],
+    "schemas": {
+      "body": {
+        "file": "src/modules/users/user.schemas.ts",
+        "name": "updateUserStatusSchema",
+        "expression": "updateUserStatusSchema"
+      }
+    },
+    "requestName": "PATCH /users/:id/status"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/users/admin-test",
+    "source": "src/modules/users/admin-test.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "adminAccessToken",
+      "management": false,
+      "globalAdmin": true
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "GET /users/admin-test"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/users/verified-test",
+    "source": "src/modules/users/verified-test.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": false,
+      "member": false,
+      "verified": true,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "GET /users/verified-test"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/categories/active",
+    "source": "src/modules/categories/category.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "GET /categories/active"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/categories",
+    "source": "src/modules/categories/category.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "GET /categories"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/categories/:id",
+    "source": "src/modules/categories/category.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/categories/category.schemas.ts",
+        "name": "categoryIdSchema",
+        "expression": "categoryIdSchema"
+      }
+    },
+    "requestName": "GET /categories/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/categories/:id/children",
+    "source": "src/modules/categories/category.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/categories/category.schemas.ts",
+        "name": "categoryIdSchema",
+        "expression": "categoryIdSchema"
+      }
+    },
+    "requestName": "GET /categories/:id/children"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/categories",
+    "source": "src/modules/categories/category.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [201],
+    "schemas": {
+      "body": {
+        "file": "src/modules/categories/category.schemas.ts",
+        "name": "createCategorySchema",
+        "expression": "createCategorySchema"
+      }
+    },
+    "requestName": "POST /categories"
+  },
+  {
+    "method": "PATCH",
+    "path": "/{{apiPrefix}}/categories/:id",
+    "source": "src/modules/categories/category.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/categories/category.schemas.ts",
+        "name": "categoryIdSchema",
+        "expression": "categoryIdSchema"
+      },
+      "body": {
+        "file": "src/modules/categories/category.schemas.ts",
+        "name": "updateCategorySchema",
+        "expression": "updateCategorySchema"
+      }
+    },
+    "requestName": "PATCH /categories/:id"
+  },
+  {
+    "method": "PATCH",
+    "path": "/{{apiPrefix}}/categories/:id/status",
+    "source": "src/modules/categories/category.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/categories/category.schemas.ts",
+        "name": "categoryIdSchema",
+        "expression": "categoryIdSchema"
+      }
+    },
+    "requestName": "PATCH /categories/:id/status"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/categories/:id/image",
+    "source": "src/modules/categories/category.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/categories/category.schemas.ts",
+        "name": "categoryIdSchema",
+        "expression": "categoryIdSchema"
+      }
+    },
+    "requestName": "POST /categories/:id/image"
+  },
+  {
+    "method": "DELETE",
+    "path": "/{{apiPrefix}}/categories/:id/image",
+    "source": "src/modules/categories/category.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/categories/category.schemas.ts",
+        "name": "categoryIdSchema",
+        "expression": "categoryIdSchema"
+      }
+    },
+    "requestName": "DELETE /categories/:id/image"
+  },
+  {
+    "method": "DELETE",
+    "path": "/{{apiPrefix}}/categories/:id",
+    "source": "src/modules/categories/category.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/categories/category.schemas.ts",
+        "name": "categoryIdSchema",
+        "expression": "categoryIdSchema"
+      }
+    },
+    "requestName": "DELETE /categories/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/brands/active",
+    "source": "src/modules/brands/brand.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "GET /brands/active"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/brands",
+    "source": "src/modules/brands/brand.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "GET /brands"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/brands/:id",
+    "source": "src/modules/brands/brand.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/brands/brand.schemas.ts",
+        "name": "brandIdSchema",
+        "expression": "brandIdSchema"
+      }
+    },
+    "requestName": "GET /brands/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/brands",
+    "source": "src/modules/brands/brand.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [201],
+    "schemas": {
+      "body": {
+        "file": "src/modules/brands/brand.schemas.ts",
+        "name": "createBrandSchema",
+        "expression": "createBrandSchema"
+      }
+    },
+    "requestName": "POST /brands"
+  },
+  {
+    "method": "PATCH",
+    "path": "/{{apiPrefix}}/brands/:id",
+    "source": "src/modules/brands/brand.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/brands/brand.schemas.ts",
+        "name": "brandIdSchema",
+        "expression": "brandIdSchema"
+      },
+      "body": {
+        "file": "src/modules/brands/brand.schemas.ts",
+        "name": "updateBrandSchema",
+        "expression": "updateBrandSchema"
+      }
+    },
+    "requestName": "PATCH /brands/:id"
+  },
+  {
+    "method": "PATCH",
+    "path": "/{{apiPrefix}}/brands/:id/status",
+    "source": "src/modules/brands/brand.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/brands/brand.schemas.ts",
+        "name": "brandIdSchema",
+        "expression": "brandIdSchema"
+      }
+    },
+    "requestName": "PATCH /brands/:id/status"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/brands/:id/image",
+    "source": "src/modules/brands/brand.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/brands/brand.schemas.ts",
+        "name": "brandIdSchema",
+        "expression": "brandIdSchema"
+      }
+    },
+    "requestName": "POST /brands/:id/image"
+  },
+  {
+    "method": "DELETE",
+    "path": "/{{apiPrefix}}/brands/:id/image",
+    "source": "src/modules/brands/brand.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/brands/brand.schemas.ts",
+        "name": "brandIdSchema",
+        "expression": "brandIdSchema"
+      }
+    },
+    "requestName": "DELETE /brands/:id/image"
+  },
+  {
+    "method": "DELETE",
+    "path": "/{{apiPrefix}}/brands/:id",
+    "source": "src/modules/brands/brand.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/brands/brand.schemas.ts",
+        "name": "brandIdSchema",
+        "expression": "brandIdSchema"
+      }
+    },
+    "requestName": "DELETE /brands/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/products/offers",
+    "source": "src/modules/products/product.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "query": {
+        "file": "src/modules/products/product.schemas.ts",
+        "name": "productListingQuerySchema",
+        "expression": "productListingQuerySchema"
+      }
+    },
+    "requestName": "GET /products/offers"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/products/best-sellers",
+    "source": "src/modules/products/product.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "query": {
+        "file": "src/modules/products/product.schemas.ts",
+        "name": "productListingQuerySchema",
+        "expression": "productListingQuerySchema"
+      }
+    },
+    "requestName": "GET /products/best-sellers"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/products/new-arrivals",
+    "source": "src/modules/products/product.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "query": {
+        "file": "src/modules/products/product.schemas.ts",
+        "name": "productListingQuerySchema",
+        "expression": "productListingQuerySchema"
+      }
+    },
+    "requestName": "GET /products/new-arrivals"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/products",
+    "source": "src/modules/products/product.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "query": {
+        "file": "src/modules/products/product.schemas.ts",
+        "name": "productListQuerySchema",
+        "expression": "productListQuerySchema"
+      }
+    },
+    "requestName": "GET /products"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/products/:id",
+    "source": "src/modules/products/product.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/products/product.schemas.ts",
+        "name": "productIdParamSchema",
+        "expression": "productIdParamSchema"
+      }
+    },
+    "requestName": "GET /products/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/products",
+    "source": "src/modules/products/product.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [201],
+    "schemas": {
+      "body": {
+        "file": "src/modules/products/product.schemas.ts",
+        "name": "createProductSchema",
+        "expression": "createProductSchema"
+      }
+    },
+    "requestName": "POST /products"
+  },
+  {
+    "method": "PATCH",
+    "path": "/{{apiPrefix}}/products/:id",
+    "source": "src/modules/products/product.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/products/product.schemas.ts",
+        "name": "productIdParamSchema",
+        "expression": "productIdParamSchema"
+      },
+      "body": {
+        "file": "src/modules/products/product.schemas.ts",
+        "name": "updateProductSchema",
+        "expression": "updateProductSchema"
+      }
+    },
+    "requestName": "PATCH /products/:id"
+  },
+  {
+    "method": "PATCH",
+    "path": "/{{apiPrefix}}/products/:id/status",
+    "source": "src/modules/products/product.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/products/product.schemas.ts",
+        "name": "productIdParamSchema",
+        "expression": "productIdParamSchema"
+      },
+      "body": {
+        "file": "src/modules/products/product.schemas.ts",
+        "name": "productStatusSchema",
+        "expression": "productStatusSchema"
+      }
+    },
+    "requestName": "PATCH /products/:id/status"
+  },
+  {
+    "method": "DELETE",
+    "path": "/{{apiPrefix}}/products/:id",
+    "source": "src/modules/products/product.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [204],
+    "schemas": {
+      "params": {
+        "file": "src/modules/products/product.schemas.ts",
+        "name": "productIdParamSchema",
+        "expression": "productIdParamSchema"
+      }
+    },
+    "requestName": "DELETE /products/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/product-images/product/:productId",
+    "source": "src/modules/product-images/product-image.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/product-images/product-image.schemas.ts",
+        "name": "productImageProductIdSchema",
+        "expression": "productImageProductIdSchema"
+      }
+    },
+    "requestName": "GET /product-images/product/:productId"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/product-images/:id",
+    "source": "src/modules/product-images/product-image.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/product-images/product-image.schemas.ts",
+        "name": "productImageIdSchema",
+        "expression": "productImageIdSchema"
+      }
+    },
+    "requestName": "GET /product-images/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/product-images",
+    "source": "src/modules/product-images/product-image.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [201],
+    "schemas": {
+      "body": {
+        "file": "src/modules/product-images/product-image.schemas.ts",
+        "name": "createProductImageSchema",
+        "expression": "createProductImageSchema"
+      }
+    },
+    "requestName": "POST /product-images"
+  },
+  {
+    "method": "PATCH",
+    "path": "/{{apiPrefix}}/product-images/:id",
+    "source": "src/modules/product-images/product-image.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/product-images/product-image.schemas.ts",
+        "name": "productImageIdSchema",
+        "expression": "productImageIdSchema"
+      },
+      "body": {
+        "file": "src/modules/product-images/product-image.schemas.ts",
+        "name": "updateProductImageSchema",
+        "expression": "updateProductImageSchema"
+      }
+    },
+    "requestName": "PATCH /product-images/:id"
+  },
+  {
+    "method": "PATCH",
+    "path": "/{{apiPrefix}}/product-images/:id/primary",
+    "source": "src/modules/product-images/product-image.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/product-images/product-image.schemas.ts",
+        "name": "productImageIdSchema",
+        "expression": "productImageIdSchema"
+      }
+    },
+    "requestName": "PATCH /product-images/:id/primary"
+  },
+  {
+    "method": "DELETE",
+    "path": "/{{apiPrefix}}/product-images/:id",
+    "source": "src/modules/product-images/product-image.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/product-images/product-image.schemas.ts",
+        "name": "productImageIdSchema",
+        "expression": "productImageIdSchema"
+      }
+    },
+    "requestName": "DELETE /product-images/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/product-images/upload",
+    "source": "src/modules/product-images/product-image.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [201],
+    "schemas": {
+      "body": {
+        "file": "src/modules/product-images/product-image.schemas.ts",
+        "name": "uploadProductImageSchema",
+        "expression": "uploadProductImageSchema"
+      }
+    },
+    "requestName": "POST /product-images/upload"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/inventory",
+    "source": "src/modules/inventory/inventory.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "query": {
+        "file": "src/modules/inventory/inventory.schemas.ts",
+        "name": "inventoryListQuerySchema",
+        "expression": "inventoryListQuerySchema"
+      }
+    },
+    "requestName": "GET /inventory"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/inventory",
+    "source": "src/modules/inventory/inventory.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [201],
+    "schemas": {
+      "body": {
+        "file": "src/modules/inventory/inventory.schemas.ts",
+        "name": "createInventorySchema",
+        "expression": "createInventorySchema"
+      }
+    },
+    "requestName": "POST /inventory"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/inventory/variant/:variantId",
+    "source": "src/modules/inventory/inventory.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/inventory/inventory.schemas.ts",
+        "name": "inventoryVariantParamsSchema",
+        "expression": "inventoryVariantParamsSchema"
+      }
+    },
+    "requestName": "GET /inventory/variant/:variantId"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/inventory/:id",
+    "source": "src/modules/inventory/inventory.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/inventory/inventory.schemas.ts",
+        "name": "inventoryIdParamsSchema",
+        "expression": "inventoryIdParamsSchema"
+      }
+    },
+    "requestName": "GET /inventory/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/inventory/:id/transactions",
+    "source": "src/modules/inventory/inventory.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/inventory/inventory.schemas.ts",
+        "name": "inventoryIdParamsSchema",
+        "expression": "inventoryIdParamsSchema"
+      },
+      "query": {
+        "file": "src/modules/inventory/inventory.schemas.ts",
+        "name": "transactionListQuerySchema",
+        "expression": "transactionListQuerySchema"
+      }
+    },
+    "requestName": "GET /inventory/:id/transactions"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/inventory/:id/stock-in",
+    "source": "src/modules/inventory/inventory.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/inventory/inventory.schemas.ts",
+        "name": "inventoryIdParamsSchema",
+        "expression": "inventoryIdParamsSchema"
+      },
+      "body": {
+        "file": "src/modules/inventory/inventory.schemas.ts",
+        "name": "stockInSchema",
+        "expression": "stockInSchema"
+      }
+    },
+    "requestName": "POST /inventory/:id/stock-in"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/inventory/:id/stock-out",
+    "source": "src/modules/inventory/inventory.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/inventory/inventory.schemas.ts",
+        "name": "inventoryIdParamsSchema",
+        "expression": "inventoryIdParamsSchema"
+      },
+      "body": {
+        "file": "src/modules/inventory/inventory.schemas.ts",
+        "name": "stockOutSchema",
+        "expression": "stockOutSchema"
+      }
+    },
+    "requestName": "POST /inventory/:id/stock-out"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/inventory/:id/adjust",
+    "source": "src/modules/inventory/inventory.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/inventory/inventory.schemas.ts",
+        "name": "inventoryIdParamsSchema",
+        "expression": "inventoryIdParamsSchema"
+      },
+      "body": {
+        "file": "src/modules/inventory/inventory.schemas.ts",
+        "name": "adjustmentSchema",
+        "expression": "adjustmentSchema"
+      }
+    },
+    "requestName": "POST /inventory/:id/adjust"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/inventory/:id/reserve",
+    "source": "src/modules/inventory/inventory.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/inventory/inventory.schemas.ts",
+        "name": "inventoryIdParamsSchema",
+        "expression": "inventoryIdParamsSchema"
+      },
+      "body": {
+        "file": "src/modules/inventory/inventory.schemas.ts",
+        "name": "reservationSchema",
+        "expression": "reservationSchema"
+      }
+    },
+    "requestName": "POST /inventory/:id/reserve"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/inventory/:id/release",
+    "source": "src/modules/inventory/inventory.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/inventory/inventory.schemas.ts",
+        "name": "inventoryIdParamsSchema",
+        "expression": "inventoryIdParamsSchema"
+      },
+      "body": {
+        "file": "src/modules/inventory/inventory.schemas.ts",
+        "name": "releaseSchema",
+        "expression": "releaseSchema"
+      }
+    },
+    "requestName": "POST /inventory/:id/release"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/inventory/:id/sale",
+    "source": "src/modules/inventory/inventory.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/inventory/inventory.schemas.ts",
+        "name": "inventoryIdParamsSchema",
+        "expression": "inventoryIdParamsSchema"
+      },
+      "body": {
+        "file": "src/modules/inventory/inventory.schemas.ts",
+        "name": "saleSchema",
+        "expression": "saleSchema"
+      }
+    },
+    "requestName": "POST /inventory/:id/sale"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/cart",
+    "source": "src/modules/cart/cart.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "GET /cart"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/cart/items",
+    "source": "src/modules/cart/cart.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "body": {
+        "file": "src/modules/cart/cart.schemas.ts",
+        "name": "addCartItemSchema",
+        "expression": "addCartItemSchema"
+      }
+    },
+    "requestName": "POST /cart/items"
+  },
+  {
+    "method": "PATCH",
+    "path": "/{{apiPrefix}}/cart/items/:variantId",
+    "source": "src/modules/cart/cart.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/cart/cart.schemas.ts",
+        "name": "cartVariantParamsSchema",
+        "expression": "cartVariantParamsSchema"
+      },
+      "body": {
+        "file": "src/modules/cart/cart.schemas.ts",
+        "name": "updateCartItemSchema",
+        "expression": "updateCartItemSchema"
+      }
+    },
+    "requestName": "PATCH /cart/items/:variantId"
+  },
+  {
+    "method": "DELETE",
+    "path": "/{{apiPrefix}}/cart/items/:variantId",
+    "source": "src/modules/cart/cart.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/cart/cart.schemas.ts",
+        "name": "cartVariantParamsSchema",
+        "expression": "cartVariantParamsSchema"
+      }
+    },
+    "requestName": "DELETE /cart/items/:variantId"
+  },
+  {
+    "method": "DELETE",
+    "path": "/{{apiPrefix}}/cart",
+    "source": "src/modules/cart/cart.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "DELETE /cart"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/products/:productId/reviews",
+    "source": "src/modules/product-reviews/product-review.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/product-reviews/product-review.schemas.ts",
+        "name": "productReviewProductIdParamSchema",
+        "expression": "productReviewProductIdParamSchema"
+      },
+      "query": {
+        "file": "src/modules/product-reviews/product-review.schemas.ts",
+        "name": "productReviewListQuerySchema",
+        "expression": "productReviewListQuerySchema"
+      }
+    },
+    "requestName": "GET /products/:productId/reviews"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/products/:productId/reviews/summary",
+    "source": "src/modules/product-reviews/product-review.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/product-reviews/product-review.schemas.ts",
+        "name": "productReviewProductIdParamSchema",
+        "expression": "productReviewProductIdParamSchema"
+      }
+    },
+    "requestName": "GET /products/:productId/reviews/summary"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/products/:productId/reviews",
+    "source": "src/modules/product-reviews/product-review.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [201],
+    "schemas": {
+      "params": {
+        "file": "src/modules/product-reviews/product-review.schemas.ts",
+        "name": "productReviewProductIdParamSchema",
+        "expression": "productReviewProductIdParamSchema"
+      },
+      "body": {
+        "file": "src/modules/product-reviews/product-review.schemas.ts",
+        "name": "createProductReviewSchema",
+        "expression": "createProductReviewSchema"
+      }
+    },
+    "requestName": "POST /products/:productId/reviews"
+  },
+  {
+    "method": "PATCH",
+    "path": "/{{apiPrefix}}/products/:productId/reviews/:reviewId",
+    "source": "src/modules/product-reviews/product-review.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/product-reviews/product-review.schemas.ts",
+        "name": "productReviewIdParamSchema",
+        "expression": "productReviewIdParamSchema"
+      },
+      "body": {
+        "file": "src/modules/product-reviews/product-review.schemas.ts",
+        "name": "updateProductReviewSchema",
+        "expression": "updateProductReviewSchema"
+      }
+    },
+    "requestName": "PATCH /products/:productId/reviews/:reviewId"
+  },
+  {
+    "method": "DELETE",
+    "path": "/{{apiPrefix}}/products/:productId/reviews/:reviewId",
+    "source": "src/modules/product-reviews/product-review.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/product-reviews/product-review.schemas.ts",
+        "name": "productReviewIdParamSchema",
+        "expression": "productReviewIdParamSchema"
+      }
+    },
+    "requestName": "DELETE /products/:productId/reviews/:reviewId"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/product-variants",
+    "source": "src/modules/product-variants/product-variant.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [201],
+    "schemas": {
+      "body": {
+        "file": "src/modules/product-variants/product-variant.schemas.ts",
+        "name": "createProductVariantSchema",
+        "expression": "createProductVariantSchema"
+      }
+    },
+    "requestName": "POST /product-variants"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/product-variants/:id",
+    "source": "src/modules/product-variants/product-variant.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/product-variants/product-variant.schemas.ts",
+        "name": "productVariantIdParamsSchema",
+        "expression": "productVariantIdParamsSchema"
+      }
+    },
+    "requestName": "GET /product-variants/:id"
+  },
+  {
+    "method": "PATCH",
+    "path": "/{{apiPrefix}}/product-variants/:id",
+    "source": "src/modules/product-variants/product-variant.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/product-variants/product-variant.schemas.ts",
+        "name": "productVariantIdParamsSchema",
+        "expression": "productVariantIdParamsSchema"
+      },
+      "body": {
+        "file": "src/modules/product-variants/product-variant.schemas.ts",
+        "name": "updateProductVariantSchema",
+        "expression": "updateProductVariantSchema"
+      }
+    },
+    "requestName": "PATCH /product-variants/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/{{apiPrefix}}/product-variants/:id",
+    "source": "src/modules/product-variants/product-variant.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [204],
+    "schemas": {
+      "params": {
+        "file": "src/modules/product-variants/product-variant.schemas.ts",
+        "name": "productVariantIdParamsSchema",
+        "expression": "productVariantIdParamsSchema"
+      }
+    },
+    "requestName": "DELETE /product-variants/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/product-attributes",
+    "source": "src/modules/product-attributes/product-attribute.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [201],
+    "schemas": {
+      "body": {
+        "file": "src/modules/product-attributes/product-attribute.schemas.ts",
+        "name": "createProductAttributeSchema",
+        "expression": "createProductAttributeSchema"
+      }
+    },
+    "requestName": "POST /product-attributes"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/product-attributes/product/:productId",
+    "source": "src/modules/product-attributes/product-attribute.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/product-attributes/product-attribute.schemas.ts",
+        "name": "productIdParamsSchema",
+        "expression": "productIdParamsSchema"
+      }
+    },
+    "requestName": "GET /product-attributes/product/:productId"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/product-attributes/:id",
+    "source": "src/modules/product-attributes/product-attribute.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/product-attributes/product-attribute.schemas.ts",
+        "name": "productAttributeIdParamsSchema",
+        "expression": "productAttributeIdParamsSchema"
+      }
+    },
+    "requestName": "GET /product-attributes/:id"
+  },
+  {
+    "method": "PATCH",
+    "path": "/{{apiPrefix}}/product-attributes/:id",
+    "source": "src/modules/product-attributes/product-attribute.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/product-attributes/product-attribute.schemas.ts",
+        "name": "productAttributeIdParamsSchema",
+        "expression": "productAttributeIdParamsSchema"
+      },
+      "body": {
+        "file": "src/modules/product-attributes/product-attribute.schemas.ts",
+        "name": "updateProductAttributeSchema",
+        "expression": "updateProductAttributeSchema"
+      }
+    },
+    "requestName": "PATCH /product-attributes/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/{{apiPrefix}}/product-attributes/:id",
+    "source": "src/modules/product-attributes/product-attribute.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [204],
+    "schemas": {
+      "params": {
+        "file": "src/modules/product-attributes/product-attribute.schemas.ts",
+        "name": "productAttributeIdParamsSchema",
+        "expression": "productAttributeIdParamsSchema"
+      }
+    },
+    "requestName": "DELETE /product-attributes/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/product-attributes/:attributeId/values",
+    "source": "src/modules/product-attributes/product-attribute.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [201],
+    "schemas": {
+      "params": {
+        "file": "src/modules/product-attributes/product-attribute.schemas.ts",
+        "name": "attributeIdParamsSchema",
+        "expression": "attributeIdParamsSchema"
+      },
+      "body": {
+        "file": "src/modules/product-attributes/product-attribute.schemas.ts",
+        "name": "createProductAttributeValueSchema",
+        "expression": "createProductAttributeValueSchema.omit({\n      attributeId: true,\n    })"
+      }
+    },
+    "requestName": "POST /product-attributes/:attributeId/values"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/product-attributes/values/:valueId",
+    "source": "src/modules/product-attributes/product-attribute.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/product-attributes/product-attribute.schemas.ts",
+        "name": "productAttributeValueIdParamsSchema",
+        "expression": "productAttributeValueIdParamsSchema"
+      }
+    },
+    "requestName": "GET /product-attributes/values/:valueId"
+  },
+  {
+    "method": "PATCH",
+    "path": "/{{apiPrefix}}/product-attributes/values/:valueId",
+    "source": "src/modules/product-attributes/product-attribute.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/product-attributes/product-attribute.schemas.ts",
+        "name": "productAttributeValueIdParamsSchema",
+        "expression": "productAttributeValueIdParamsSchema"
+      },
+      "body": {
+        "file": "src/modules/product-attributes/product-attribute.schemas.ts",
+        "name": "updateProductAttributeValueSchema",
+        "expression": "updateProductAttributeValueSchema"
+      }
+    },
+    "requestName": "PATCH /product-attributes/values/:valueId"
+  },
+  {
+    "method": "DELETE",
+    "path": "/{{apiPrefix}}/product-attributes/values/:valueId",
+    "source": "src/modules/product-attributes/product-attribute.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [204],
+    "schemas": {
+      "params": {
+        "file": "src/modules/product-attributes/product-attribute.schemas.ts",
+        "name": "productAttributeValueIdParamsSchema",
+        "expression": "productAttributeValueIdParamsSchema"
+      }
+    },
+    "requestName": "DELETE /product-attributes/values/:valueId"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/product-attributes/values/:valueId/image",
+    "source": "src/modules/product-attributes/product-attribute.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/product-attributes/product-attribute.schemas.ts",
+        "name": "productAttributeValueIdParamsSchema",
+        "expression": "productAttributeValueIdParamsSchema"
+      }
+    },
+    "requestName": "POST /product-attributes/values/:valueId/image"
+  },
+  {
+    "method": "DELETE",
+    "path": "/{{apiPrefix}}/product-attributes/values/:valueId/image",
+    "source": "src/modules/product-attributes/product-attribute.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/product-attributes/product-attribute.schemas.ts",
+        "name": "productAttributeValueIdParamsSchema",
+        "expression": "productAttributeValueIdParamsSchema"
+      }
+    },
+    "requestName": "DELETE /product-attributes/values/:valueId/image"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/product-variant-images/variant/:variantId",
+    "source": "src/modules/product-variant-images/product-variant-image.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/product-variant-images/product-variant-image.schemas.ts",
+        "name": "productVariantIdParamsSchema",
+        "expression": "productVariantIdParamsSchema"
+      }
+    },
+    "requestName": "GET /product-variant-images/variant/:variantId"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/product-variant-images/:id",
+    "source": "src/modules/product-variant-images/product-variant-image.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/product-variant-images/product-variant-image.schemas.ts",
+        "name": "productVariantImageIdParamsSchema",
+        "expression": "productVariantImageIdParamsSchema"
+      }
+    },
+    "requestName": "GET /product-variant-images/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/product-variant-images/upload",
+    "source": "src/modules/product-variant-images/product-variant-image.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [201],
+    "schemas": {
+      "body": {
+        "file": "src/modules/product-variant-images/product-variant-image.schemas.ts",
+        "name": "uploadProductVariantImageSchema",
+        "expression": "uploadProductVariantImageSchema"
+      }
+    },
+    "requestName": "POST /product-variant-images/upload"
+  },
+  {
+    "method": "PATCH",
+    "path": "/{{apiPrefix}}/product-variant-images/:id",
+    "source": "src/modules/product-variant-images/product-variant-image.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/product-variant-images/product-variant-image.schemas.ts",
+        "name": "productVariantImageIdParamsSchema",
+        "expression": "productVariantImageIdParamsSchema"
+      },
+      "body": {
+        "file": "src/modules/product-variant-images/product-variant-image.schemas.ts",
+        "name": "updateProductVariantImageSchema",
+        "expression": "updateProductVariantImageSchema"
+      }
+    },
+    "requestName": "PATCH /product-variant-images/:id"
+  },
+  {
+    "method": "PATCH",
+    "path": "/{{apiPrefix}}/product-variant-images/:id/primary",
+    "source": "src/modules/product-variant-images/product-variant-image.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/product-variant-images/product-variant-image.schemas.ts",
+        "name": "productVariantImageIdParamsSchema",
+        "expression": "productVariantImageIdParamsSchema"
+      }
+    },
+    "requestName": "PATCH /product-variant-images/:id/primary"
+  },
+  {
+    "method": "DELETE",
+    "path": "/{{apiPrefix}}/product-variant-images/:id",
+    "source": "src/modules/product-variant-images/product-variant-image.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [204],
+    "schemas": {
+      "params": {
+        "file": "src/modules/product-variant-images/product-variant-image.schemas.ts",
+        "name": "productVariantImageIdParamsSchema",
+        "expression": "productVariantImageIdParamsSchema"
+      }
+    },
+    "requestName": "DELETE /product-variant-images/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/home",
+    "source": "src/modules/home/home.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "query": {
+        "file": "src/modules/home/home.schemas.ts",
+        "name": "homeQuerySchema",
+        "expression": "homeQuerySchema"
+      }
+    },
+    "requestName": "GET /home"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/collections",
+    "source": "src/modules/product-collections/product-collection.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "GET /collections"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/collections/:id/products",
+    "source": "src/modules/product-collections/product-collection.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/product-collections/product-collection.schemas.ts",
+        "name": "collectionIdParamsSchema",
+        "expression": "collectionIdParamsSchema"
+      },
+      "query": {
+        "file": "src/modules/product-collections/product-collection.schemas.ts",
+        "name": "collectionProductsQuerySchema",
+        "expression": "collectionProductsQuerySchema"
+      }
+    },
+    "requestName": "GET /collections/:id/products"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/collections/:id",
+    "source": "src/modules/product-collections/product-collection.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/product-collections/product-collection.schemas.ts",
+        "name": "collectionIdParamsSchema",
+        "expression": "collectionIdParamsSchema"
+      }
+    },
+    "requestName": "GET /collections/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/collections",
+    "source": "src/modules/product-collections/product-collection.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [201],
+    "schemas": {
+      "body": {
+        "file": "src/modules/product-collections/product-collection.schemas.ts",
+        "name": "createProductCollectionSchema",
+        "expression": "createProductCollectionSchema"
+      }
+    },
+    "requestName": "POST /collections"
+  },
+  {
+    "method": "PATCH",
+    "path": "/{{apiPrefix}}/collections/:id",
+    "source": "src/modules/product-collections/product-collection.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/product-collections/product-collection.schemas.ts",
+        "name": "collectionIdParamsSchema",
+        "expression": "collectionIdParamsSchema"
+      },
+      "body": {
+        "file": "src/modules/product-collections/product-collection.schemas.ts",
+        "name": "updateProductCollectionSchema",
+        "expression": "updateProductCollectionSchema"
+      }
+    },
+    "requestName": "PATCH /collections/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/{{apiPrefix}}/collections/:id",
+    "source": "src/modules/product-collections/product-collection.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/product-collections/product-collection.schemas.ts",
+        "name": "collectionIdParamsSchema",
+        "expression": "collectionIdParamsSchema"
+      }
+    },
+    "requestName": "DELETE /collections/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/collections/:id/products",
+    "source": "src/modules/product-collections/product-collection.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [201],
+    "schemas": {
+      "params": {
+        "file": "src/modules/product-collections/product-collection.schemas.ts",
+        "name": "collectionIdParamsSchema",
+        "expression": "collectionIdParamsSchema"
+      },
+      "body": {
+        "file": "src/modules/product-collections/product-collection.schemas.ts",
+        "name": "addProductToCollectionSchema",
+        "expression": "addProductToCollectionSchema"
+      }
+    },
+    "requestName": "POST /collections/:id/products"
+  },
+  {
+    "method": "DELETE",
+    "path": "/{{apiPrefix}}/collections/:id/products/:productId",
+    "source": "src/modules/product-collections/product-collection.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/product-collections/product-collection.schemas.ts",
+        "name": "collectionProductParamsSchema",
+        "expression": "collectionProductParamsSchema"
+      }
+    },
+    "requestName": "DELETE /collections/:id/products/:productId"
+  },
+  {
+    "method": "PATCH",
+    "path": "/{{apiPrefix}}/collections/:id/products/:productId/order",
+    "source": "src/modules/product-collections/product-collection.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/product-collections/product-collection.schemas.ts",
+        "name": "collectionProductParamsSchema",
+        "expression": "collectionProductParamsSchema"
+      },
+      "body": {
+        "file": "src/modules/product-collections/product-collection.schemas.ts",
+        "name": "updateCollectionProductOrderSchema",
+        "expression": "updateCollectionProductOrderSchema"
+      }
+    },
+    "requestName": "PATCH /collections/:id/products/:productId/order"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/wishlist",
+    "source": "src/modules/wishlist/wishlist.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "GET /wishlist"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/wishlist/items",
+    "source": "src/modules/wishlist/wishlist.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [201],
+    "schemas": {
+      "body": {
+        "file": "src/modules/wishlist/wishlist.schemas.ts",
+        "name": "addWishlistItemSchema",
+        "expression": "addWishlistItemSchema"
+      }
+    },
+    "requestName": "POST /wishlist/items"
+  },
+  {
+    "method": "DELETE",
+    "path": "/{{apiPrefix}}/wishlist/items/:productId",
+    "source": "src/modules/wishlist/wishlist.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/wishlist/wishlist.schemas.ts",
+        "name": "wishlistProductParamsSchema",
+        "expression": "wishlistProductParamsSchema"
+      }
+    },
+    "requestName": "DELETE /wishlist/items/:productId"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/wishlist/check/:productId",
+    "source": "src/modules/wishlist/wishlist.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/wishlist/wishlist.schemas.ts",
+        "name": "wishlistProductParamsSchema",
+        "expression": "wishlistProductParamsSchema"
+      }
+    },
+    "requestName": "GET /wishlist/check/:productId"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/banners",
+    "source": "src/modules/banners/banner.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "GET /banners"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/banners/:id",
+    "source": "src/modules/banners/banner.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/banners/banner.schemas.ts",
+        "name": "bannerIdParamsSchema",
+        "expression": "bannerIdParamsSchema"
+      }
+    },
+    "requestName": "GET /banners/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/banners/admin/all",
+    "source": "src/modules/banners/banner.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "GET /banners/admin/all"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/banners",
+    "source": "src/modules/banners/banner.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [201],
+    "schemas": {
+      "body": {
+        "file": "src/modules/banners/banner.schemas.ts",
+        "name": "createBannerSchema",
+        "expression": "createBannerSchema"
+      }
+    },
+    "requestName": "POST /banners"
+  },
+  {
+    "method": "PATCH",
+    "path": "/{{apiPrefix}}/banners/:id",
+    "source": "src/modules/banners/banner.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/banners/banner.schemas.ts",
+        "name": "bannerIdParamsSchema",
+        "expression": "bannerIdParamsSchema"
+      },
+      "body": {
+        "file": "src/modules/banners/banner.schemas.ts",
+        "name": "updateBannerSchema",
+        "expression": "updateBannerSchema"
+      }
+    },
+    "requestName": "PATCH /banners/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/{{apiPrefix}}/banners/:id",
+    "source": "src/modules/banners/banner.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/banners/banner.schemas.ts",
+        "name": "bannerIdParamsSchema",
+        "expression": "bannerIdParamsSchema"
+      }
+    },
+    "requestName": "DELETE /banners/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/addresses",
+    "source": "src/modules/addresses/address.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [201],
+    "schemas": {
+      "body": {
+        "file": "src/modules/addresses/address.schemas.ts",
+        "name": "createAddressSchema",
+        "expression": "createAddressSchema"
+      }
+    },
+    "requestName": "POST /addresses"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/addresses",
+    "source": "src/modules/addresses/address.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "GET /addresses"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/addresses/:id",
+    "source": "src/modules/addresses/address.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/addresses/address.schemas.ts",
+        "name": "addressIdParamsSchema",
+        "expression": "addressIdParamsSchema"
+      }
+    },
+    "requestName": "GET /addresses/:id"
+  },
+  {
+    "method": "PATCH",
+    "path": "/{{apiPrefix}}/addresses/:id",
+    "source": "src/modules/addresses/address.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/addresses/address.schemas.ts",
+        "name": "addressIdParamsSchema",
+        "expression": "addressIdParamsSchema"
+      },
+      "body": {
+        "file": "src/modules/addresses/address.schemas.ts",
+        "name": "updateAddressSchema",
+        "expression": "updateAddressSchema"
+      }
+    },
+    "requestName": "PATCH /addresses/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/{{apiPrefix}}/addresses/:id",
+    "source": "src/modules/addresses/address.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/addresses/address.schemas.ts",
+        "name": "addressIdParamsSchema",
+        "expression": "addressIdParamsSchema"
+      }
+    },
+    "requestName": "DELETE /addresses/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/addresses/:id/default-shipping",
+    "source": "src/modules/addresses/address.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/addresses/address.schemas.ts",
+        "name": "addressIdParamsSchema",
+        "expression": "addressIdParamsSchema"
+      }
+    },
+    "requestName": "POST /addresses/:id/default-shipping"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/addresses/:id/default-billing",
+    "source": "src/modules/addresses/address.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/addresses/address.schemas.ts",
+        "name": "addressIdParamsSchema",
+        "expression": "addressIdParamsSchema"
+      }
+    },
+    "requestName": "POST /addresses/:id/default-billing"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/coupons/validate",
+    "source": "src/modules/coupons/coupon.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "body": {
+        "file": "src/modules/coupons/coupon.schemas.ts",
+        "name": "validateCouponSchema",
+        "expression": "validateCouponSchema"
+      }
+    },
+    "requestName": "POST /coupons/validate"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/coupons",
+    "source": "src/modules/coupons/coupon.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [201],
+    "schemas": {
+      "body": {
+        "file": "src/modules/coupons/coupon.schemas.ts",
+        "name": "createCouponSchema",
+        "expression": "createCouponSchema"
+      }
+    },
+    "requestName": "POST /coupons"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/coupons",
+    "source": "src/modules/coupons/coupon.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "GET /coupons"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/coupons/:id",
+    "source": "src/modules/coupons/coupon.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/coupons/coupon.schemas.ts",
+        "name": "couponIdParamsSchema",
+        "expression": "couponIdParamsSchema"
+      }
+    },
+    "requestName": "GET /coupons/:id"
+  },
+  {
+    "method": "PATCH",
+    "path": "/{{apiPrefix}}/coupons/:id",
+    "source": "src/modules/coupons/coupon.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/coupons/coupon.schemas.ts",
+        "name": "couponIdParamsSchema",
+        "expression": "couponIdParamsSchema"
+      },
+      "body": {
+        "file": "src/modules/coupons/coupon.schemas.ts",
+        "name": "updateCouponSchema",
+        "expression": "updateCouponSchema"
+      }
+    },
+    "requestName": "PATCH /coupons/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/{{apiPrefix}}/coupons/:id",
+    "source": "src/modules/coupons/coupon.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [204],
+    "schemas": {
+      "params": {
+        "file": "src/modules/coupons/coupon.schemas.ts",
+        "name": "couponIdParamsSchema",
+        "expression": "couponIdParamsSchema"
+      }
+    },
+    "requestName": "DELETE /coupons/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/payments/:id/verify",
+    "source": "src/modules/payments/payment.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/payments/payment.schemas.ts",
+        "name": "paymentIdParamsSchema",
+        "expression": "paymentIdParamsSchema"
+      },
+      "body": {
+        "file": "src/modules/payments/payment.schemas.ts",
+        "name": "initiatePaymentSchema",
+        "expression": "initiatePaymentSchema"
+      }
+    },
+    "requestName": "POST /payments/:id/verify"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/payments/:id/initiate",
+    "source": "src/modules/payments/payment.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/payments/payment.schemas.ts",
+        "name": "paymentIdParamsSchema",
+        "expression": "paymentIdParamsSchema"
+      },
+      "body": {
+        "file": "src/modules/payments/payment.schemas.ts",
+        "name": "initiatePaymentSchema",
+        "expression": "initiatePaymentSchema"
+      }
+    },
+    "requestName": "POST /payments/:id/initiate"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/payments/:id",
+    "source": "src/modules/payments/payment.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/payments/payment.schemas.ts",
+        "name": "paymentIdParamsSchema",
+        "expression": "paymentIdParamsSchema"
+      }
+    },
+    "requestName": "GET /payments/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/payments/order/:orderId",
+    "source": "src/modules/payments/payment.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/payments/payment.schemas.ts",
+        "name": "orderIdParamsSchema",
+        "expression": "orderIdParamsSchema"
+      }
+    },
+    "requestName": "GET /payments/order/:orderId"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/payments",
+    "source": "src/modules/payments/payment.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "query": {
+        "file": "src/modules/payments/payment.schemas.ts",
+        "name": "paymentListQuerySchema",
+        "expression": "paymentListQuerySchema"
+      }
+    },
+    "requestName": "GET /payments"
+  },
+  {
+    "method": "PATCH",
+    "path": "/{{apiPrefix}}/payments/:id/status",
+    "source": "src/modules/payments/payment.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/payments/payment.schemas.ts",
+        "name": "paymentIdParamsSchema",
+        "expression": "paymentIdParamsSchema"
+      },
+      "body": {
+        "file": "src/modules/payments/payment.schemas.ts",
+        "name": "updatePaymentStatusSchema",
+        "expression": "updatePaymentStatusSchema"
+      }
+    },
+    "requestName": "PATCH /payments/:id/status"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/payments/:id/cancel",
+    "source": "src/modules/payments/payment.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/payments/payment.schemas.ts",
+        "name": "paymentIdParamsSchema",
+        "expression": "paymentIdParamsSchema"
+      }
+    },
+    "requestName": "POST /payments/:id/cancel"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/payments/:id/refund",
+    "source": "src/modules/payments/payment.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/payments/payment.schemas.ts",
+        "name": "paymentIdParamsSchema",
+        "expression": "paymentIdParamsSchema"
+      },
+      "body": {
+        "file": "src/modules/payments/payment.schemas.ts",
+        "name": "refundPaymentSchema",
+        "expression": "refundPaymentSchema"
+      }
+    },
+    "requestName": "POST /payments/:id/refund"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/checkout/shipping-options",
+    "source": "src/modules/checkout/checkout.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": true,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "body": {
+        "file": "src/modules/checkout/checkout.schemas.ts",
+        "name": "checkoutPreviewSchema",
+        "expression": "checkoutPreviewSchema"
+      }
+    },
+    "requestName": "POST /checkout/shipping-options"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/checkout/preview",
+    "source": "src/modules/checkout/checkout.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": true,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "body": {
+        "file": "src/modules/checkout/checkout.schemas.ts",
+        "name": "checkoutPreviewSchema",
+        "expression": "checkoutPreviewSchema"
+      }
+    },
+    "requestName": "POST /checkout/preview"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/checkout",
+    "source": "src/modules/checkout/checkout.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": true,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200, 201],
+    "schemas": {
+      "body": {
+        "file": "src/modules/checkout/checkout.schemas.ts",
+        "name": "checkoutSchema",
+        "expression": "checkoutSchema"
+      }
+    },
+    "requestName": "POST /checkout"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/orders/my",
+    "source": "src/modules/orders/order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "query": {
+        "file": "src/modules/orders/order.schemas.ts",
+        "name": "orderListQuerySchema",
+        "expression": "orderListQuerySchema"
+      }
+    },
+    "requestName": "GET /orders/my"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/orders/my/:id",
+    "source": "src/modules/orders/order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/orders/order.schemas.ts",
+        "name": "orderIdParamsSchema",
+        "expression": "orderIdParamsSchema"
+      }
+    },
+    "requestName": "GET /orders/my/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/orders",
+    "source": "src/modules/orders/order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "query": {
+        "file": "src/modules/orders/order.schemas.ts",
+        "name": "orderListQuerySchema",
+        "expression": "orderListQuerySchema"
+      }
+    },
+    "requestName": "GET /orders"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/orders/:id",
+    "source": "src/modules/orders/order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/orders/order.schemas.ts",
+        "name": "orderIdParamsSchema",
+        "expression": "orderIdParamsSchema"
+      }
+    },
+    "requestName": "GET /orders/:id"
+  },
+  {
+    "method": "PATCH",
+    "path": "/{{apiPrefix}}/orders/:id/status",
+    "source": "src/modules/orders/order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/orders/order.schemas.ts",
+        "name": "orderIdParamsSchema",
+        "expression": "orderIdParamsSchema"
+      },
+      "body": {
+        "file": "src/modules/orders/order.schemas.ts",
+        "name": "updateOrderStatusSchema",
+        "expression": "updateOrderStatusSchema"
+      }
+    },
+    "requestName": "PATCH /orders/:id/status"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/app-settings",
+    "source": "src/modules/app-settings/app-setting.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "GET /app-settings"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/app-settings/admin/all",
+    "source": "src/modules/app-settings/app-setting.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "GET /app-settings/admin/all"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/app-settings/:key",
+    "source": "src/modules/app-settings/app-setting.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/app-settings/app-setting.schemas.ts",
+        "name": "appSettingKeyParamSchema",
+        "expression": "appSettingKeyParamSchema"
+      }
+    },
+    "requestName": "GET /app-settings/:key"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/app-settings",
+    "source": "src/modules/app-settings/app-setting.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [201],
+    "schemas": {
+      "body": {
+        "file": "src/modules/app-settings/app-setting.schemas.ts",
+        "name": "createAppSettingSchema",
+        "expression": "createAppSettingSchema"
+      }
+    },
+    "requestName": "POST /app-settings"
+  },
+  {
+    "method": "PATCH",
+    "path": "/{{apiPrefix}}/app-settings/:key",
+    "source": "src/modules/app-settings/app-setting.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/app-settings/app-setting.schemas.ts",
+        "name": "appSettingKeyParamSchema",
+        "expression": "appSettingKeyParamSchema"
+      },
+      "body": {
+        "file": "src/modules/app-settings/app-setting.schemas.ts",
+        "name": "updateAppSettingSchema",
+        "expression": "updateAppSettingSchema"
+      }
+    },
+    "requestName": "PATCH /app-settings/:key"
+  },
+  {
+    "method": "DELETE",
+    "path": "/{{apiPrefix}}/app-settings/:key",
+    "source": "src/modules/app-settings/app-setting.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/app-settings/app-setting.schemas.ts",
+        "name": "appSettingKeyParamSchema",
+        "expression": "appSettingKeyParamSchema"
+      }
+    },
+    "requestName": "DELETE /app-settings/:key"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/devices",
+    "source": "src/modules/devices/device.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "body": {
+        "file": "src/modules/devices/device.schemas.ts",
+        "name": "registerDeviceSchema",
+        "expression": "registerDeviceSchema"
+      }
+    },
+    "requestName": "POST /devices"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/devices",
+    "source": "src/modules/devices/device.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "GET /devices"
+  },
+  {
+    "method": "PATCH",
+    "path": "/{{apiPrefix}}/devices/:deviceId/deactivate",
+    "source": "src/modules/devices/device.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/devices/device.schemas.ts",
+        "name": "deviceIdParamSchema",
+        "expression": "deviceIdParamSchema"
+      }
+    },
+    "requestName": "PATCH /devices/:deviceId/deactivate"
+  },
+  {
+    "method": "DELETE",
+    "path": "/{{apiPrefix}}/devices/:deviceId",
+    "source": "src/modules/devices/device.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/devices/device.schemas.ts",
+        "name": "deviceIdParamSchema",
+        "expression": "deviceIdParamSchema"
+      }
+    },
+    "requestName": "DELETE /devices/:deviceId"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/notifications",
+    "source": "src/modules/notifications/notification.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "query": {
+        "file": "src/modules/notifications/notification.schemas.ts",
+        "name": "notificationListQuerySchema",
+        "expression": "notificationListQuerySchema"
+      }
+    },
+    "requestName": "GET /notifications"
+  },
+  {
+    "method": "PATCH",
+    "path": "/{{apiPrefix}}/notifications/read-all",
+    "source": "src/modules/notifications/notification.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "PATCH /notifications/read-all"
+  },
+  {
+    "method": "PATCH",
+    "path": "/{{apiPrefix}}/notifications/:notificationId/read",
+    "source": "src/modules/notifications/notification.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/notifications/notification.schemas.ts",
+        "name": "notificationIdParamSchema",
+        "expression": "notificationIdParamSchema"
+      }
+    },
+    "requestName": "PATCH /notifications/:notificationId/read"
+  },
+  {
+    "method": "DELETE",
+    "path": "/{{apiPrefix}}/notifications/:notificationId",
+    "source": "src/modules/notifications/notification.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/notifications/notification.schemas.ts",
+        "name": "notificationIdParamSchema",
+        "expression": "notificationIdParamSchema"
+      }
+    },
+    "requestName": "DELETE /notifications/:notificationId"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/tenants/me",
+    "source": "src/modules/tenants/tenant.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "GET /tenants/me"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/tenants",
+    "source": "src/modules/tenants/tenant.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "adminAccessToken",
+      "management": false,
+      "globalAdmin": true
+    },
+    "statuses": [201],
+    "schemas": {
+      "body": {
+        "file": "src/modules/tenants/tenant.schemas.ts",
+        "name": "createTenantSchema",
+        "expression": "createTenantSchema"
+      }
+    },
+    "requestName": "POST /tenants"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/tenants/:id",
+    "source": "src/modules/tenants/tenant.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "ownerAccessToken",
+      "management": true,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "GET /tenants/:id"
+  },
+  {
+    "method": "PATCH",
+    "path": "/{{apiPrefix}}/tenants/:id",
+    "source": "src/modules/tenants/tenant.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "ownerAccessToken",
+      "management": true,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "body": {
+        "file": "src/modules/tenants/tenant.schemas.ts",
+        "name": "updateTenantSchema",
+        "expression": "updateTenantSchema"
+      }
+    },
+    "requestName": "PATCH /tenants/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/tenants/:id/members",
+    "source": "src/modules/tenants/tenant.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "ownerAccessToken",
+      "management": true,
+      "globalAdmin": false
+    },
+    "statuses": [201],
+    "schemas": {
+      "body": {
+        "file": "src/modules/tenants/tenant.schemas.ts",
+        "name": "addTenantMemberSchema",
+        "expression": "addTenantMemberSchema"
+      }
+    },
+    "requestName": "POST /tenants/:id/members"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/tenants/:id/members",
+    "source": "src/modules/tenants/tenant.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "ownerAccessToken",
+      "management": true,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "GET /tenants/:id/members"
+  },
+  {
+    "method": "PATCH",
+    "path": "/{{apiPrefix}}/tenants/:id/members/:userId",
+    "source": "src/modules/tenants/tenant.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "ownerAccessToken",
+      "management": true,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "body": {
+        "file": "src/modules/tenants/tenant.schemas.ts",
+        "name": "updateTenantMemberSchema",
+        "expression": "updateTenantMemberSchema"
+      }
+    },
+    "requestName": "PATCH /tenants/:id/members/:userId"
+  },
+  {
+    "method": "GET",
+    "path": "/ops/live",
+    "source": "src/common/observability/operations.ts",
+    "access": {
+      "auth": false,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "GET /ops/live"
+  },
+  {
+    "method": "GET",
+    "path": "/ops/ready",
+    "source": "src/common/observability/operations.ts",
+    "access": {
+      "auth": false,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "GET /ops/ready"
+  },
+  {
+    "method": "GET",
+    "path": "/ops/metrics",
+    "source": "src/common/observability/operations.ts",
+    "access": {
+      "auth": false,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "GET /ops/metrics"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/payment-providers/myfatoorah/webhook",
+    "source": "src/modules/payments/myfatoorah.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "POST /payment-providers/myfatoorah/webhook"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/payment-providers/myfatoorah/callback",
+    "source": "src/modules/payments/myfatoorah.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "GET /payment-providers/myfatoorah/callback"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/payment-providers/myfatoorah/error",
+    "source": "src/modules/payments/myfatoorah.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "GET /payment-providers/myfatoorah/error"
+  }
+]

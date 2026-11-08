@@ -26,7 +26,7 @@ export class PostgresRateStore implements Store {
         ON CONFLICT ("key") DO UPDATE SET
           "hits"=CASE WHEN "RateLimitBucket"."resetAt"<=clock_timestamp() THEN 1 ELSE LEAST("RateLimitBucket"."hits"+1,2147483647) END,
           "resetAt"=CASE WHEN "RateLimitBucket"."resetAt"<=clock_timestamp() THEN clock_timestamp()+${this.windowMs}*interval '1 millisecond' ELSE "RateLimitBucket"."resetAt" END
-        RETURNING "hits","resetAt"
+        RETURNING "hits","resetAt" AT TIME ZONE 'UTC' AS "resetAt"
       `;
       if (!row) throw new Error('No rate-limit counter');
       // Bounded opportunistic cleanup; no request-owned timer or full-table deletion.

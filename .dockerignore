@@ -18,6 +18,13 @@
 !deploy/environment.mjs
 !deploy/check-environment.mjs
 !deploy/entrypoint.sh
+# Public immutable seed artwork; never include writable merchant uploads.
+!public/
+!public/seed-media/
+!public/seed-media/fashion/
+!public/seed-media/independent/
+!public/seed-media/fashion/*.webp
+!public/seed-media/independent/*.webp
 src/generated/
 **/.env*
 **/*.pem

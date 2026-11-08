@@ -434,6 +434,13 @@ export class CheckoutService {
       });
 
       this.injectFailure('after-order-created');
+      if (reservationExpiresAt)
+        await checkoutRepository.setReservationDeadline(
+          tx,
+          tenantId,
+          order.id,
+          reservationExpiresAt,
+        );
 
       /*
        * -----------------------------------------------------
@@ -1365,7 +1372,9 @@ export class CheckoutService {
             currency,
             taxCategoryCode: item.taxCategoryCode,
             taxTreatment: item.taxTreatment,
-            taxRate: money(item.taxRateBasisPoints),
+            taxRate: new Prisma.Decimal(item.taxRateBasisPoints.toString())
+              .div(100)
+              .toString(),
             pricesIncludeTax: item.pricesIncludeTax,
             taxableAmount: money(item.taxableAmountCents),
             taxAmount: money(item.taxAmountCents),

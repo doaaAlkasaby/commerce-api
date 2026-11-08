@@ -82,11 +82,12 @@ export class RecoveryService {
           now.getTime() - this.configuration.WORKER_INITIATION_GRACE_MS
         )
           return this.retry(job, 'INITIATION_ACTIVE');
-        await this.repository.markUnknown(
+        const changed = await this.repository.markUnknown(
           job,
           payment.id,
           this.configuration.WORKER_INITIATION_GRACE_MS,
         );
+        if (changed === 0) return this.retry(job, 'INITIATION_STATE_CHANGED');
         return this.process(job);
       }
       const safeToExpire =
@@ -102,18 +103,12 @@ export class RecoveryService {
         !['PAID', 'AUTHORIZED'].includes(payment.status)
       ) {
         await this.repository.locked(job, async (tx) => {
-          const current = await tx.order.findFirstOrThrow({
-            where: { id: job.orderId, tenantId: job.tenantId },
-            include: { payments: true },
-          });
-          const [clock] = await tx.$queryRaw<
-            Array<{ now: Date }>
-          >`SELECT clock_timestamp() AS now`;
+          const { order: current, now: currentTime } =
+            await this.repository.inspectOrder(tx, job.tenantId, job.orderId);
           const p = current.payments[0];
           if (
-            !clock ||
             !current.reservationExpiresAt ||
-            current.reservationExpiresAt > clock.now ||
+            current.reservationExpiresAt > currentTime ||
             current.payments.length !== 1 ||
             !p ||
             p.reconciliationRequired ||

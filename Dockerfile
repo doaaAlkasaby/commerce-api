@@ -37,6 +37,7 @@ COPY --from=production-dependencies --chown=node:node /app/node_modules ./node_m
 COPY --from=build --chown=node:node /app/dist ./dist
 COPY --chown=node:node package.json ./
 COPY --chown=node:node docs/openapi.json ./docs/openapi.json
+COPY --chown=node:node public/seed-media ./public/seed-media
 COPY --chown=node:node deploy/healthcheck.mjs deploy/check-environment.mjs deploy/environment.mjs ./deploy/
 COPY --chmod=755 deploy/entrypoint.sh ./deploy/entrypoint.sh
 RUN mkdir -p /app/uploads && chown node:node /app/uploads

@@ -10,6 +10,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
+    "typecheck:seed": "tsc --project tsconfig.seed.json",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
@@ -21,10 +22,12 @@
     "db:migrate": "prisma migrate deploy --config prisma7.config.ts",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:test-data": "tsx prisma/seed-test-data.ts",
+    "db:seed:verify": "tsx prisma/verify-development-seed.ts",
+    "db:verify:seed": "tsx scripts/test-postgres.ts --schema-only --seed-verify",
     "db:studio": "prisma studio",
     "swagger:generate": "tsx scripts/generate-swagger.ts",
-    "docs:generate": "npm run swagger:generate",
-    "postman:generate": "tsx scripts/generate-api-docs.ts",
+    "docs:generate": "npm run swagger:generate && npm run postman:generate",
+    "postman:generate": "tsx scripts/postman/generate.ts",
     "docs:generate:all": "npm run docs:generate",
     "build:docs": "npm run swagger:generate",
     "test:postgres": "tsx scripts/test-postgres.ts",
@@ -34,7 +37,9 @@
     "worker": "node dist/worker.js",
     "worker:dev": "tsx src/worker.ts",
     "ci:quality": "node scripts/ci-quality.mjs",
-    "container:verify": "node scripts/verify-containers.mjs"
+    "container:verify": "node scripts/verify-containers.mjs",
+    "postman:verify": "tsx scripts/postman/verify.ts",
+    "typecheck:postman": "tsc --project tsconfig.postman.json"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^9.1.0",

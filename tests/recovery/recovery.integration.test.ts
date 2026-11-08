@@ -18,6 +18,7 @@ import {
 } from 'vitest';
 import { testPrisma } from '../../src/config/test-database.js';
 import { RecoveryRepository } from '../../src/modules/recovery/recovery.repository.js';
+import { CheckoutRepository } from '../../src/modules/checkout/checkout.repository.js';
 import { RecoveryService } from '../../src/modules/recovery/recovery.service.js';
 import { RecoveryWorker } from '../../src/modules/recovery/recovery.worker.js';
 import { workerConfigurationSchema } from '../../src/config/worker-options.js';
@@ -349,6 +350,32 @@ describe('PostgreSQL recovery worker', () => {
       }),
     ).toBe(1);
   });
+  it.each(['UTC', 'Africa/Cairo'])(
+    'reads the database instant and deadline correctly in a %s session',
+    async (zone) => {
+      const deadline = new Date(Date.now() + 90000);
+      await testPrisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT set_config('TimeZone', ${zone}, true)`;
+        await new CheckoutRepository(testPrisma).setReservationDeadline(
+          tx,
+          tenantId,
+          orderId,
+          deadline,
+        );
+        const [setting] = await tx.$queryRaw<
+          Array<{ zone: string }>
+        >`SELECT current_setting('TimeZone') AS zone`;
+        expect(setting?.zone).toBe(zone);
+        const inspected = await repository.inspectOrder(tx, tenantId, orderId);
+        expect(Math.abs(inspected.now.getTime() - Date.now())).toBeLessThan(
+          2000,
+        );
+        expect(inspected.order.reservationExpiresAt?.getTime()).toBe(
+          deadline.getTime(),
+        );
+      });
+    },
+  );
   it('does not expire an unexpired local reservation', async () => {
     await expired();
     await testPrisma.$executeRaw`UPDATE "Order" SET "reservationExpiresAt"=clock_timestamp()+interval '1 hour' WHERE "id"=${orderId}`;
@@ -744,13 +771,13 @@ describe('PostgreSQL recovery worker', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
   it('moves stale non-idempotent creation to UNKNOWN/manual without another create', async () => {
-    await testPrisma.$executeRaw`UPDATE "Payment" SET "initiationState"='IN_PROGRESS',"providerPaymentId"=NULL,"updatedAt"=clock_timestamp()-interval '1 hour' WHERE "id"=${paymentId}`;
+    await testPrisma.$executeRaw`UPDATE "Payment" SET "initiationState"='IN_PROGRESS',"providerPaymentId"=NULL,"updatedAt"=(clock_timestamp() AT TIME ZONE 'UTC')-interval '1 hour' WHERE "id"=${paymentId}`;
     expect(await service.process(await claim())).toBe('MANUAL');
     expect((await stored()).initiationState).toBe('UNKNOWN');
     expect(fetch).not.toHaveBeenCalled();
   });
   it('recovers stale local NONE initiation idempotently', async () => {
-    await testPrisma.$executeRaw`UPDATE "Payment" SET "provider"='NONE',"method"='CASH_ON_DELIVERY',"initiationState"='IN_PROGRESS',"providerPaymentId"=NULL,"updatedAt"=clock_timestamp()-interval '1 hour' WHERE "id"=${paymentId}`;
+    await testPrisma.$executeRaw`UPDATE "Payment" SET "provider"='NONE',"method"='CASH_ON_DELIVERY',"initiationState"='IN_PROGRESS',"providerPaymentId"=NULL,"updatedAt"=(clock_timestamp() AT TIME ZONE 'UTC')-interval '1 hour' WHERE "id"=${paymentId}`;
     expect(await service.process(await claim())).toBe('LOCAL_RECOVERED');
     expect((await stored()).initiationState).toBe('INITIATED');
     expect((await inventory()).reservedQuantity).toBe(1);

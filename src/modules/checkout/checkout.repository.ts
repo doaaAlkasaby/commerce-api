@@ -33,10 +33,20 @@ export class CheckoutRepository {
     ttlSeconds: number,
   ): Promise<Date> {
     const [row] = await tx.$queryRaw<Array<{ deadline: Date }>>`
-      SELECT CURRENT_TIMESTAMP + ${ttlSeconds} * interval '1 second' AS deadline
+      SELECT (clock_timestamp() + ${ttlSeconds} * interval '1 second') AT TIME ZONE 'UTC' AS deadline
     `;
     if (!row) throw new Error('Database time is unavailable');
     return row.deadline;
+  }
+
+  async setReservationDeadline(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    orderId: string,
+    deadline: Date,
+  ) {
+    // Bind an explicit offset: adapter-pg 7.10.1 strips offsets from DateTime parameters.
+    await tx.$executeRaw`UPDATE "Order" SET "reservationExpiresAt"=${deadline.toISOString()}::timestamptz WHERE "id"=${orderId} AND "tenantId"=${tenantId}`;
   }
 
   async tryLockRequest(

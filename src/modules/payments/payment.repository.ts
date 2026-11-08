@@ -189,7 +189,7 @@ export class PaymentRepository {
   ) {
     const [clock] = await tx.$queryRaw<
       Array<{ now: Date }>
-    >`SELECT clock_timestamp() AS now`;
+    >`SELECT clock_timestamp() AT TIME ZONE 'UTC' AS now`;
     if (!clock) throw new Error('Database time is unavailable');
     return tx.payment.update({
       where: { id, order: { tenantId, userId } },

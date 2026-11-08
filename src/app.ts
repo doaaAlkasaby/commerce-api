@@ -13,6 +13,7 @@ import { requestLoggerMiddleware } from './middleware/request-logger.middleware.
 import { notFoundMiddleware } from './middleware/not-found.middleware.js';
 import { errorMiddleware } from './middleware/error.middleware.js';
 import path from 'node:path';
+import { developmentMediaRoot } from './common/storage/development-media.js';
 import { setupSwagger } from './docs/swagger.js';
 
 const app = express();
@@ -76,6 +77,21 @@ setupSwagger(app);
 // API
 app.use(env.API_PREFIX, apiRouter);
 
+// Immutable bundled fixtures remain available with any writable upload directory.
+app.use(
+  '/uploads/development-v82',
+  (req, res, next) => {
+    if (!/^\/(fashion|independent)\/[a-z0-9-]+\.webp$/.test(req.path))
+      return notFoundMiddleware(req, res, next);
+    return next();
+  },
+  express.static(developmentMediaRoot, {
+    index: false,
+    redirect: false,
+    dotfiles: 'deny',
+  }),
+  notFoundMiddleware,
+);
 app.use('/uploads', express.static(path.resolve(env.UPLOAD_DIR)));
 
 // 404

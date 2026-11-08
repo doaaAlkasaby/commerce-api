@@ -51,7 +51,9 @@ export class RecoveryRepository {
       ) UPDATE "RecoveryJob" j SET "state" = 'RUNNING', "attempts" = j."attempts" + 1,
           "claimToken" = ${token}, "leaseUntil" = clock_timestamp() + ${leaseMs} * interval '1 millisecond',
           "updatedAt" = clock_timestamp()
-        FROM due WHERE j."id" = due."id" RETURNING j.*
+        FROM due WHERE j."id" = due."id" RETURNING j."id", j."tenantId", j."orderId", j."state", j."attempts", j."claimToken", j."lastErrorCode",
+          j."availableAt" AT TIME ZONE 'UTC' AS "availableAt", j."leaseUntil" AT TIME ZONE 'UTC' AS "leaseUntil",
+          j."finishedAt" AT TIME ZONE 'UTC' AS "finishedAt", j."createdAt" AT TIME ZONE 'UTC' AS "createdAt", j."updatedAt" AT TIME ZONE 'UTC' AS "updatedAt"
     `;
   }
 
@@ -83,27 +85,38 @@ export class RecoveryRepository {
   }
 
   async inspect(job: RecoveryJob) {
-    return this.locked(job, async (tx) => {
-      const order = await tx.order.findFirstOrThrow({
-        where: { id: job.orderId, tenantId: job.tenantId },
-        include: { payments: true },
-      });
-      const [row] = await tx.$queryRaw<
-        Array<{ now: Date }>
-      >`SELECT clock_timestamp() AS now`;
-      if (!row) throw new Error('Database time unavailable');
-      return { order, now: row.now };
+    return this.locked(job, (tx) =>
+      this.inspectOrder(tx, job.tenantId, job.orderId),
+    );
+  }
+
+  async inspectOrder(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    orderId: string,
+  ) {
+    const order = await tx.order.findFirstOrThrow({
+      where: { id: orderId, tenantId },
+      include: { payments: true },
     });
+    const [row] = await tx.$queryRaw<
+      Array<{ now: Date; deadline: Date | null }>
+    >`SELECT clock_timestamp() AT TIME ZONE 'UTC' AS now, "reservationExpiresAt" AT TIME ZONE 'UTC' AS deadline FROM "Order" WHERE "id"=${orderId} AND "tenantId"=${tenantId}`;
+    if (!row) throw new Error('Database time unavailable');
+    return {
+      order: { ...order, reservationExpiresAt: row.deadline },
+      now: row.now,
+    };
   }
 
   async markUnknown(
     job: RecoveryJob,
     paymentId: string,
     graceMs: number,
-  ): Promise<void> {
-    await this.locked(job, async (tx) => {
+  ): Promise<number> {
+    return this.locked(job, async (tx) => {
       // Recheck staleness under the same order lock; a webhook or reply may have won.
-      await tx.$executeRaw`UPDATE "Payment" SET "initiationState" = 'UNKNOWN', "updatedAt" = clock_timestamp() AT TIME ZONE 'UTC'
+      return tx.$executeRaw`UPDATE "Payment" SET "initiationState" = 'UNKNOWN', "updatedAt" = clock_timestamp() AT TIME ZONE 'UTC'
         WHERE "id" = ${paymentId} AND "orderId" = ${job.orderId} AND "initiationState" = 'IN_PROGRESS'
           AND ("updatedAt" AT TIME ZONE 'UTC') <= clock_timestamp() - ${graceMs} * interval '1 millisecond'`;
     });

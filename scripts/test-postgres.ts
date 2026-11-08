@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomBytes } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
@@ -67,6 +67,13 @@ function command(
 }
 
 async function main() {
+  if (
+    process.argv.includes('--seed-verify') &&
+    !process.argv.includes('--schema-only')
+  )
+    throw new Error(
+      '--seed-verify requires --schema-only; seed verification and the test suite use separate disposable databases',
+    );
   const { databaseName, adminUrl, env } = verificationDatabaseSettings(
     process.env,
   );
@@ -102,10 +109,27 @@ async function main() {
       ],
       env,
     );
-    if (!process.argv.slice(2).includes('--schema-only')) {
+    const flags = process.argv.slice(2);
+    if (flags.includes('--seed-verify')) {
+      const seedEnv = {
+        ...env,
+        ALLOW_DEVELOPMENT_SEED: 'true',
+        DEVELOPMENT_SEED_DATABASE: databaseName,
+        DEVELOPMENT_SEED_PASSWORD: `Dev!${randomBytes(24).toString('hex')}aA1`,
+      };
+      await command('npm', ['run', 'db:seed'], seedEnv);
+      await command('npm', ['run', 'db:seed:test-data'], seedEnv);
+      await command('npm', ['run', 'db:seed:verify', '--', '--test'], seedEnv);
+    }
+    if (!flags.includes('--schema-only')) {
       await command(
         'npm',
-        ['test', '--', '--no-file-parallelism', ...process.argv.slice(2)],
+        [
+          'test',
+          '--',
+          '--no-file-parallelism',
+          ...flags.filter((flag) => flag !== '--seed-verify'),
+        ],
         env,
       );
     }
