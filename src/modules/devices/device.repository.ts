@@ -1,18 +1,19 @@
 import type {
+  Prisma,
   PrismaClient,
   UserDevice,
 } from '../../generated/prisma/client.js';
 
 export class DeviceRepository {
-  constructor(
-    private readonly prisma: PrismaClient,
-  ) {}
+  constructor(private readonly prisma: PrismaClient) {}
 
   async findByUserAndToken(
     userId: string,
     token: string,
+    tx?: Prisma.TransactionClient,
   ): Promise<UserDevice | null> {
-    return this.prisma.userDevice.findUnique({
+    const client = tx ?? this.prisma;
+    return client.userDevice.findUnique({
       where: {
         userId_token: {
           userId,
@@ -24,8 +25,10 @@ export class DeviceRepository {
 
   async findById(
     deviceId: string,
+    tx?: Prisma.TransactionClient,
   ): Promise<UserDevice | null> {
-    return this.prisma.userDevice.findUnique({
+    const client = tx ?? this.prisma;
+    return client.userDevice.findUnique({
       where: {
         id: deviceId,
       },
@@ -34,8 +37,10 @@ export class DeviceRepository {
 
   async findByUser(
     userId: string,
+    tx?: Prisma.TransactionClient,
   ): Promise<UserDevice[]> {
-    return this.prisma.userDevice.findMany({
+    const client = tx ?? this.prisma;
+    return client.userDevice.findMany({
       where: {
         userId,
       },
@@ -45,13 +50,35 @@ export class DeviceRepository {
     });
   }
 
-  async create(data: {
-    userId: string;
-    token: string;
-    platform: 'ANDROID' | 'IOS';
-    appVersion?: string;
-  }): Promise<UserDevice> {
-    return this.prisma.userDevice.create({
+  async deactivateOtherUsersByToken(
+    token: string,
+    currentUserId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const client = tx ?? this.prisma;
+    await client.userDevice.updateMany({
+      where: {
+        token,
+        userId: { not: currentUserId },
+        isActive: true,
+      },
+      data: {
+        isActive: false,
+      },
+    });
+  }
+
+  async create(
+    data: {
+      userId: string;
+      token: string;
+      platform: 'ANDROID' | 'IOS';
+      appVersion?: string;
+    },
+    tx?: Prisma.TransactionClient,
+  ): Promise<UserDevice> {
+    const client = tx ?? this.prisma;
+    return client.userDevice.create({
       data: {
         userId: data.userId,
         token: data.token,
@@ -71,8 +98,10 @@ export class DeviceRepository {
       isActive?: boolean;
       lastUsedAt?: Date;
     },
+    tx?: Prisma.TransactionClient,
   ): Promise<UserDevice> {
-    return this.prisma.userDevice.update({
+    const client = tx ?? this.prisma;
+    return client.userDevice.update({
       where: {
         id: deviceId,
       },
@@ -82,8 +111,10 @@ export class DeviceRepository {
 
   async deactivate(
     deviceId: string,
+    tx?: Prisma.TransactionClient,
   ): Promise<UserDevice> {
-    return this.prisma.userDevice.update({
+    const client = tx ?? this.prisma;
+    return client.userDevice.update({
       where: {
         id: deviceId,
       },
@@ -95,8 +126,10 @@ export class DeviceRepository {
 
   async delete(
     deviceId: string,
+    tx?: Prisma.TransactionClient,
   ): Promise<UserDevice> {
-    return this.prisma.userDevice.delete({
+    const client = tx ?? this.prisma;
+    return client.userDevice.delete({
       where: {
         id: deviceId,
       },

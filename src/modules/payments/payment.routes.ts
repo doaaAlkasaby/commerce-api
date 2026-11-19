@@ -1,4 +1,5 @@
 import { sensitiveRateLimiter } from '../../config/rate-limit.js';
+import { env } from '../../config/env.js';
 import { Router } from 'express';
 
 import { paymentController } from './payment.controller.js';
@@ -22,6 +23,20 @@ import { requireTenantRoles } from '../../middleware/tenant-role.middleware.js';
 
 const router = Router();
 router.use(tenantMiddleware);
+
+if (env.PAYMENT_PROVIDER === 'MOCK' && process.env.NODE_ENV !== 'production') {
+  router.get(
+    '/mock/checkout/:id',
+    paymentController.getMockCheckoutPage.bind(paymentController),
+  );
+
+  router.post(
+    '/mock/checkout/:id/scenario',
+    authenticate,
+    paymentController.setMockCheckoutScenario.bind(paymentController),
+  );
+}
+
 router.post(
   '/:id/verify',
   authenticate,

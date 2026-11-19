@@ -33,6 +33,7 @@ export interface CartItemProductResponse {
   slug: string;
   basePrice: string;
   status: string;
+  imageUrl: string | null;
 }
 
 export interface CartItemVariantResponse {

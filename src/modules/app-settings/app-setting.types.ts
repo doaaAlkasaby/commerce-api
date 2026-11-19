@@ -1,3 +1,8 @@
+export interface PublicFAQItem {
+  question: string;
+  answer: string;
+}
+
 export interface AppSettingsResponse {
   android_build: number[];
   ios_build: number[];
@@ -5,6 +10,15 @@ export interface AppSettingsResponse {
   currency_ar: string;
   currency_en: string;
   features: string[];
+  support_email?: string;
+  support_phone?: string;
+  whatsapp?: string;
+  business_hours?: string;
+  shipping_policy?: string;
+  return_policy?: string;
+  privacy_policy_url?: string;
+  terms_url?: string;
+  faq?: PublicFAQItem[];
 }
 
 export interface AppSettingValue {

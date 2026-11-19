@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60" width="200" height="60">
+  <rect width="200" height="60" rx="12" fill="#121212"/>
+  <polygon points="32,16 22,32 30,32 26,44 38,28 30,28" fill="#0066FF"/>
+  <text x="115" y="38" font-family="system-ui, -apple-system, sans-serif" font-size="20" font-weight="bold" fill="#0066FF" text-anchor="middle">Velo | فيلو</text>
+</svg>

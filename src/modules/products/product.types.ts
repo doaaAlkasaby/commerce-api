@@ -54,6 +54,15 @@ export interface ProductDiscountResponse {
   endsAt: Date | null;
 }
 
+export interface ProductDisplayPricingResponse {
+  originalPrice: string;
+  finalPrice: string;
+  discountType: DiscountType | null;
+  discountValue: string | null;
+  discountAmount: string;
+  discountPercentage: number | null;
+}
+
 export interface ProductImageSummary {
   id: string;
   url: string;
@@ -79,6 +88,7 @@ export interface ProductListItemResponse {
   description: string | null;
   basePrice: string;
   discount: ProductDiscountResponse;
+  displayPricing: ProductDisplayPricingResponse;
   status: ProductStatus;
   primaryImage: ProductImageSummary | null;
   category: ProductCategorySummary | null;
@@ -107,6 +117,10 @@ export interface ProductDetailsResponse {
 }
 
 export interface ProductListItem {
+  tenant: {
+    defaultCurrency: string | null;
+  };
+
   id: string;
   name: string;
   slug: string;
@@ -119,6 +133,17 @@ export interface ProductListItem {
   discountValue: string | null;
   discountStartsAt: Date | null;
   discountEndsAt: Date | null;
+
+  variants: Array<{
+    id: string;
+    price: string | null;
+    discountType: DiscountType | null;
+    discountValue: string | null;
+    discountStartsAt: Date | null;
+    discountEndsAt: Date | null;
+    isDefault: boolean;
+    isActive: boolean;
+  }>;
 
   rating: ProductRating;
   isInWishlist: boolean;

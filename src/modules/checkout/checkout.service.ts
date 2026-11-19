@@ -34,6 +34,7 @@ import type { DiscountInput } from '../../common/pricing/pricing.types.js';
 import { checkoutRepository } from './checkout.repository.instance.js';
 import { mapCheckoutOrder, mapCheckoutPayment } from './checkout.mapper.js';
 import { InventoryRepository } from '../inventory/inventory.repository.js';
+import { orderNotificationService } from '../notifications/order-notification.service.js';
 
 import { prisma } from '../../config/database.js';
 
@@ -123,7 +124,7 @@ export class CheckoutService {
     const paymentProvider =
       input.paymentProvider ??
       (input.paymentMethod === PaymentMethod.CARD &&
-      env.PAYMENT_PROVIDER === 'MYFATOORAH'
+      (env.PAYMENT_PROVIDER === 'MYFATOORAH' || env.PAYMENT_PROVIDER === 'MOCK')
         ? PaymentProvider.MYFATOORAH
         : PaymentProvider.NONE);
 
@@ -620,6 +621,18 @@ export class CheckoutService {
           items: true,
           payments: true,
         },
+      });
+
+      /*
+       * -----------------------------------------------------
+       * 3.19 ORDER PLACED NOTIFICATION
+       * -----------------------------------------------------
+       */
+      await orderNotificationService.createOrderNotification({
+        eventType: 'ORDER_PLACED',
+        orderId: order.id,
+        expectedTenantId: tenantId,
+        tx,
       });
 
       return {

@@ -1,6 +1,8 @@
+import { assertSeedTarget } from './helpers.js';
 import { PrismaClient } from '../../src/generated/prisma/client.js';
 
 export async function seedCountries(prisma: PrismaClient) {
+  assertSeedTarget();
   const countries = [
     {
       code: 'EG',

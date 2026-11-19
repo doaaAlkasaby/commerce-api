@@ -144,6 +144,24 @@
     "requestName": "PATCH /order-policy"
   },
   {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/storefront/tenants",
+    "source": "src/modules/tenants/storefront.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": false,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "GET /storefront/tenants"
+  },
+  {
     "method": "POST",
     "path": "/{{apiPrefix}}/storefront/enroll",
     "source": "src/modules/tenants/storefront.routes.ts",
@@ -3278,6 +3296,42 @@
     "requestName": "DELETE /coupons/:id"
   },
   {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/payments/mock/checkout/:id",
+    "source": "src/modules/payments/payment.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "GET /payments/mock/checkout/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/payments/mock/checkout/:id/scenario",
+    "source": "src/modules/payments/payment.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "POST /payments/mock/checkout/:id/scenario"
+  },
+  {
     "method": "POST",
     "path": "/{{apiPrefix}}/payments/:id/verify",
     "source": "src/modules/payments/payment.routes.ts",
@@ -3919,7 +3973,7 @@
     "source": "src/modules/notifications/notification.routes.ts",
     "access": {
       "auth": true,
-      "tenant": false,
+      "tenant": true,
       "member": false,
       "verified": false,
       "roles": [],
@@ -3943,7 +3997,7 @@
     "source": "src/modules/notifications/notification.routes.ts",
     "access": {
       "auth": true,
-      "tenant": false,
+      "tenant": true,
       "member": false,
       "verified": false,
       "roles": [],
@@ -3961,7 +4015,7 @@
     "source": "src/modules/notifications/notification.routes.ts",
     "access": {
       "auth": true,
-      "tenant": false,
+      "tenant": true,
       "member": false,
       "verified": false,
       "roles": [],
@@ -3985,7 +4039,7 @@
     "source": "src/modules/notifications/notification.routes.ts",
     "access": {
       "auth": true,
-      "tenant": false,
+      "tenant": true,
       "member": false,
       "verified": false,
       "roles": [],

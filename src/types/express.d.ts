@@ -1,6 +1,6 @@
-
 import type { AuthenticatedUser } from '../modules/auth/auth.types.ts';
 import type { CommerceContext } from '../common/context/commerce-context.types.js';
+import type { TenantContext } from '../common/tenant/tenant-context.types.js';
 
 // declare global {
 //   namespace Express {
@@ -24,11 +24,8 @@ declare global {
       commerceContext?: CommerceContext;
 
       tenant?: TenantContext;
-
     }
   }
 }
 
-
 export {};
-

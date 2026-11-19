@@ -1,36 +1,22 @@
-import type {
-  NextFunction,
-  Request,
-  Response,
-} from 'express';
+import type { NextFunction, Request, Response } from 'express';
 
-import {
-  couponService,
-} from './coupon.service.instance.js';
+import { couponService } from './coupon.service.instance.js';
 
-import {
-  mapCouponToResponse,
-} from './coupon.mapper.js';
+import { mapCouponToResponse } from './coupon.mapper.js';
+import type { CreateCouponInput, UpdateCouponInput } from './coupon.types.js';
 
 export class CouponController {
-  async create(
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ): Promise<void> {
+  async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const coupon =
-        await couponService.create(
-          req.tenant!.tenantId,
-          req.validatedBody as any,
-        );
+      const coupon = await couponService.create(
+        req.tenant!.tenantId,
+        req.validatedBody as CreateCouponInput,
+      );
 
       res.status(201).json({
         success: true,
         message: null,
-        data: mapCouponToResponse(
-          coupon,
-        ),
+        data: mapCouponToResponse(coupon),
       });
     } catch (error) {
       next(error);
@@ -43,15 +29,12 @@ export class CouponController {
     next: NextFunction,
   ): Promise<void> {
     try {
-      const coupons =
-        await couponService.findAll(req.tenant!.tenantId);
+      const coupons = await couponService.findAll(req.tenant!.tenantId);
 
       res.status(200).json({
         success: true,
         message: null,
-        data: coupons.map(
-          mapCouponToResponse,
-        ),
+        data: coupons.map(mapCouponToResponse),
       });
     } catch (error) {
       next(error);
@@ -64,66 +47,49 @@ export class CouponController {
     next: NextFunction,
   ): Promise<void> {
     try {
-      const { id } =
-        req.validatedParams as {
-          id: string;
-        };
+      const { id } = req.validatedParams as {
+        id: string;
+      };
 
-      const coupon =
-        await couponService.findById(req.tenant!.tenantId, id);
+      const coupon = await couponService.findById(req.tenant!.tenantId, id);
 
       res.status(200).json({
         success: true,
         message: null,
-        data: mapCouponToResponse(
-          coupon,
-        ),
+        data: mapCouponToResponse(coupon),
       });
     } catch (error) {
       next(error);
     }
   }
 
-  async update(
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ): Promise<void> {
+  async update(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } =
-        req.validatedParams as {
-          id: string;
-        };
+      const { id } = req.validatedParams as {
+        id: string;
+      };
 
-      const coupon =
-        await couponService.update(
-          req.tenant!.tenantId,
-          id,
-          req.validatedBody as any,
-        );
+      const coupon = await couponService.update(
+        req.tenant!.tenantId,
+        id,
+        req.validatedBody as UpdateCouponInput,
+      );
 
       res.status(200).json({
         success: true,
         message: null,
-        data: mapCouponToResponse(
-          coupon,
-        ),
+        data: mapCouponToResponse(coupon),
       });
     } catch (error) {
       next(error);
     }
   }
 
-  async delete(
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ): Promise<void> {
+  async delete(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } =
-        req.validatedParams as {
-          id: string;
-        };
+      const { id } = req.validatedParams as {
+        id: string;
+      };
 
       await couponService.delete(req.tenant!.tenantId, id);
 
@@ -139,8 +105,7 @@ export class CouponController {
     next: NextFunction,
   ): Promise<void> {
     try {
-      const userId =
-        req.user?.userId;
+      const userId = req.user?.userId;
 
       if (!userId) {
         res.status(401).json({
@@ -153,18 +118,16 @@ export class CouponController {
         return;
       }
 
-      const body =
-        req.validatedBody as {
-          code: string;
-          subtotal: string;
-        };
+      const body = req.validatedBody as {
+        code: string;
+        subtotal: string;
+      };
 
-      const result =
-        await couponService.validate(req.tenant!.tenantId, {
-          code: body.code,
-          subtotal: body.subtotal,
-          userId,
-        });
+      const result = await couponService.validate(req.tenant!.tenantId, {
+        code: body.code,
+        subtotal: body.subtotal,
+        userId,
+      });
 
       res.status(200).json({
         success: true,
@@ -177,5 +140,4 @@ export class CouponController {
   }
 }
 
-export const couponController =
-  new CouponController();
+export const couponController = new CouponController();

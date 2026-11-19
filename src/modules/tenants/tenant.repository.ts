@@ -134,4 +134,25 @@ export class TenantRepository {
       },
     });
   }
+
+  async listPublicStores() {
+    return this.prisma.tenant.findMany({
+      where: {
+        status: 'ACTIVE',
+        isPubliclyListed: true,
+        defaultCurrency: { not: null },
+      },
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        logoUrl: true,
+        coverImageUrl: true,
+        defaultCurrency: true,
+      },
+      orderBy: {
+        name: 'asc',
+      },
+    });
+  }
 }

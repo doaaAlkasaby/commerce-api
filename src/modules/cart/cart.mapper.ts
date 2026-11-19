@@ -96,13 +96,18 @@ const mapImages = (
 
 const mapProduct = (
   variant: CartItemWithRelations['variant'],
-): CartItemProductResponse => ({
-  id: variant.product.id,
-  name: variant.product.name,
-  slug: variant.product.slug,
-  basePrice: variant.product.basePrice.toString(),
-  status: variant.product.status,
-});
+): CartItemProductResponse => {
+  const primaryImg = (variant.product as any).images?.find((img: any) => img.isPrimary) ?? (variant.product as any).images?.[0];
+
+  return {
+    id: variant.product.id,
+    name: variant.product.name,
+    slug: variant.product.slug,
+    basePrice: variant.product.basePrice.toString(),
+    status: variant.product.status,
+    imageUrl: primaryImg ? primaryImg.url : null,
+  };
+};
 
 const calculateItemPricing = (
   variant: CartItemWithRelations['variant'],

@@ -3,9 +3,10 @@
   "compilerOptions": { "rootDir": ".", "noEmit": true },
   "include": [
     "prisma/development/**/*.ts",
+    "prisma/seeds/**/*.ts",
     "prisma/seed.ts",
     "prisma/seed-test-data.ts",
     "prisma/verify-development-seed.ts"
   ],
-  "exclude": ["node_modules", "dist", "prisma/seeds"]
+  "exclude": ["node_modules", "dist"]
 }

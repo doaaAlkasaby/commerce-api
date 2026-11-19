@@ -29,7 +29,7 @@ export const requestLoggerMiddleware = (
       {
         requestId: req.id,
         route,
-        tenantId: req.tenant?.id,
+        tenantId: req.tenant?.tenantId,
         userId: req.user?.userId,
         method: req.method,
         path: req.originalUrl.split('?')[0],

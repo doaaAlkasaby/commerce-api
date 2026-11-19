@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60" width="200" height="60">
+  <rect width="200" height="60" rx="12" fill="#8B263E"/>
+  <circle cx="30" cy="30" r="14" fill="#F9F6F0" opacity="0.9"/>
+  <text x="115" y="38" font-family="system-ui, -apple-system, sans-serif" font-size="20" font-weight="bold" fill="#F9F6F0" text-anchor="middle">Luma | لوما</text>
+</svg>

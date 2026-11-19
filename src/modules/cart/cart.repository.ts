@@ -26,7 +26,17 @@ export class CartRepository {
           include: {
             variant: {
               include: {
-                product: true,
+                product: {
+                  include: {
+                    images: {
+                      where: { product: { tenantId } },
+                      orderBy: [
+                        { isPrimary: 'desc' },
+                        { sortOrder: 'asc' },
+                      ],
+                    },
+                  },
+                },
 
                 values: {
                   where: { attributeValue: { attribute: { product: { tenantId } } } },

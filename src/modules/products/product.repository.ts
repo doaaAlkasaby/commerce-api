@@ -327,6 +327,23 @@ export class ProductRepository {
               altText: true,
             },
           },
+
+          variants: {
+            where: {
+              isActive: true,
+            },
+
+            select: {
+              id: true,
+              price: true,
+              discountType: true,
+              discountValue: true,
+              discountStartsAt: true,
+              discountEndsAt: true,
+              isDefault: true,
+              isActive: true,
+            },
+          },
         },
       }),
 

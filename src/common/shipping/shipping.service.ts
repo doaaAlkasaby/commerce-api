@@ -17,6 +17,21 @@ type Zone = Profile['zones'][number];
 type Method = Zone['methods'][number];
 type Rule = Method['rules'][number];
 
+const toNullableNumber = (val: unknown): number | null => {
+  if (val == null) return null;
+  if (typeof val === 'number') return Number.isFinite(val) ? val : null;
+  if (
+    typeof val === 'object' &&
+    val !== null &&
+    'toNumber' in val &&
+    typeof (val as { toNumber: unknown }).toNumber === 'function'
+  ) {
+    return (val as { toNumber(): number }).toNumber();
+  }
+  const parsed = Number(val);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 export class ShippingService {
   constructor(private readonly repository: ShippingRepository) {}
 
@@ -213,11 +228,16 @@ export class ShippingService {
   }
 
   private calculateDestinationDistance(
-    originLatitude: unknown,
-    originLongitude: unknown,
-    destinationLatitude?: number | null,
-    destinationLongitude?: number | null,
+    originLatitudeRaw: unknown,
+    originLongitudeRaw: unknown,
+    destinationLatitudeRaw?: unknown,
+    destinationLongitudeRaw?: unknown,
   ): number | null {
+    const originLatitude = toNullableNumber(originLatitudeRaw);
+    const originLongitude = toNullableNumber(originLongitudeRaw);
+    const destinationLatitude = toNullableNumber(destinationLatitudeRaw);
+    const destinationLongitude = toNullableNumber(destinationLongitudeRaw);
+
     const hasOriginLatitude = originLatitude != null;
     const hasOriginLongitude = originLongitude != null;
     if (hasOriginLatitude !== hasOriginLongitude) {
@@ -244,8 +264,8 @@ export class ShippingService {
 
     try {
       return calculateDistanceKm(
-        Number(originLatitude),
-        Number(originLongitude),
+        originLatitude!,
+        originLongitude!,
         destinationLatitude!,
         destinationLongitude!,
       );

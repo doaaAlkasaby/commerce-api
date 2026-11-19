@@ -28,7 +28,57 @@ type ProductEnrichedFields = {
   isInWishlist: boolean;
 };
 
+/**
+ * Variant Selection Policy for Product Listing Display Pricing:
+ * 1. If an active default variant (isDefault=true, isActive=true) exists, use its price & discount.
+ * 2. If no active default variant exists, select the active variant with the lowest effective final price.
+ *    (Ties broken deterministically by variant ID).
+ * 3. If no active variants exist, fall back to product-level base price and discount.
+ */
 export const mapProductListItem = (product: ProductListItem) => {
+  const currency = product.tenant.defaultCurrency ?? '';
+  const productDiscount = mapDiscount(product);
+  const activeVariants = (product.variants ?? []).filter((v) => v.isActive);
+
+  let targetVariant = activeVariants.find((v) => v.isDefault) ?? null;
+
+  if (!targetVariant && activeVariants.length > 0) {
+    const calculatedVariants = activeVariants
+      .map((variant) => ({
+        variant,
+        pricing: calculateEffectivePrice(
+          variant.price?.toString() ?? product.basePrice.toString(),
+          productDiscount,
+          mapDiscount(variant),
+          new Date(),
+          currency,
+        ),
+      }))
+      .sort((a, b) => {
+        const aCents = toCents(a.pricing.finalPrice, currency);
+        const bCents = toCents(b.pricing.finalPrice, currency);
+        return aCents < bCents ? -1 : aCents > bCents ? 1 : a.variant.id.localeCompare(b.variant.id);
+      });
+    targetVariant = calculatedVariants[0]?.variant ?? null;
+  }
+
+  const effectivePricing = calculateEffectivePrice(
+    targetVariant?.price?.toString() ?? product.basePrice.toString(),
+    productDiscount,
+    targetVariant ? mapDiscount(targetVariant) : { type: null, value: null, startsAt: null, endsAt: null },
+    new Date(),
+    currency,
+  );
+
+  const baseCents = toCents(effectivePricing.basePrice, currency);
+  const discountCents = toCents(effectivePricing.discountAmount, currency);
+  const discountPercentage =
+    effectivePricing.discountType === null || baseCents === 0n
+      ? null
+      : Number((discountCents * 10_000n + baseCents / 2n) / baseCents) / 100;
+
+  const variantInfo = getProductVariantInfo(product);
+
   return {
     id: product.id,
     name: product.name,
@@ -46,6 +96,15 @@ export const mapProductListItem = (product: ProductListItem) => {
 
     discountEndsAt: product.discountEndsAt,
 
+    displayPricing: {
+      originalPrice: effectivePricing.basePrice,
+      finalPrice: effectivePricing.finalPrice,
+      discountType: effectivePricing.discountType,
+      discountValue: effectivePricing.discountValue,
+      discountAmount: effectivePricing.discountAmount,
+      discountPercentage,
+    },
+
     primaryImage: product.images[0]
       ? {
           id: product.images[0].id,
@@ -56,6 +115,9 @@ export const mapProductListItem = (product: ProductListItem) => {
 
     category: product.category,
     brand: product.brand,
+
+    hasVariants: variantInfo.hasVariants,
+    defaultVariantId: variantInfo.defaultVariantId,
   };
 };
 

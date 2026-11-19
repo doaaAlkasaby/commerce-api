@@ -1,15 +1,12 @@
-import {
-  PrismaClient,
-} from '../../src/generated/prisma/client.js';
-
-
-
+import { seedTenant } from './helpers.js';
+import { PrismaClient } from '../../src/generated/prisma/client.js';
 
 // ============================================================
 // Coupons
 // ============================================================
 
-export async function seedCoupons(prisma: PrismaClient,) {
+export async function seedCoupons(prisma: PrismaClient, tenantId: string) {
+  await seedTenant(prisma, tenantId);
   console.log('🎟️ Seeding coupons...');
 
   const coupons = [
@@ -52,9 +49,7 @@ export async function seedCoupons(prisma: PrismaClient,) {
 
   for (const coupon of coupons) {
     await prisma.coupon.upsert({
-      where: {
-        code: coupon.code,
-      },
+      where: { tenantId_code: { tenantId, code: coupon.code } },
       update: {
         discountType: coupon.discountType,
         discountValue: coupon.discountValue,
@@ -63,6 +58,7 @@ export async function seedCoupons(prisma: PrismaClient,) {
         isActive: true,
       },
       create: {
+        tenantId,
         code: coupon.code,
         discountType: coupon.discountType,
         discountValue: coupon.discountValue,

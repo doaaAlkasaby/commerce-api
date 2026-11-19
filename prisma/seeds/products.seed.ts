@@ -1,5 +1,14 @@
-
-import { PrismaPg } from '@prisma/adapter-pg';
+import {
+  fromMinorUnits,
+  toMinorUnits,
+} from '../../src/common/pricing/money.js';
+import {
+  seedTenant,
+  assertTenantProducts,
+  assertTenantCustomers,
+  slugify,
+  unsplash,
+} from './helpers.js';
 import {
   PrismaClient,
   type Brand,
@@ -9,20 +18,8 @@ import {
   type User,
 } from '../../src/generated/prisma/client.js';
 
-import {slugify, unsplash} from "../seed.js";
-
-
-
-
-const connectionString = process.env.DATABASE_URL;
-
-if (!connectionString) {
-  throw new Error('DATABASE_URL is not defined');
-}
-
 const productImage = (slug: string, width: number, height: number) =>
   unsplash(PRODUCT_PHOTO_IDS[slug] ?? FALLBACK_PHOTO_ID, width, height);
-
 
 /** Fallback if a slug is missing from the map above */
 const FALLBACK_PHOTO_ID = '1523381210434-271e8be1f52b';
@@ -34,7 +31,6 @@ const BANNER_PHOTO_IDS: Record<string, string> = {
   'seed-banner-4': '1517836357463-d25dfeac3438',
   'seed-banner-5': '1498049794561-7780e7231661',
 };
-
 
 /** Product slug -> Unsplash photo id */
 const PRODUCT_PHOTO_IDS: Record<string, string> = {
@@ -68,242 +64,229 @@ export async function seedProducts(
   categories: Category[],
   brands: Brand[],
   prisma: PrismaClient,
+  tenantId: string,
 ): Promise<Product[]> {
+  await seedTenant(prisma, tenantId);
+  const categoryIds = [...new Set(categories.map((row) => row.id))];
+  const brandIds = [...new Set(brands.map((row) => row.id))];
+  if (
+    (await prisma.category.count({
+      where: { tenantId, id: { in: categoryIds } },
+    })) !== categoryIds.length ||
+    (await prisma.brand.count({
+      where: { tenantId, id: { in: brandIds } },
+    })) !== brandIds.length
+  )
+    throw new Error('Categories and brands must belong to the selected tenant');
   console.log('🛍️ Seeding products...');
 
- const productsData = [
-  // ============================================================
-  // Women
-  // ============================================================
+  const productsData = [
+    // ============================================================
+    // Women
+    // ============================================================
 
-  {
-    name: 'Classic T-Shirt',
-    price: '29.99',
-    categorySlug: 'women-tops',
-    brand: 'Urban Style',
-    description: 'Classic everyday cotton t-shirt.',
-  },
-  {
-    name: 'Premium Hoodie',
-    price: '59.99',
-    categorySlug: 'women-tops',
-    brand: 'Urban Style',
-    description: 'Premium comfortable hoodie.',
-  },
-  {
-    name: 'Slim Fit Jeans',
-    price: '79.99',
-    categorySlug: 'women-jeans',
-    brand: 'Nova',
-    description: 'Modern slim fit jeans.',
-  },
-  {
-    name: 'Summer Dress',
-    price: '89.99',
-    categorySlug: 'women-dresses',
-    brand: 'Luna',
-    description: 'Elegant summer dress.',
-  },
-  {
-    name: 'Leather Jacket',
-    price: '149.99',
-    categorySlug: 'women-jackets',
-    brand: 'Elite',
-    description: 'Premium leather jacket.',
-  },
+    {
+      name: 'Classic T-Shirt',
+      price: '29.99',
+      categorySlug: 'women-tops',
+      brand: 'Urban Style',
+      description: 'Classic everyday cotton t-shirt.',
+    },
+    {
+      name: 'Premium Hoodie',
+      price: '59.99',
+      categorySlug: 'women-tops',
+      brand: 'Urban Style',
+      description: 'Premium comfortable hoodie.',
+    },
+    {
+      name: 'Slim Fit Jeans',
+      price: '79.99',
+      categorySlug: 'women-jeans',
+      brand: 'Nova',
+      description: 'Modern slim fit jeans.',
+    },
+    {
+      name: 'Summer Dress',
+      price: '89.99',
+      categorySlug: 'women-dresses',
+      brand: 'Luna',
+      description: 'Elegant summer dress.',
+    },
+    {
+      name: 'Leather Jacket',
+      price: '149.99',
+      categorySlug: 'women-jackets',
+      brand: 'Elite',
+      description: 'Premium leather jacket.',
+    },
 
-  // ============================================================
-  // Men
-  // ============================================================
+    // ============================================================
+    // Men
+    // ============================================================
 
-  {
-    name: 'Basic Men T-Shirt',
-    price: '24.99',
-    categorySlug: 'men-t-shirts',
-    brand: 'Urban Style',
-    description: "Classic men's t-shirt.",
-  },
-  {
-    name: 'Men Casual Shirt',
-    price: '49.99',
-    categorySlug: 'men-shirts',
-    brand: 'Nova',
-    description: "Casual men's shirt.",
-  },
-  {
-    name: 'Men Chino Pants',
-    price: '69.99',
-    categorySlug: 'men-pants',
-    brand: 'Elite',
-    description: 'Comfortable chino pants.',
-  },
-  {
-    name: 'Men Denim Jacket',
-    price: '99.99',
-    categorySlug: 'men-jackets',
-    brand: 'Urban Style',
-    description: 'Classic denim jacket.',
-  },
+    {
+      name: 'Basic Men T-Shirt',
+      price: '24.99',
+      categorySlug: 'men-t-shirts',
+      brand: 'Urban Style',
+      description: "Classic men's t-shirt.",
+    },
+    {
+      name: 'Men Casual Shirt',
+      price: '49.99',
+      categorySlug: 'men-shirts',
+      brand: 'Nova',
+      description: "Casual men's shirt.",
+    },
+    {
+      name: 'Men Chino Pants',
+      price: '69.99',
+      categorySlug: 'men-pants',
+      brand: 'Elite',
+      description: 'Comfortable chino pants.',
+    },
+    {
+      name: 'Men Denim Jacket',
+      price: '99.99',
+      categorySlug: 'men-jackets',
+      brand: 'Urban Style',
+      description: 'Classic denim jacket.',
+    },
 
-  // ============================================================
-  // Shoes
-  // ============================================================
+    // ============================================================
+    // Shoes
+    // ============================================================
 
-  {
-    name: 'Men Running Shoes',
-    price: '119.99',
-    categorySlug: 'shoes-running-shoes',
-    brand: 'Active Pro',
-    description: 'Lightweight running shoes.',
-  },
-  {
-    name: 'Classic Sneakers',
-    price: '89.99',
-    categorySlug: 'shoes-sneakers',
-    brand: 'Active Pro',
-    description: 'Everyday sneakers.',
-  },
+    {
+      name: 'Men Running Shoes',
+      price: '119.99',
+      categorySlug: 'shoes-running-shoes',
+      brand: 'Active Pro',
+      description: 'Lightweight running shoes.',
+    },
+    {
+      name: 'Classic Sneakers',
+      price: '89.99',
+      categorySlug: 'shoes-sneakers',
+      brand: 'Active Pro',
+      description: 'Everyday sneakers.',
+    },
 
-  // ============================================================
-  // Bags
-  // ============================================================
+    // ============================================================
+    // Bags
+    // ============================================================
 
-  {
-    name: 'Leather Handbag',
-    price: '129.99',
-    categorySlug: 'bags-handbags',
-    brand: 'Elite',
-    description: 'Premium leather handbag.',
-  },
-  {
-    name: 'Travel Backpack',
-    price: '79.99',
-    categorySlug: 'bags-backpacks',
-    brand: 'Nova',
-    description: 'Durable travel backpack.',
-  },
+    {
+      name: 'Leather Handbag',
+      price: '129.99',
+      categorySlug: 'bags-handbags',
+      brand: 'Elite',
+      description: 'Premium leather handbag.',
+    },
+    {
+      name: 'Travel Backpack',
+      price: '79.99',
+      categorySlug: 'bags-backpacks',
+      brand: 'Nova',
+      description: 'Durable travel backpack.',
+    },
 
-  // ============================================================
-  // Accessories
-  // ============================================================
+    // ============================================================
+    // Accessories
+    // ============================================================
 
-  {
-    name: 'Classic Sunglasses',
-    price: '39.99',
-    categorySlug: 'accessories-sunglasses',
-    brand: 'Elite',
-    description: 'Classic sunglasses.',
-  },
-  {
-    name: 'Premium Watch',
-    price: '199.99',
-    categorySlug: 'accessories-watches',
-    brand: 'Elite',
-    description: 'Premium everyday watch.',
-  },
+    {
+      name: 'Classic Sunglasses',
+      price: '39.99',
+      categorySlug: 'accessories-sunglasses',
+      brand: 'Elite',
+      description: 'Classic sunglasses.',
+    },
+    {
+      name: 'Premium Watch',
+      price: '199.99',
+      categorySlug: 'accessories-watches',
+      brand: 'Elite',
+      description: 'Premium everyday watch.',
+    },
 
-  // ============================================================
-  // Beauty
-  // ============================================================
+    // ============================================================
+    // Beauty
+    // ============================================================
 
-  {
-    name: 'Face Moisturizer',
-    price: '34.99',
-    categorySlug: 'beauty-skincare',
-    brand: 'Luna',
-    description: 'Daily face moisturizer.',
-  },
-  {
-    name: 'Beauty Gift Set',
-    price: '59.99',
-    categorySlug: 'beauty-makeup',
-    brand: 'Luna',
-    description: 'Complete beauty gift set.',
-  },
+    {
+      name: 'Face Moisturizer',
+      price: '34.99',
+      categorySlug: 'beauty-skincare',
+      brand: 'Luna',
+      description: 'Daily face moisturizer.',
+    },
+    {
+      name: 'Beauty Gift Set',
+      price: '59.99',
+      categorySlug: 'beauty-makeup',
+      brand: 'Luna',
+      description: 'Complete beauty gift set.',
+    },
 
-  // ============================================================
-  // Sports
-  // ============================================================
+    // ============================================================
+    // Sports
+    // ============================================================
 
-  {
-    name: 'Yoga Mat',
-    price: '29.99',
-    categorySlug: 'sports-fitness',
-    brand: 'Active Pro',
-    description: 'Comfortable fitness yoga mat.',
-  },
-  {
-    name: 'Sports Water Bottle',
-    price: '19.99',
-    categorySlug: 'sports-fitness',
-    brand: 'Active Pro',
-    description: 'Reusable sports water bottle.',
-  },
+    {
+      name: 'Yoga Mat',
+      price: '29.99',
+      categorySlug: 'sports-fitness',
+      brand: 'Active Pro',
+      description: 'Comfortable fitness yoga mat.',
+    },
+    {
+      name: 'Sports Water Bottle',
+      price: '19.99',
+      categorySlug: 'sports-fitness',
+      brand: 'Active Pro',
+      description: 'Reusable sports water bottle.',
+    },
 
-  // ============================================================
-  // Electronics
-  // ============================================================
+    // ============================================================
+    // Electronics
+    // ============================================================
 
-  {
-    name: 'Wireless Headphones',
-    price: '149.99',
-    categorySlug: 'electronics-headphones',
-    brand: 'TechOne',
-    description: 'Wireless noise-isolating headphones.',
-  },
-];
+    {
+      name: 'Wireless Headphones',
+      price: '149.99',
+      categorySlug: 'electronics-headphones',
+      brand: 'TechOne',
+      description: 'Wireless noise-isolating headphones.',
+    },
+  ];
 
   const products: Product[] = [];
 
   for (const [index, data] of productsData.entries()) {
-// const category = categories.find(
-//   (item) => item.slug === data.categorySlug,
-// );
+    const categoryMap = new Map(
+      categories.map((category) => [category.slug, category]),
+    );
 
-// const brand = brands.find(
-//   (item) => item.name === data.brand,
-// );
+    const brandMap = new Map(brands.map((brand) => [brand.name, brand]));
 
-const categoryMap = new Map(
-  categories.map((category) => [
-    category.slug,
-    category,
-  ]),
-);
+    const category = categoryMap.get(data.categorySlug);
 
-const brandMap = new Map(
-  brands.map((brand) => [
-    brand.name,
-    brand,
-  ]),
-);
+    const brand = brandMap.get(data.brand);
 
-const category = categoryMap.get(
-  data.categorySlug,
-);
+    if (!category) {
+      throw new Error(`Category not found: ${data.categorySlug}`);
+    }
 
-const brand = brandMap.get(
-  data.brand,
-);
-
-if (!category) {
-  throw new Error(
-    `Category not found: ${data.categorySlug}`,
-  );
-}
-
-if (!brand) {
-  throw new Error(
-    `Brand not found: ${data.brand}`,
-  );
-}
+    if (!brand) {
+      throw new Error(`Brand not found: ${data.brand}`);
+    }
 
     const slug = slugify(data.name);
 
     const product = await prisma.product.upsert({
-      where: {
-        slug,
-      },
+      where: { tenantId_slug: { tenantId, slug } },
       update: {
         name: data.name,
         description: data.description,
@@ -313,6 +296,7 @@ if (!brand) {
         brandId: brand.id,
       },
       create: {
+        tenantId,
         name: data.name,
         slug,
         description: data.description,
@@ -326,7 +310,7 @@ if (!brand) {
     // Product image
     await prisma.productImage.upsert({
       where: {
-        id: `seed-product-image-${index + 1}`,
+        id: `seed-product-image-${tenantId}-${index + 1}`,
       },
       update: {
         productId: product.id,
@@ -337,7 +321,7 @@ if (!brand) {
         isPrimary: true,
       },
       create: {
-        id: `seed-product-image-${index + 1}`,
+        id: `seed-product-image-${tenantId}-${index + 1}`,
         productId: product.id,
         storageKey: `seed/products/${slug}.jpg`,
         url: productImage(slug, 800, 800),
@@ -355,16 +339,22 @@ if (!brand) {
   return products;
 }
 
-
 // ============================================================
 // Cart
 // ============================================================
 
-export async function seedCarts(customers: User[], prisma: PrismaClient,) {
+export async function seedCarts(
+  customers: User[],
+  prisma: PrismaClient,
+  tenantId: string,
+) {
+  await seedTenant(prisma, tenantId);
+  await assertTenantCustomers(prisma, tenantId, customers);
   console.log('🛒 Seeding carts...');
 
   const variants = await prisma.productVariant.findMany({
     where: {
+      product: { tenantId },
       isActive: true,
     },
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
@@ -373,11 +363,10 @@ export async function seedCarts(customers: User[], prisma: PrismaClient,) {
 
   for (const [index, customer] of customers.slice(0, 2).entries()) {
     const cart = await prisma.cart.upsert({
-      where: {
-        userId: customer.id,
-      },
+      where: { tenantId_userId: { tenantId, userId: customer.id } },
       update: {},
       create: {
+        tenantId,
         userId: customer.id,
       },
     });
@@ -411,23 +400,30 @@ export async function seedCarts(customers: User[], prisma: PrismaClient,) {
 // Wishlist
 // ============================================================
 
-export async function seedWishlists(customers: User[], prisma: PrismaClient,) {
+export async function seedWishlists(
+  customers: User[],
+  prisma: PrismaClient,
+  tenantId: string,
+) {
+  await seedTenant(prisma, tenantId);
+  await assertTenantCustomers(prisma, tenantId, customers);
   console.log('❤️ Seeding wishlists...');
 
   const products = await prisma.product.findMany({
     where: {
+      tenantId,
       status: 'ACTIVE',
     },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     take: 10,
   });
 
   for (const [index, customer] of customers.slice(0, 3).entries()) {
     const wishlist = await prisma.wishlist.upsert({
-      where: {
-        userId: customer.id,
-      },
+      where: { tenantId_userId: { tenantId, userId: customer.id } },
       update: {},
       create: {
+        tenantId,
         userId: customer.id,
       },
     });
@@ -458,7 +454,13 @@ export async function seedWishlists(customers: User[], prisma: PrismaClient,) {
 // Collections
 // ============================================================
 
-export async function seedCollections(products: Product[], prisma: PrismaClient,) {
+export async function seedCollections(
+  products: Product[],
+  prisma: PrismaClient,
+  tenantId: string,
+) {
+  await seedTenant(prisma, tenantId);
+  await assertTenantProducts(prisma, tenantId, products);
   console.log('📚 Seeding collections...');
 
   const collectionData = [
@@ -484,15 +486,14 @@ export async function seedCollections(products: Product[], prisma: PrismaClient,
     const slug = slugify(data.name);
 
     const collection = await prisma.productCollection.upsert({
-      where: {
-        slug,
-      },
+      where: { tenantId_slug: { tenantId, slug } },
       update: {
         name: data.name,
         description: data.description,
         isActive: true,
       },
       create: {
+        tenantId,
         name: data.name,
         slug,
         description: data.description,
@@ -530,11 +531,18 @@ export async function seedCollections(products: Product[], prisma: PrismaClient,
 // Home - Best Seller Orders
 // ============================================================
 
-export async function seedHomeBestSellerOrders(customers: User[], prisma: PrismaClient,) {
+export async function seedHomeBestSellerOrders(
+  customers: User[],
+  prisma: PrismaClient,
+  tenantId: string,
+) {
+  const tenant = await seedTenant(prisma, tenantId);
+  await assertTenantCustomers(prisma, tenantId, customers);
   console.log('🏆 Seeding home best seller orders...');
 
   const variants = await prisma.productVariant.findMany({
     where: {
+      product: { tenantId },
       isActive: true,
     },
     include: {
@@ -567,12 +575,14 @@ export async function seedHomeBestSellerOrders(customers: User[], prisma: Prisma
     const orderNumber = `SEED-BESTSELLER-${String(index + 1).padStart(3, '0')}`;
 
     const unitPrice = variant.price ?? variant.product.basePrice;
-    const totalPrice = unitPrice.mul(quantity).toFixed(2);
+    const totalPrice = fromMinorUnits(
+      toMinorUnits(unitPrice.toString(), tenant.defaultCurrency) *
+        BigInt(quantity),
+      tenant.defaultCurrency,
+    );
 
     const order = await prisma.order.upsert({
-      where: {
-        orderNumber,
-      },
+      where: { tenantId_orderNumber: { tenantId, orderNumber } },
 
       update: {
         userId: customer.id,
@@ -583,15 +593,16 @@ export async function seedHomeBestSellerOrders(customers: User[], prisma: Prisma
         shippingAmount: '0.00',
         taxAmount: '0.00',
         totalAmount: totalPrice,
-        currency: 'USD',
+        currency: tenant.defaultCurrency,
       },
 
       create: {
+        tenantId,
         orderNumber,
         userId: customer.id,
         status: 'DELIVERED',
         paymentStatus: 'PAID',
-        currency: 'USD',
+        currency: tenant.defaultCurrency,
 
         subtotal: totalPrice,
         discountAmount: '0.00',
@@ -623,7 +634,7 @@ export async function seedHomeBestSellerOrders(customers: User[], prisma: Prisma
 
     await prisma.orderItem.upsert({
       where: {
-        id: `seed-best-seller-item-${index + 1}`,
+        id: `seed-best-seller-item-${tenantId}-${index + 1}`,
       },
 
       update: {
@@ -635,6 +646,8 @@ export async function seedHomeBestSellerOrders(customers: User[], prisma: Prisma
         quantity,
         unitPrice,
         itemDiscountAmount: '0.00',
+        taxableAmount: totalPrice,
+        taxAmount: '0.00',
         finalUnitPrice: unitPrice,
         totalPrice,
         variantSnapshot: {
@@ -645,7 +658,7 @@ export async function seedHomeBestSellerOrders(customers: User[], prisma: Prisma
       },
 
       create: {
-        id: `seed-best-seller-item-${index + 1}`,
+        id: `seed-best-seller-item-${tenantId}-${index + 1}`,
         orderId: order.id,
         productId: variant.productId,
         variantId: variant.id,
@@ -654,6 +667,8 @@ export async function seedHomeBestSellerOrders(customers: User[], prisma: Prisma
         quantity,
         unitPrice,
         itemDiscountAmount: '0.00',
+        taxableAmount: totalPrice,
+        taxAmount: '0.00',
         finalUnitPrice: unitPrice,
         totalPrice,
         variantSnapshot: {
@@ -671,7 +686,8 @@ export async function seedHomeBestSellerOrders(customers: User[], prisma: Prisma
 // Banners
 // ============================================================
 
-export async function seedBanners(prisma: PrismaClient,) {
+export async function seedBanners(prisma: PrismaClient, tenantId: string) {
+  await seedTenant(prisma, tenantId);
   console.log('🖼️ Seeding banners...');
 
   const banners = [
@@ -716,7 +732,7 @@ export async function seedBanners(prisma: PrismaClient,) {
 
     await prisma.banner.upsert({
       where: {
-        id: banner.id,
+        id: `${tenantId}-${banner.id}`,
       },
       update: {
         title: banner.title,
@@ -728,7 +744,8 @@ export async function seedBanners(prisma: PrismaClient,) {
         targetType: 'NONE',
       },
       create: {
-        id: banner.id,
+        tenantId,
+        id: `${tenantId}-${banner.id}`,
         title: banner.title,
         subtitle: banner.subtitle,
         imageStorageKey: `seed/banners/${banner.id}.jpg`,
@@ -743,12 +760,15 @@ export async function seedBanners(prisma: PrismaClient,) {
   console.log(`   ✓ ${banners.length} banners seeded`);
 }
 
-
 // ============================================================
 // Home - Product Discounts
 // ============================================================
 
-export async function seedHomeProductDiscounts(prisma: PrismaClient,) {
+export async function seedHomeProductDiscounts(
+  prisma: PrismaClient,
+  tenantId: string,
+) {
+  await seedTenant(prisma, tenantId);
   console.log('🏠 Seeding home product discounts...');
 
   const now = new Date();
@@ -789,7 +809,7 @@ export async function seedHomeProductDiscounts(prisma: PrismaClient,) {
   for (const discount of discountData) {
     const product = await prisma.product.findUnique({
       where: {
-        slug: discount.slug,
+        tenantId_slug: { tenantId, slug: discount.slug },
       },
     });
 
@@ -818,7 +838,13 @@ export async function seedHomeProductDiscounts(prisma: PrismaClient,) {
 // Product Attributes + Variants
 // ============================================================
 
-export async function seedProductAttributesAndVariants(products: Product[],prisma: PrismaClient,) {
+export async function seedProductAttributesAndVariants(
+  products: Product[],
+  prisma: PrismaClient,
+  tenantId: string,
+) {
+  await seedTenant(prisma, tenantId);
+  await assertTenantProducts(prisma, tenantId, products);
   console.log('🎨 Seeding product attributes and variants...');
 
   let variantCount = 0;
@@ -937,32 +963,32 @@ export async function seedProductAttributesAndVariants(products: Product[],prism
       for (const color of colorValues) {
         const combinationKey = [size.id, color.id].sort().join(':');
 
-        const sku = `SKU-${product.slug
+        const sku = `SKU-${tenantId}-${product.slug
           .replace(/-/g, '')
           .toUpperCase()}-${size.value.toUpperCase()}-${color.value
           .replace(/\s+/g, '')
           .toUpperCase()}`;
 
-const variant = await prisma.productVariant.upsert({
-  where: {
-    sku,
-  },
-  update: {
-    productId: product.id,
-    price: product.basePrice,
-    isActive: true,
-    isDefault: false,
-    combinationKey,
-  },
-  create: {
-    productId: product.id,
-    sku,
-    price: product.basePrice,
-    isActive: true,
-    isDefault: false,
-    combinationKey,
-  },
-});
+        const variant = await prisma.productVariant.upsert({
+          where: {
+            sku,
+          },
+          update: {
+            productId: product.id,
+            price: product.basePrice,
+            isActive: true,
+            isDefault: false,
+            combinationKey,
+          },
+          create: {
+            productId: product.id,
+            sku,
+            price: product.basePrice,
+            isActive: true,
+            isDefault: false,
+            combinationKey,
+          },
+        });
 
         await prisma.productVariantValue.upsert({
           where: {
@@ -1036,7 +1062,13 @@ const variant = await prisma.productVariant.upsert({
 // Default Variants for Products Without Selectable Options
 // ============================================================
 
-export async function seedDefaultVariants(products: Product[], prisma: PrismaClient,) {
+export async function seedDefaultVariants(
+  products: Product[],
+  prisma: PrismaClient,
+  tenantId: string,
+) {
+  await seedTenant(prisma, tenantId);
+  await assertTenantProducts(prisma, tenantId, products);
   console.log('📦 Seeding default variants for products without options...');
 
   let createdCount = 0;
@@ -1064,13 +1096,12 @@ export async function seedDefaultVariants(products: Product[], prisma: PrismaCli
      * Products without attributes must have exactly one
      * canonical default variant.
      */
-    const existingDefaultVariant =
-      await prisma.productVariant.findFirst({
-        where: {
-          productId: product.id,
-          isDefault: true,
-        },
-      });
+    const existingDefaultVariant = await prisma.productVariant.findFirst({
+      where: {
+        productId: product.id,
+        isDefault: true,
+      },
+    });
 
     if (existingDefaultVariant) {
       await prisma.productVariant.update({
@@ -1096,13 +1127,12 @@ export async function seedDefaultVariants(products: Product[], prisma: PrismaCli
      * If an older seed created a variant for this product but
      * didn't mark it as default, reuse it when possible.
      */
-    const existingVariant =
-      await prisma.productVariant.findFirst({
-        where: {
-          productId: product.id,
-          combinationKey: 'DEFAULT',
-        },
-      });
+    const existingVariant = await prisma.productVariant.findFirst({
+      where: {
+        productId: product.id,
+        combinationKey: 'DEFAULT',
+      },
+    });
 
     if (existingVariant) {
       await prisma.productVariant.update({
@@ -1120,10 +1150,7 @@ export async function seedDefaultVariants(products: Product[], prisma: PrismaCli
       continue;
     }
 
-    const sku =
-      `SKU-${product.slug
-        .replace(/-/g, '')
-        .toUpperCase()}-DEFAULT`;
+    const sku = `SKU-${tenantId}-${product.slug.replace(/-/g, '').toUpperCase()}-DEFAULT`;
 
     await prisma.productVariant.create({
       data: {
@@ -1146,6 +1173,7 @@ export async function seedDefaultVariants(products: Product[], prisma: PrismaCli
    */
   const activeProducts = await prisma.product.findMany({
     where: {
+      tenantId,
       status: 'ACTIVE',
     },
     select: {
@@ -1155,13 +1183,12 @@ export async function seedDefaultVariants(products: Product[], prisma: PrismaCli
   });
 
   for (const product of activeProducts) {
-    const activeVariantCount =
-      await prisma.productVariant.count({
-        where: {
-          productId: product.id,
-          isActive: true,
-        },
-      });
+    const activeVariantCount = await prisma.productVariant.count({
+      where: {
+        productId: product.id,
+        isActive: true,
+      },
+    });
 
     if (activeVariantCount === 0) {
       throw new Error(
@@ -1170,11 +1197,7 @@ export async function seedDefaultVariants(products: Product[], prisma: PrismaCli
     }
   }
 
-  console.log(
-    `   ✓ ${createdCount} default variants created`,
-  );
+  console.log(`   ✓ ${createdCount} default variants created`);
 
-  console.log(
-    `   ✓ ${updatedCount} default variants updated`,
-  );
+  console.log(`   ✓ ${updatedCount} default variants updated`);
 }

@@ -4,7 +4,9 @@ import type {
 } from '../../generated/prisma/client.js';
 
 export interface CreateNotificationInput {
+  tenantId: string;
   userId: string;
+  eventKey?: string | null;
   type: NotificationType;
   title: string;
   body: string;

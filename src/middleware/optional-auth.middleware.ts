@@ -1,68 +1,16 @@
-import type {
-  NextFunction,
-  Request,
-  Response,
-} from 'express';
-
-import {
-  verifyAccessToken,
-} from '../common/security/jwt.js';
-
-import {
-  AppError,
-} from '../common/errors/app-error.js';
+import type { NextFunction, Request, Response } from 'express';
+import { authenticate } from './auth.middleware.js';
 
 export const optionalAuthenticate = async (
   req: Request,
-  _res: Response,
+  res: Response,
   next: NextFunction,
 ): Promise<void> => {
-  try {
-    const authorization = req.headers.authorization;
-
-    // Guest request.
-    if (!authorization) {
-      next();
-      return;
-    }
-
-    const [scheme, token] = authorization.split(' ');
-
-    if (scheme !== 'Bearer' || !token) {
-      throw new AppError(
-        'Invalid authorization header',
-        401,
-        'INVALID_AUTHORIZATION_HEADER',
-      );
-    }
-
-    const payload = await verifyAccessToken(token);
-
-    if (!payload.sub) {
-      throw new AppError(
-        'Invalid access token',
-        401,
-        'INVALID_ACCESS_TOKEN',
-      );
-    }
-
-    req.user = {
-      userId: payload.sub,
-    };
-
+  if (!req.headers.authorization) {
     next();
-  } catch (error) {
-    if (error instanceof AppError) {
-      next(error);
-      return;
-    }
-
-    next(
-      new AppError(
-        'Invalid or expired access token',
-        401,
-        'INVALID_ACCESS_TOKEN',
-      ),
-    );
+    return;
   }
+  // Supplied credentials must follow the same token and active-account policy
+  // as protected routes. Anonymous browsing remains available without a header.
+  await authenticate(req, res, next);
 };

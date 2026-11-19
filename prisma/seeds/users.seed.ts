@@ -1,24 +1,16 @@
+import { seedTenant, assertSeedTarget } from './helpers.js';
 import { hash } from 'argon2';
-import {
-  PrismaClient,
-  type User,
-} from '../../src/generated/prisma/client.js';
-
-import {DEV_PASSWORD} from "../seed.js";
+import { PrismaClient, type User } from '../../src/generated/prisma/client.js';
 
 // ============================================================
 
-const connectionString = process.env.DATABASE_URL;
-
-if (!connectionString) {
-  throw new Error('DATABASE_URL is not defined');
-}
-
+const DEV_PASSWORD = 'Password123!'; // Replace with your desired password for seeded users
 
 // Users
 // ============================================================
 
-export async function seedUsers(prisma: PrismaClient,) {
+export async function seedUsers(prisma: PrismaClient, tenantId: string) {
+  await seedTenant(prisma, tenantId);
   console.log('👤 Seeding users...');
 
   const passwordHash = await createPasswordHash();
@@ -98,6 +90,18 @@ export async function seedUsers(prisma: PrismaClient,) {
     customers.push(customer);
   }
 
+  for (const [user, role] of [
+    [admin, 'ADMIN'],
+    [manager, 'MANAGER'],
+    ...customers.map((customer) => [customer, 'CUSTOMER'] as const),
+  ] as const) {
+    await prisma.tenantMember.upsert({
+      where: { tenantId_userId: { tenantId, userId: user.id } },
+      update: {},
+      create: { tenantId, userId: user.id, role, status: 'ACTIVE' },
+    });
+  }
+
   console.log('   ✓ Admin created');
   console.log('   ✓ Manager created');
   console.log(`   ✓ ${customers.length} customers created`);
@@ -108,23 +112,21 @@ export async function seedUsers(prisma: PrismaClient,) {
     customers,
   };
 }
- 
+
 // ============================================================
 // Helpers
 // ============================================================
-
 
 async function createPasswordHash(): Promise<string> {
   return hash(DEV_PASSWORD);
 }
 
-
-
 // ============================================================
 // Addresses
 // ============================================================
 
-export async function seedAddresses(customers: User[], prisma: PrismaClient,) {
+export async function seedAddresses(customers: User[], prisma: PrismaClient) {
+  assertSeedTarget();
   console.log('🏠 Seeding addresses...');
 
   for (const [index, customer] of customers.entries()) {
@@ -147,7 +149,7 @@ export async function seedAddresses(customers: User[], prisma: PrismaClient,) {
           city: 'Cairo',
           state: 'Cairo',
           postalCode: '11511',
-          country: 'Egypt',
+          countryCode: 'EG',
           phone: `0100000000${index}`,
           isDefaultShipping: true,
           isDefaultBilling: true,
@@ -164,7 +166,7 @@ export async function seedAddresses(customers: User[], prisma: PrismaClient,) {
           city: 'Cairo',
           state: 'Cairo',
           postalCode: '11511',
-          country: 'Egypt',
+          countryCode: 'EG',
           phone: `0100000000${index}`,
           isDefaultShipping: true,
           isDefaultBilling: true,

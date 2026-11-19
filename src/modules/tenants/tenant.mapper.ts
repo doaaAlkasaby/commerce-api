@@ -1,4 +1,10 @@
-export function mapTenant(tenant: any) {
+import type {
+  Tenant,
+  TenantMember,
+  User,
+} from '../../generated/prisma/client.js';
+
+export function mapTenant(tenant: Tenant) {
   return {
     id: tenant.id,
     name: tenant.name,
@@ -6,10 +12,8 @@ export function mapTenant(tenant: any) {
     code: tenant.code,
     legalName: tenant.legalName,
     status: tenant.status,
-    defaultCountryCode:
-      tenant.defaultCountryCode,
-    defaultCurrency:
-      tenant.defaultCurrency,
+    defaultCountryCode: tenant.defaultCountryCode,
+    defaultCurrency: tenant.defaultCurrency,
     timezone: tenant.timezone,
     logoUrl: tenant.logoUrl,
     createdAt: tenant.createdAt,
@@ -18,7 +22,9 @@ export function mapTenant(tenant: any) {
 }
 
 export function mapTenantMember(
-  member: any,
+  member: TenantMember & {
+    user?: Pick<User, 'id' | 'email' | 'firstName' | 'lastName'>;
+  },
 ) {
   return {
     id: member.id,
@@ -38,23 +44,21 @@ export function mapTenantMember(
       : undefined,
   };
 }
-export function mapTenantMembership(
-  membership: {
+export function mapTenantMembership(membership: {
+  id: string;
+  role: string;
+  status: string;
+  tenant: {
     id: string;
-    role: string;
+    name: string;
+    slug: string;
+    code: string;
     status: string;
-    tenant: {
-      id: string;
-      name: string;
-      slug: string;
-      code: string;
-      status: string;
-      defaultCurrency: string | null;
-      timezone: string;
-      logoUrl: string | null;
-    };
-  },
-) {
+    defaultCurrency: string | null;
+    timezone: string;
+    logoUrl: string | null;
+  };
+}) {
   return {
     membershipId: membership.id,
     role: membership.role,
@@ -66,8 +70,7 @@ export function mapTenantMembership(
       slug: membership.tenant.slug,
       code: membership.tenant.code,
       status: membership.tenant.status,
-      defaultCurrency:
-        membership.tenant.defaultCurrency,
+      defaultCurrency: membership.tenant.defaultCurrency,
       timezone: membership.tenant.timezone,
       logoUrl: membership.tenant.logoUrl,
     },

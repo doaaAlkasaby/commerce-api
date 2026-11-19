@@ -6,6 +6,16 @@ import type {
 } from '../../src/generated/prisma/client.js';
 import { hashPassword } from '../../src/common/security/password.js';
 import { DevelopmentSeedError } from '../../src/config/development-seed-options.js';
+import { tenantFixtures as developmentStores, seedTenants } from '../seeds/tenants.seed.js';
+
+export { tenantFixtures as developmentStores } from '../seeds/tenants.seed.js';
+
+const warehouseCities = {
+  KW: 'Kuwait City',
+  SA: 'Riyadh',
+  EG: 'Cairo',
+  AE: 'Dubai',
+} as const;
 
 export function developmentId(name: string) {
   const hex = createHash('sha256')
@@ -13,51 +23,13 @@ export function developmentId(name: string) {
     .digest('hex');
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
-export const developmentStores = [
-  {
-    key: 'fashion',
-    slug: 'dev81-kuwait-fashion',
-    code: 'DEV81_FASHION',
-    name: 'Development Kuwait Fashion',
-    country: 'KW',
-    currency: 'KWD',
-  },
-  {
-    key: 'independent',
-    slug: 'dev81-independent',
-    code: 'DEV81_INDEPENDENT',
-    name: 'Development Independent Store',
-    country: 'SA',
-    currency: 'SAR',
-  },
-] as const;
 
 export async function seedDevelopment(db: PrismaClient, password: string) {
   const passwordHash = await hashPassword(password);
   return db.$transaction(
     async (tx) => {
-      for (const [code, name, currencyCode] of [
-        ['KW', 'Kuwait', 'KWD'],
-        ['SA', 'Saudi Arabia', 'SAR'],
-        ['EG', 'Egypt', 'EGP'],
-      ]) {
-        if (!code || !name || !currencyCode)
-          throw new DevelopmentSeedError('Invalid country fixture');
-        const row = await tx.country.upsert({
-          where: { code },
-          update: {},
-          create: {
-            id: developmentId(`country:${code}`),
-            code,
-            name,
-            currencyCode,
-          },
-        });
-        if (!row.isActive || row.currencyCode !== currencyCode)
-          throw new DevelopmentSeedError(
-            'Existing country configuration conflicts with the development fixture; no changes were made',
-          );
-      }
+      await seedTenants(tx);
+
       for (const store of developmentStores) {
         const tenantId = developmentId(`tenant:${store.key}`);
         const collision = await tx.tenant.findUnique({
@@ -67,18 +39,8 @@ export async function seedDevelopment(db: PrismaClient, password: string) {
           throw new DevelopmentSeedError(
             'Development storefront slug is owned by unrelated data',
           );
-        const tenant = await tx.tenant.upsert({
+        const tenant = await tx.tenant.findUniqueOrThrow({
           where: { id: tenantId },
-          update: {},
-          create: {
-            id: tenantId,
-            slug: store.slug,
-            code: store.code,
-            name: store.name,
-            defaultCountryCode: store.country,
-            defaultCurrency: store.currency,
-            timezone: 'Asia/Kuwait',
-          },
         });
         if (
           tenant.slug !== store.slug ||
@@ -157,361 +119,185 @@ export async function seedDevelopment(db: PrismaClient, password: string) {
               tenantId,
               countryCode,
               currency: store.currency,
-              pricesIncludeTax: false,
               defaultTaxCategoryId: taxCategory.id,
             },
           });
-          const profile = await tx.shippingProfile.upsert({
-            where: { tenantId_countryCode: { tenantId, countryCode } },
-            update: {},
-            create: {
-              id: developmentId(`shipping:${store.key}:${countryCode}`),
-              tenantId,
-              countryCode,
-              currency: store.currency,
-            },
-          });
-          const zone = await tx.shippingZone.upsert({
-            where: {
-              profileId_code: { profileId: profile.id, code: 'DEV81_COUNTRY' },
-            },
-            update: {},
-            create: {
-              id: developmentId(`zone:${store.key}:${countryCode}`),
-              profileId: profile.id,
-              code: 'DEV81_COUNTRY',
-              name: 'Development country coverage',
-              countryCode,
-            },
-          });
-          for (const methodCode of ['local', 'standard']) {
-            const method = await tx.shippingMethod.upsert({
-              where: { zoneId_code: { zoneId: zone.id, code: methodCode } },
-              update: {},
-              create: {
-                id: developmentId(
-                  `method:${store.key}:${countryCode}:${methodCode}`,
-                ),
-                zoneId: zone.id,
-                code: methodCode,
-                name:
-                  methodCode === 'local'
-                    ? 'Local delivery'
-                    : 'Standard delivery',
-                sortOrder: methodCode === 'local' ? 0 : 10,
-              },
-            });
-            await tx.shippingRule.upsert({
-              where: {
-                id: developmentId(
-                  `rate:${store.key}:${countryCode}:${methodCode}`,
-                ),
-              },
-              update: {},
-              create: {
-                id: developmentId(
-                  `rate:${store.key}:${countryCode}:${methodCode}`,
-                ),
-                methodId: method.id,
-                maxDistanceKm: methodCode === 'local' ? '80' : '2000',
-                flatRate:
-                  store.currency === 'SAR'
-                    ? methodCode === 'local'
-                      ? '15'
-                      : '35'
-                    : methodCode === 'local'
-                      ? '1.250'
-                      : '3.750',
-              },
-            });
-          }
         }
-        const sources =
-          store.key === 'fashion' ? ['kuwait', 'saudi'] : ['saudi'];
-        for (const source of sources) {
-          const warehouseId = developmentId(`warehouse:${store.key}:${source}`);
-          await tx.warehouse.upsert({
-            where: { id: warehouseId },
-            update: {},
-            create: {
-              id: warehouseId,
-              tenantId,
-              code: `DEV81_${source.toUpperCase()}`,
-              name: `Development ${source} warehouse`,
-              countryCode: source === 'kuwait' ? 'KW' : 'SA',
-              region: source === 'kuwait' ? 'Al Asimah' : 'Riyadh',
-              city: source === 'kuwait' ? 'Kuwait City' : 'Riyadh',
-              address:
-                source === 'kuwait'
-                  ? 'Development showroom, Al-Shuhada Street'
-                  : 'Development showroom, King Fahd Road',
-              latitude: source === 'kuwait' ? '29.3759' : '24.7136',
-              longitude: source === 'kuwait' ? '47.9774' : '46.6753',
-              isDefault: source === sources[0],
-              priority: source === 'kuwait' ? 10 : 20,
-            },
-          });
-          await tx.warehouseCoverage.upsert({
-            where: {
-              warehouseId_countryCode: {
-                warehouseId,
-                countryCode: source === 'kuwait' ? 'KW' : 'SA',
-              },
-            },
-            update: {},
-            create: {
-              tenantId,
-              warehouseId,
-              countryCode: source === 'kuwait' ? 'KW' : 'SA',
-            },
-          });
-        }
-        const products = [
-          {
-            key: 'tee',
-            name: 'Cotton T-shirt',
-            price: store.currency === 'KWD' ? '12.500' : '125',
-            variants: ['small', 'medium'],
-            kw: [20, 2],
-            sa: [8, 15],
+        const shippingProfile = await tx.shippingProfile.upsert({
+          where: { id: developmentId(`shipping-profile:${store.key}`) },
+          update: {},
+          create: {
+            id: developmentId(`shipping-profile:${store.key}`),
+            tenantId,
+            countryCode: store.country,
+            currency: store.currency,
+            originLatitude: '29.3759',
+            originLongitude: '47.9774',
           },
-          {
-            key: 'denim',
-            name: 'Straight denim',
-            price: store.currency === 'KWD' ? '20' : '200',
-            variants: ['30', '32'],
-            kw: [4, 0],
-            sa: [0, 12],
+        });
+        const shippingZone = await tx.shippingZone.upsert({
+          where: { id: developmentId(`shipping-zone:${store.key}`) },
+          update: {},
+          create: {
+            id: developmentId(`shipping-zone:${store.key}`),
+            profileId: shippingProfile.id,
+            code: 'DEFAULT',
+            name: 'Default zone',
+            countryCode: store.country,
           },
-          {
-            key: 'shoes',
-            name: 'Everyday sneakers',
-            price: store.currency === 'KWD' ? '35' : '350',
-            variants: ['40', '41'],
-            kw: [0, 3],
-            sa: [0, 0],
+        });
+        const shippingMethod = await tx.shippingMethod.upsert({
+          where: { id: developmentId(`shipping-method:${store.key}`) },
+          update: {},
+          create: {
+            id: developmentId(`shipping-method:${store.key}`),
+            zoneId: shippingZone.id,
+            code: 'STANDARD',
+            name: 'Standard delivery',
           },
-        ];
-        for (const product of products) {
-          const productId = developmentId(
-            `product:${store.key}:${product.key}`,
-          );
-          await tx.product.upsert({
+        });
+        await tx.shippingRule.upsert({
+          where: { id: developmentId(`shipping-rule:${store.key}`) },
+          update: {},
+          create: {
+            id: developmentId(`shipping-rule:${store.key}`),
+            methodId: shippingMethod.id,
+            flatRate: store.key === 'fashion' ? '2.500' : '15.000',
+          },
+        });
+        const warehouse = await tx.warehouse.upsert({
+          where: { id: developmentId(`warehouse:${store.key}`) },
+          update: {},
+          create: {
+            id: developmentId(`warehouse:${store.key}`),
+            tenantId,
+            code: 'PRIMARY',
+            name: 'Primary Warehouse',
+            countryCode: store.country,
+            city: warehouseCities[store.country],
+            address: 'Development showroom',
+          },
+        });
+        await tx.warehouseCoverage.upsert({
+          where: {
+            warehouseId_countryCode: {
+              warehouseId: warehouse.id,
+              countryCode: store.country,
+            },
+          },
+          update: {},
+          create: {
+            tenantId,
+            warehouseId: warehouse.id,
+            countryCode: store.country,
+          },
+        });
+
+        const brand = await tx.brand.upsert({
+          where: {
+            tenantId_slug: { tenantId, slug: 'dune-81' },
+          },
+          update: {},
+          create: {
+            id: developmentId(`brand:${store.key}`),
+            tenantId,
+            name: 'DUNE / 81',
+            slug: 'dune-81',
+          },
+        });
+
+        for (const [key, name, price] of [
+          ['tee', 'Cotton T-Shirt', '12.500'],
+          ['denim', 'Straight Denim', '20.000'],
+          ['shoes', 'Everyday Sneakers', '35.000'],
+        ]) {
+          if (!key || !name || !price)
+            throw new DevelopmentSeedError('Invalid product fixture');
+          const productId = developmentId(`product:${store.key}:${key}`);
+          const product = await tx.product.upsert({
             where: { id: productId },
             update: {},
             create: {
               id: productId,
               tenantId,
               categoryId: category.id,
-              name: product.name,
-              slug: product.key,
-              basePrice: product.price,
+              brandId: brand.id,
+              name,
+              slug: key,
+              basePrice: price,
               status: 'ACTIVE',
             },
           });
-          const attributeId = developmentId(
-            `attribute:${store.key}:${product.key}`,
-          );
-          await tx.productAttribute.upsert({
-            where: { id: attributeId },
+          const variantId = developmentId(`variant:${store.key}:${key}`);
+          await tx.productVariant.upsert({
+            where: { id: variantId },
             update: {},
-            create: { id: attributeId, productId, name: 'Size' },
+            create: {
+              id: variantId,
+              productId: product.id,
+              sku: `DEV81-${store.key.toUpperCase()}-${key.toUpperCase()}`,
+              combinationKey: 'DEFAULT',
+              price,
+              isDefault: true,
+            },
           });
-          for (const [index, size] of product.variants.entries()) {
-            const valueId = developmentId(
-              `value:${store.key}:${product.key}:${size}`,
-            );
-            await tx.productAttributeValue.upsert({
-              where: { id: valueId },
-              update: {},
-              create: { id: valueId, attributeId, value: size },
-            });
-            const variantId = developmentId(
-              `variant:${store.key}:${product.key}:${size}`,
-            );
-            await tx.productVariant.upsert({
-              where: { id: variantId },
-              update: {},
-              create: {
-                id: variantId,
-                productId,
-                sku: `DEV81-${store.key}-${product.key}-${size}`,
-                combinationKey: valueId,
-                taxCategoryId: taxCategory.id,
-                values: { create: { attributeValueId: valueId } },
+          await tx.inventory.upsert({
+            where: {
+              warehouseId_variantId: {
+                variantId,
+                warehouseId: warehouse.id,
               },
-            });
-            for (const source of sources) {
-              const inventoryId = developmentId(
-                `inventory:${store.key}:${source}:${product.key}:${size}`,
-              );
-              const existingStock = await tx.inventory.findUnique({
-                where: { id: inventoryId },
-              });
-              if (existingStock) {
-                if (
-                  existingStock.tenantId !== tenantId ||
-                  existingStock.variantId !== variantId ||
-                  existingStock.warehouseId !==
-                    developmentId(`warehouse:${store.key}:${source}`)
-                )
-                  throw new DevelopmentSeedError(
-                    'Development inventory identity conflicts with unrelated data',
-                  );
-                continue;
-              }
-              const quantity =
-                (source === 'kuwait' ? product.kw : product.sa)[index] ?? 0;
-              await tx.inventory.create({
-                data: {
-                  id: inventoryId,
-                  tenantId,
-                  warehouseId: developmentId(
-                    `warehouse:${store.key}:${source}`,
-                  ),
-                  variantId,
-                  quantity,
-                },
-              });
-              if (quantity > 0)
-                await tx.inventoryTransaction.create({
-                  data: {
-                    id: developmentId(`initial:${inventoryId}`),
-                    inventoryId,
-                    type: 'STOCK_IN',
-                    quantity,
-                    referenceId: 'DEV81_INITIAL_STOCK',
-                    reason: 'Initial development fixture stock',
-                  },
-                });
-            }
-          }
+            },
+            update: {},
+            create: {
+              tenantId,
+              warehouseId: warehouse.id,
+              variantId,
+              quantity: 100,
+              reservedQuantity: 0,
+            },
+          });
         }
-        await seedVisuals(tx, store.key);
-        await tx.coupon.upsert({
-          where: { tenantId_code: { tenantId, code: 'DEV81SAVE10' } },
-          update: {},
-          create: {
-            id: developmentId(`coupon:${store.key}`),
-            tenantId,
-            code: 'DEV81SAVE10',
-            discountType: 'PERCENTAGE',
-            discountValue: '10',
-            perUserLimit: 10,
-            usageLimit: 1000,
-          },
-        });
-      }
-      const accounts: Array<{
-        key: string;
-        store: 'fashion' | 'independent';
-        role: TenantMemberRole;
-        verified: boolean;
-      }> = [
-        {
-          key: 'fashion-owner',
-          store: 'fashion',
-          role: 'OWNER',
-          verified: true,
-        },
-        {
-          key: 'fashion-manager',
-          store: 'fashion',
-          role: 'MANAGER',
-          verified: true,
-        },
-        {
-          key: 'fashion-customer',
-          store: 'fashion',
-          role: 'CUSTOMER',
-          verified: true,
-        },
-        {
-          key: 'fashion-unverified',
-          store: 'fashion',
-          role: 'CUSTOMER',
-          verified: false,
-        },
-        {
-          key: 'independent-owner',
-          store: 'independent',
-          role: 'OWNER',
-          verified: true,
-        },
-        {
-          key: 'independent-customer',
-          store: 'independent',
-          role: 'CUSTOMER',
-          verified: true,
-        },
-      ];
-      for (const account of accounts) {
-        const userId = developmentId(`user:${account.key}`);
-        const email = `${account.key}@dev81.example.test`;
-        const collision = await tx.user.findUnique({ where: { email } });
-        if (collision && collision.id !== userId)
-          throw new DevelopmentSeedError(
-            'Development email belongs to an unrelated identity',
-          );
-        const accountUser = await tx.user.upsert({
-          where: { id: userId },
-          update: {},
-          create: {
-            id: userId,
-            email,
-            passwordHash,
-            firstName: 'Development',
-            lastName: account.key,
-            emailVerifiedAt: account.verified ? new Date() : null,
-          },
-        });
-        if (accountUser.email !== email || accountUser.role !== 'CUSTOMER')
-          throw new DevelopmentSeedError(
-            'Development account identity changed; inspect rather than overwriting it',
-          );
-        const tenantId = developmentId(`tenant:${account.store}`);
-        await tx.tenantMember.upsert({
-          where: { tenantId_userId: { tenantId, userId } },
-          update: {},
-          create: {
-            id: developmentId(`member:${account.key}`),
-            tenantId,
-            userId,
-            role: account.role,
-          },
-        });
-        if (account.role === 'CUSTOMER')
-          for (const country of account.store === 'fashion'
-            ? ['KW', 'SA']
-            : ['SA']) {
-            await tx.address.upsert({
-              where: { id: developmentId(`address:${account.key}:${country}`) },
-              update: {},
-              create: {
-                id: developmentId(`address:${account.key}:${country}`),
-                userId,
-                firstName: 'Development',
-                lastName: 'Customer',
-                addressLine1: 'Development delivery address',
-                city: country === 'KW' ? 'Kuwait City' : 'Riyadh',
-                countryCode: country,
-                latitude: country === 'KW' ? '29.3759' : '24.7136',
-                longitude: country === 'KW' ? '47.9774' : '46.6753',
-                isDefaultShipping:
-                  country === (account.store === 'fashion' ? 'KW' : 'SA'),
+
+        const userAccounts: Array<[string, TenantMemberRole]> = [
+          ['admin@example.com', 'ADMIN'],
+          ['manager@example.com', 'MANAGER'],
+          ['customer1@example.com', 'CUSTOMER'],
+          ['customer2@example.com', 'CUSTOMER'],
+        ];
+        for (const [email, role] of userAccounts) {
+          const user = await tx.user.upsert({
+            where: { email },
+            update: {},
+            create: {
+              id: developmentId(`user:${email}`),
+              email,
+              passwordHash,
+              firstName: email.split('@')[0] ?? 'User',
+              lastName: 'Development',
+              emailVerifiedAt: new Date(),
+            },
+          });
+          await tx.tenantMember.upsert({
+            where: {
+              tenantId_userId: {
+                tenantId,
+                userId: user.id,
               },
-            });
-          }
+            },
+            update: {},
+            create: {
+              tenantId,
+              userId: user.id,
+              role,
+            },
+          });
+        }
+
+        if (['fashion', 'independent'].includes(store.key)) {
+          await seedVisuals(tx, store.key as 'fashion' | 'independent');
+        }
       }
-      return {
-        stores: developmentStores.map((store) => ({
-          slug: store.slug,
-          currency: store.currency,
-        })),
-        accounts: accounts.map(
-          (account) => `${account.key}@dev81.example.test`,
-        ),
-      };
     },
     { timeout: 30000 },
   );

@@ -4,6 +4,7 @@ import {
   type PaymentConfiguration,
 } from '../../../config/payment-options.js';
 import { MyFatoorahProvider } from './myfatoorah.provider.js';
+import { MockMyFatoorahProvider } from './mock-myfatoorah.provider.js';
 import {
   PaymentMethod,
   PaymentProvider,
@@ -22,7 +23,12 @@ export class PaymentProviderRegistry {
     const cashOnDelivery = new CashOnDeliveryProvider();
 
     this.providers = new Map([[PaymentProvider.NONE, cashOnDelivery]]);
-    if (configuration.PAYMENT_PROVIDER === 'MYFATOORAH') {
+    if (configuration.PAYMENT_PROVIDER === 'MOCK') {
+      if (process.env.NODE_ENV === 'production') {
+        throw new AppError('Mock payment provider is prohibited in production', 500, 'MOCK_PAYMENT_PROHIBITED_IN_PRODUCTION');
+      }
+      this.providers.set(PaymentProvider.MYFATOORAH, new MockMyFatoorahProvider());
+    } else if (configuration.PAYMENT_PROVIDER === 'MYFATOORAH') {
       this.providers.set(
         PaymentProvider.MYFATOORAH,
         new MyFatoorahProvider(myFatoorahSettingsSchema.parse(configuration)),
@@ -50,8 +56,12 @@ export class PaymentProviderRegistry {
         return PaymentProvider.NONE;
 
       case PaymentMethod.CARD:
-        if (this.configuration.PAYMENT_PROVIDER === 'MYFATOORAH')
+        if (
+          this.configuration.PAYMENT_PROVIDER === 'MYFATOORAH' ||
+          this.configuration.PAYMENT_PROVIDER === 'MOCK'
+        ) {
           return PaymentProvider.MYFATOORAH;
+        }
         throw new AppError(
           'Card payment provider is not configured yet',
           400,

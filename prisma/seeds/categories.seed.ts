@@ -1,13 +1,10 @@
-
- import {slugify, unsplash} from '../seed.js';
+import { seedTenant } from './helpers.js';
+import { slugify, unsplash } from './helpers.js';
 import {
   PrismaClient,
   type Brand,
   type Category,
 } from '../../src/generated/prisma/client.js';
-
-
-
 
 /** Category slug -> Unsplash photo id (shown on the home screen) */
 const CATEGORY_PHOTO_IDS: Record<string, string> = {
@@ -21,16 +18,15 @@ const CATEGORY_PHOTO_IDS: Record<string, string> = {
   electronics: '1498049794561-7780e7231661',
 };
 
-
 /** Fallback if a slug is missing from the map above */
 const FALLBACK_PHOTO_ID = '1523381210434-271e8be1f52b';
-
 
 // ============================================================
 // Categories
 // ============================================================
 
-export  async function seedCategories(prisma: PrismaClient,) {
+export async function seedCategories(prisma: PrismaClient, tenantId: string) {
+  await seedTenant(prisma, tenantId);
   console.log('📂 Seeding categories...');
 
   // ------------------------------------------------------------
@@ -84,9 +80,7 @@ export  async function seedCategories(prisma: PrismaClient,) {
     const slug = slugify(data.name);
 
     const category = await prisma.category.upsert({
-      where: {
-        slug,
-      },
+      where: { tenantId_slug: { tenantId, slug } },
       update: {
         name: data.name,
         description: data.description,
@@ -100,6 +94,7 @@ export  async function seedCategories(prisma: PrismaClient,) {
         parentId: null,
       },
       create: {
+        tenantId,
         name: data.name,
         slug,
         description: data.description,
@@ -274,14 +269,12 @@ export  async function seedCategories(prisma: PrismaClient,) {
     const parentCategory = parentCategories.get(data.parent);
 
     if (!parentCategory) {
-      throw new Error(
-        `Parent category not found: ${data.parent}`,
-      );
+      throw new Error(`Parent category not found: ${data.parent}`);
     }
 
     /*
      * Important:
-     * The slug must be globally unique.
+     * The slug must be unique within the tenant.
      *
      * For example:
      * Women / Jackets
@@ -291,36 +284,25 @@ export  async function seedCategories(prisma: PrismaClient,) {
      *
      * Therefore we include the parent in the slug.
      */
-    const slug = slugify(
-      `${data.parent}-${data.name}`,
-    );
+    const slug = slugify(`${data.parent}-${data.name}`);
 
     const category = await prisma.category.upsert({
-      where: {
-        slug,
-      },
+      where: { tenantId_slug: { tenantId, slug } },
       update: {
         name: data.name,
         description: data.description,
         imageStorageKey: `seed/categories/${slug}.jpg`,
-        imageUrl: unsplash(
-          FALLBACK_PHOTO_ID,
-          600,
-          600,
-        ),
+        imageUrl: unsplash(FALLBACK_PHOTO_ID, 600, 600),
         isActive: true,
         parentId: parentCategory.id,
       },
       create: {
+        tenantId,
         name: data.name,
         slug,
         description: data.description,
         imageStorageKey: `seed/categories/${slug}.jpg`,
-        imageUrl: unsplash(
-          FALLBACK_PHOTO_ID,
-          600,
-          600,
-        ),
+        imageUrl: unsplash(FALLBACK_PHOTO_ID, 600, 600),
         isActive: true,
         parentId: parentCategory.id,
       },
@@ -329,9 +311,7 @@ export  async function seedCategories(prisma: PrismaClient,) {
     categories.push(category);
   }
 
-  console.log(
-    `   ✓ ${categories.length} categories created`,
-  );
+  console.log(`   ✓ ${categories.length} categories created`);
 
   return categories;
 }
@@ -340,7 +320,8 @@ export  async function seedCategories(prisma: PrismaClient,) {
 // Brands
 // ============================================================
 
-export  async function seedBrands(prisma: PrismaClient,) {
+export async function seedBrands(prisma: PrismaClient, tenantId: string) {
+  await seedTenant(prisma, tenantId);
   console.log('🏷️ Seeding brands...');
 
   const brandData = [
@@ -376,15 +357,14 @@ export  async function seedBrands(prisma: PrismaClient,) {
     const slug = slugify(data.name);
 
     const brand = await prisma.brand.upsert({
-      where: {
-        slug,
-      },
+      where: { tenantId_slug: { tenantId, slug } },
       update: {
         name: data.name,
         description: data.description,
         isActive: true,
       },
       create: {
+        tenantId,
         name: data.name,
         slug,
         description: data.description,

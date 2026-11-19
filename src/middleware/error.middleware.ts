@@ -6,6 +6,8 @@ import multer from 'multer';
 import { AppError } from '../common/errors/app-error.js';
 
 import { logger } from '../common/logger/logger.js';
+import { env } from '../config/env.js';
+import { errorDiagnostics } from '../common/logger/error-diagnostics.js';
 
 export const errorMiddleware = (
   error: unknown,
@@ -90,6 +92,9 @@ export const errorMiddleware = (
     {
       requestId,
       category: 'UNHANDLED_APPLICATION_ERROR',
+      ...(env.NODE_ENV === 'development'
+        ? { diagnostic: errorDiagnostics(error) }
+        : {}),
     },
     'Unhandled application error',
   );

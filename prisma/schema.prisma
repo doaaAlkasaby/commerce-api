@@ -81,23 +81,6 @@ model User {
 
 }
 
-model RefreshToken {
-  id                String    @id @default(uuid())
-  userId            String
-  tokenHash         String    @unique
-  familyId          String
-  expiresAt         DateTime
-  revokedAt         DateTime?
-  replacedByTokenId String?
-  createdAt         DateTime  @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([familyId])
-  @@index([expiresAt])
-}
-
 model EmailVerificationToken {
   id     String @id @default(uuid())
   userId String
@@ -112,6 +95,24 @@ model EmailVerificationToken {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([expiresAt])
+}
+
+
+model RefreshToken {
+  id                String    @id @default(uuid())
+  userId            String
+  tokenHash         String    @unique
+  familyId          String
+  expiresAt         DateTime
+  revokedAt         DateTime?
+  replacedByTokenId String?
+  createdAt         DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
   @@index([expiresAt])
 }
 
@@ -1010,7 +1011,9 @@ enum NotificationType {
 
 model Notification {
   id        String           @id @default(uuid())
+  tenantId  String
   userId    String
+  eventKey  String?          @unique
   type      NotificationType
   title     String
   body      String
@@ -1020,10 +1023,11 @@ model Notification {
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId, createdAt])
-  @@index([userId, isRead])
+  @@index([tenantId, userId, createdAt])
+  @@index([tenantId, userId, isRead])
   @@index([type])
 }
 
@@ -1328,6 +1332,7 @@ model Tenant {
   legalName String?
 
   status TenantStatus @default(ACTIVE)
+  isPubliclyListed Boolean @default(false)
 
   defaultCountryCode String?
   defaultCurrency    String?
@@ -1335,6 +1340,7 @@ model Tenant {
 
   logoStorageKey String?
   logoUrl        String?
+  coverImageUrl  String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1365,7 +1371,10 @@ model Tenant {
 
   warehouses Warehouse[]
 
+  notifications Notification[]
+
   @@index([status])
+  @@index([status, isPubliclyListed])
   @@index([defaultCountryCode])
 }
 

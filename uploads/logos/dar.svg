@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60" width="200" height="60">
+  <rect width="200" height="60" rx="12" fill="#5B8266"/>
+  <path d="M30,16 L44,28 L40,28 L40,44 L20,44 L20,28 L16,28 Z" fill="#FAF8F5" opacity="0.9"/>
+  <text x="115" y="38" font-family="system-ui, -apple-system, sans-serif" font-size="20" font-weight="bold" fill="#FAF8F5" text-anchor="middle">Dar | دار</text>
+</svg>

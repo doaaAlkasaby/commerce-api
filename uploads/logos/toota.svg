@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60" width="200" height="60">
+  <rect width="200" height="60" rx="12" fill="#389982"/>
+  <polygon points="30,16 34,26 44,26 36,32 39,42 30,36 21,42 24,32 16,26 26,26" fill="#FFF9D2" opacity="0.9"/>
+  <text x="115" y="38" font-family="system-ui, -apple-system, sans-serif" font-size="20" font-weight="bold" fill="#FFF9D2" text-anchor="middle">Toota | توتة</text>
+</svg>

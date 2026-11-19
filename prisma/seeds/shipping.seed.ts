@@ -1,230 +1,96 @@
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../../src/generated/prisma/client.js';
+import { seedTenant } from './helpers.js';
 
-const GLOBAL_SCOPE = 'GLOBAL';
-
-export async function seedShipping(
-  prisma: PrismaClient,
-) {
-  console.log(
-    '🌱 Seeding shipping configuration...',
-  );
-
-  const profile =
-    await prisma.shippingProfile.upsert({
-      where: {
-        scopeKey: GLOBAL_SCOPE,
-      },
-
-      update: {
-        name: 'Egypt Shipping',
-        currency: 'EGP',
-        isActive: true,
-      },
-
+// Egyptian development fixture amounts are denominated in the configured EGP.
+export async function seedShipping(prisma: PrismaClient, tenantId: string) {
+  await seedTenant(prisma, tenantId);
+  const country = await prisma.country.findUniqueOrThrow({
+    where: { code: 'EG' },
+  });
+  await prisma.$transaction(async (tx) => {
+    const profile = await tx.shippingProfile.upsert({
+      where: { tenantId_countryCode: { tenantId, countryCode: country.code } },
+      update: { currency: country.currencyCode, isActive: true },
       create: {
-        scopeKey: GLOBAL_SCOPE,
-        name: 'Egypt Shipping',
-        currency: 'EGP',
+        tenantId,
+        countryCode: country.code,
+        currency: country.currencyCode,
         isActive: true,
       },
     });
-
-  const zones = [
-    {
-      name: 'Cairo',
-      countryCode: 'EG',
-      regionCode: 'C',
-      city: null,
-    },
-    {
-      name: 'Dakahlia',
-      countryCode: 'EG',
-      regionCode: 'DK',
-      city: null,
-    },
-    {
-      name: 'Other Egypt',
-      countryCode: 'EG',
-      regionCode: null,
-      city: null,
-    },
-  ];
-
-  for (const zoneData of zones) {
-    const existingZone =
-      await prisma.shippingZone.findFirst({
-        where: {
-          shippingProfileId: profile.id,
-          countryCode:
-            zoneData.countryCode,
-          regionCode:
-            zoneData.regionCode,
-          city: zoneData.city,
-        },
-      });
-
-    const zone =
-      existingZone ??
-      (await prisma.shippingZone.create({
-        data: {
-          shippingProfileId:
-            profile.id,
-          name: zoneData.name,
-          countryCode:
-            zoneData.countryCode,
-          regionCode:
-            zoneData.regionCode,
-          city: zoneData.city,
-          isActive: true,
-        },
-      }));
-
-    const standard =
-      await prisma.shippingMethod.upsert({
-        where: {
-          shippingZoneId_code: {
-            shippingZoneId: zone.id,
-            code: 'STANDARD',
-          },
-        },
-
-        update: {
-          name: 'Standard Delivery',
-          description:
-            'Standard delivery service',
-          rateType: 'FLAT',
-          isActive: true,
-          sortOrder: 1,
-        },
-
-        create: {
-          shippingZoneId: zone.id,
-          code: 'STANDARD',
-          name: 'Standard Delivery',
-          description:
-            'Standard delivery service',
-          rateType: 'FLAT',
-          isActive: true,
-          sortOrder: 1,
-        },
-      });
-
-    const express =
-      await prisma.shippingMethod.upsert({
-        where: {
-          shippingZoneId_code: {
-            shippingZoneId: zone.id,
-            code: 'EXPRESS',
-          },
-        },
-
-        update: {
-          name: 'Express Delivery',
-          description:
-            'Fast delivery service',
-          rateType: 'FLAT',
-          isActive: true,
-          sortOrder: 2,
-        },
-
-        create: {
-          shippingZoneId: zone.id,
-          code: 'EXPRESS',
-          name: 'Express Delivery',
-          description:
-            'Fast delivery service',
-          rateType: 'FLAT',
-          isActive: true,
-          sortOrder: 2,
-        },
-      });
-
-    await seedShippingRules(
-      prisma,
-      standard.id,
-      zoneData.name,
-    );
-
-    await seedExpressShippingRules(
-      prisma,
-      express.id,
-      zoneData.name,
-    );
-  }
-
-  console.log(
-    '✅ Shipping configuration seeded.',
-  );
-}
-
-async function seedShippingRules(
-  prisma: PrismaClient,
-  shippingMethodId: string,
-  zoneName: string,
-) {
-  const standardAmount =
-    zoneName === 'Cairo'
-      ? '60.00'
-      : zoneName === 'Dakahlia'
-        ? '70.00'
-        : '100.00';
-
-  await prisma.shippingRule.deleteMany({
-    where: {
-      shippingMethodId,
-    },
-  });
-
-  await prisma.shippingRule.createMany({
-    data: [
-      {
-        shippingMethodId,
-        minOrderAmount: null,
-        maxOrderAmount: '1999.99',
-        shippingAmount:
-          standardAmount,
-        priority: 1,
+    for (const [code, name, regionCode, standardAmount, expressAmount] of [
+      ['CAIRO', 'Cairo', 'C', '60.00', '100.00'],
+      ['DAKAHLIA', 'Dakahlia', 'DK', '70.00', '120.00'],
+      ['OTHER_EGYPT', 'Other Egypt', null, '100.00', '150.00'],
+    ] as const) {
+      const zoneData = {
+        name,
+        countryCode: country.code,
+        regionCode,
+        city: null,
         isActive: true,
-      },
-      {
-        shippingMethodId,
-        minOrderAmount: '2000.00',
-        maxOrderAmount: null,
-        shippingAmount: '0.00',
-        priority: 2,
-        isActive: true,
-      },
-    ],
-  });
-}
-
-async function seedExpressShippingRules(
-  prisma: PrismaClient,
-  shippingMethodId: string,
-  zoneName: string,
-) {
-  const expressAmount =
-    zoneName === 'Cairo'
-      ? '100.00'
-      : zoneName === 'Dakahlia'
-        ? '120.00'
-        : '150.00';
-
-  await prisma.shippingRule.deleteMany({
-    where: {
-      shippingMethodId,
-    },
-  });
-
-  await prisma.shippingRule.create({
-    data: {
-      shippingMethodId,
-      minOrderAmount: null,
-      maxOrderAmount: null,
-      shippingAmount:
-        expressAmount,
-      priority: 1,
-      isActive: true,
-    },
+      };
+      const zone = await tx.shippingZone.upsert({
+        where: { profileId_code: { profileId: profile.id, code } },
+        update: zoneData,
+        create: { profileId: profile.id, code, ...zoneData },
+      });
+      for (const [methodCode, name, sortOrder, amount] of [
+        ['STANDARD', 'Standard Delivery', 1, standardAmount],
+        ['EXPRESS', 'Express Delivery', 2, expressAmount],
+      ] as const) {
+        const method = await tx.shippingMethod.upsert({
+          where: { zoneId_code: { zoneId: zone.id, code: methodCode } },
+          update: { name, sortOrder, isActive: true },
+          create: {
+            zoneId: zone.id,
+            code: methodCode,
+            name,
+            sortOrder,
+            isActive: true,
+          },
+        });
+        const rules =
+          methodCode === 'STANDARD'
+            ? [
+                {
+                  suffix: 'paid',
+                  minOrderAmount: null,
+                  maxOrderAmount: '1999.99',
+                  flatRate: amount,
+                  priority: 1,
+                },
+                {
+                  suffix: 'free',
+                  minOrderAmount: '2000.00',
+                  maxOrderAmount: null,
+                  flatRate: '0.00',
+                  priority: 2,
+                },
+              ]
+            : [
+                {
+                  suffix: 'paid',
+                  minOrderAmount: null,
+                  maxOrderAmount: null,
+                  flatRate: amount,
+                  priority: 1,
+                },
+              ];
+        for (const { suffix, ...data } of rules) {
+          await tx.shippingRule.upsert({
+            where: { id: `seed-shipping-rule-${method.id}-${suffix}` },
+            update: { ...data, rateType: 'FLAT', isActive: true },
+            create: {
+              id: `seed-shipping-rule-${method.id}-${suffix}`,
+              methodId: method.id,
+              ...data,
+              rateType: 'FLAT',
+              isActive: true,
+            },
+          });
+        }
+      }
+    }
   });
 }

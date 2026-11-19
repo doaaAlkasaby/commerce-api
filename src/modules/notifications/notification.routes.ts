@@ -1,14 +1,11 @@
 import { Router } from 'express';
-
 import { authenticate } from '../../middleware/auth.middleware.js';
+import { tenantMiddleware } from '../../middleware/tenant.middleware.js';
 import { validate } from '../../common/validation/validate.js';
-
-
 import {
   notificationIdParamSchema,
   notificationListQuerySchema,
 } from './notification.schemas.js';
-
 import {
   getNotifications,
   markNotificationAsRead,
@@ -18,14 +15,12 @@ import {
 
 const router = Router();
 
+router.use(tenantMiddleware);
 router.use(authenticate);
 
 router.get(
   '/',
-  validate(
-    notificationListQuerySchema,
-    'query',
-  ),
+  validate(notificationListQuerySchema, 'query'),
   getNotifications,
 );
 
@@ -36,19 +31,13 @@ router.patch(
 
 router.patch(
   '/:notificationId/read',
-  validate(
-    notificationIdParamSchema,
-    'params',
-  ),
+  validate(notificationIdParamSchema, 'params'),
   markNotificationAsRead,
 );
 
 router.delete(
   '/:notificationId',
-  validate(
-    notificationIdParamSchema,
-    'params',
-  ),
+  validate(notificationIdParamSchema, 'params'),
   deleteNotification,
 );
 

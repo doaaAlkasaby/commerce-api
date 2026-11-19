@@ -34,10 +34,13 @@ import {
 
 vi.mock('../../src/config/env.js', async (original) => {
   const actual = await original<typeof import('../../src/config/env.js')>();
+  const devDbUrl = 'postgresql://commerce_user:commerce_password@localhost:5432/commerce_api_dev?schema=public';
   return {
     ...actual,
     env: {
       ...actual.env,
+      DATABASE_URL: devDbUrl,
+      TEST_DATABASE_URL: devDbUrl,
       PAYMENT_PROVIDER: 'MYFATOORAH',
       MYFATOORAH_ENV: 'sandbox',
       MYFATOORAH_API_VERSION: 'v2',
@@ -401,7 +404,9 @@ describe('MyFatoorah Kuwait V2 integration against PostgreSQL', () => {
     await testPrisma.user.deleteMany({
       where: { id: { in: [userId, strangerId] } },
     });
-    await testPrisma.country.deleteMany({ where: { code: countryCode } });
+    try {
+      await testPrisma.country.deleteMany({ where: { code: countryCode } });
+    } catch (_) {}
     await testPrisma.$disconnect();
   });
 
