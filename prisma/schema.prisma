@@ -70,6 +70,7 @@ model User {
   couponUsages CouponUsage[]
 
   checkoutRequests CheckoutRequest[]
+  passwordChangeRequests PasswordChangeRequest[]
 
   notifications Notification[]
   devices       UserDevice[]
@@ -1000,6 +1001,11 @@ model ProductReview {
   @@index([createdAt])
 }
 
+enum NotificationScope {
+  TENANT
+  ACCOUNT
+}
+
 enum NotificationType {
   ORDER
   PAYMENT
@@ -1010,25 +1016,58 @@ enum NotificationType {
 }
 
 model Notification {
-  id        String           @id @default(uuid())
-  tenantId  String
+  id        String            @id @default(uuid())
+  scope     NotificationScope @default(TENANT)
+  tenantId  String?
   userId    String
-  eventKey  String?          @unique
+  eventKey  String?           @unique
   type      NotificationType
   title     String
   body      String
   data      Json?
-  isRead    Boolean          @default(false)
+  isRead    Boolean           @default(false)
   readAt    DateTime?
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant  Tenant?              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user    User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pushJob NotificationPushJob?
 
   @@index([tenantId, userId, createdAt])
+  @@index([userId, scope, createdAt])
   @@index([tenantId, userId, isRead])
+  @@index([userId, scope, isRead])
   @@index([type])
+}
+
+enum PushJobState {
+  READY
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model NotificationPushJob {
+  id              String       @id @default(uuid())
+  tenantId        String?
+  notificationId  String       @unique
+  state           PushJobState @default(READY)
+  attempts        Int          @default(0)
+  deliveredTokens String[]     @default([])
+  availableAt     DateTime     @default(now()) @db.Timestamptz(3)
+  leaseUntil      DateTime?    @db.Timestamptz(3)
+  claimToken      String?
+  lastErrorCode   String?
+  finishedAt      DateTime?    @db.Timestamptz(3)
+  createdAt       DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime     @updatedAt @db.Timestamptz(3)
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@index([state, availableAt])
+  @@index([state, leaseUntil])
+  @@index([tenantId, state])
 }
 
 model UserDevice {
@@ -1515,4 +1554,20 @@ model RateLimitBucket {
   hits Int
   resetAt DateTime @db.Timestamptz(3)
   @@index([resetAt])
+}
+
+model PasswordChangeRequest {
+  id                 String   @id @default(uuid())
+  userId             String
+  idempotencyKey     String
+  requestFingerprint String
+  responseStatus     Int
+  responseBody       Json
+  createdAt          DateTime @default(now())
+  expiresAt          DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, idempotencyKey])
+  @@index([expiresAt])
 }

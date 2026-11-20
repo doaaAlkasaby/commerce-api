@@ -5,6 +5,9 @@ import {
 import {
   storageService,
 } from '../../common/storage/storage.service.js';
+import {
+  deleteUnreferencedStorageKey,
+} from '../../common/storage/storage-reference.js';
 
 import {
   toProductImageResponse,
@@ -130,6 +133,18 @@ export const createProductImageService = (
           'Product not found',
           404,
           'PRODUCT_NOT_FOUND',
+        );
+      }
+
+      const existingImages = await productImageRepository.findByProductId(
+        tenantId,
+        data.productId,
+      );
+      if (existingImages.length >= 50) {
+        throw new AppError(
+          'Maximum number of product images reached',
+          409,
+          'MAX_PRODUCT_IMAGES_EXCEEDED',
         );
       }
 
@@ -259,7 +274,7 @@ export const createProductImageService = (
         id,
       );
 
-      await storageService.delete(
+      await deleteUnreferencedStorageKey(
         existing.storageKey,
       );
     },

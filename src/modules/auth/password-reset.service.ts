@@ -8,7 +8,9 @@ import { env } from '../../config/env.js';
 
 import { prisma } from '../../config/database.js';
 
+import { logger } from '../../common/logger/logger.js';
 import { emailService } from '../../common/email/email.service.instance.js';
+import { securityNotificationService } from '../notifications/security-notification.service.js';
 
 import type { createUserRepository } from '../users/user.repository.js';
 
@@ -67,6 +69,7 @@ export const createPasswordResetService = (
     resetPassword: async (
       rawToken: string,
       newPassword: string,
+      tenantId?: string,
     ): Promise<void> => {
       const tokenHash = hashToken(rawToken);
 
@@ -148,7 +151,26 @@ export const createPasswordResetService = (
             revokedAt: new Date(),
           },
         });
+
+        await securityNotificationService.createSecurityNotification({
+          eventType: 'PASSWORD_RESET_COMPLETED',
+          userId: user.id,
+          tx,
+          resetTokenId: resetToken.id,
+        });
       });
+
+      try {
+        await emailService.sendPasswordResetConfirmationEmail?.({
+          email: user.email,
+          firstName: user.firstName,
+        });
+      } catch (error) {
+        logger.error(
+          { category: 'SECURITY_EMAIL_DELIVERY_FAILED', userId: user.id, error },
+          'Failed to send password reset confirmation email',
+        );
+      }
     },
   };
 };

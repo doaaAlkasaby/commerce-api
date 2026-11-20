@@ -13,6 +13,11 @@ export interface SendPasswordResetEmailInput {
   resetToken: string;
 }
 
+export interface SendSecurityEmailInput {
+  email: string;
+  firstName: string;
+}
+
 export const createEmailService = (
   options: {
     mode: 'disabled' | 'development_file';
@@ -40,11 +45,6 @@ export const createEmailService = (
         );
         return;
       }
-      /*
-       * Email provider integration will be added later.
-       *
-       * Tokens and addresses are never written to logs.
-       */
 
       logger.info(
         { category: 'EMAIL_DELIVERY_NOT_CONFIGURED' },
@@ -66,6 +66,40 @@ export const createEmailService = (
       logger.info(
         { category: 'EMAIL_DELIVERY_NOT_CONFIGURED' },
         'Password reset delivery adapter is not configured',
+      );
+    },
+
+    sendPasswordChangedEmail: async (
+      input: SendSecurityEmailInput,
+    ): Promise<void> => {
+      if (options.mode === 'development_file' && options.outboxDirectory) {
+        await writeDevelopmentEmail(
+          options.outboxDirectory,
+          options.uploadDirectory ?? './uploads',
+          { type: 'password-changed', ...input },
+        );
+        return;
+      }
+      logger.info(
+        { category: 'EMAIL_DELIVERY_NOT_CONFIGURED' },
+        'Password changed email delivery adapter is not configured',
+      );
+    },
+
+    sendPasswordResetConfirmationEmail: async (
+      input: SendSecurityEmailInput,
+    ): Promise<void> => {
+      if (options.mode === 'development_file' && options.outboxDirectory) {
+        await writeDevelopmentEmail(
+          options.outboxDirectory,
+          options.uploadDirectory ?? './uploads',
+          { type: 'password-reset-confirmation', ...input },
+        );
+        return;
+      }
+      logger.info(
+        { category: 'EMAIL_DELIVERY_NOT_CONFIGURED' },
+        'Password reset confirmation email delivery adapter is not configured',
       );
     },
   };

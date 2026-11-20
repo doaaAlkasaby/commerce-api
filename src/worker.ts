@@ -10,6 +10,7 @@ import { env } from './config/env.js';
 import { connectDatabase, disconnectDatabase } from './config/database.js';
 import { logger } from './common/logger/logger.js';
 import { RecoveryWorker } from './modules/recovery/recovery.worker.js';
+import { notificationPushWorker } from './modules/notifications/notification-push.worker.js';
 
 let operationalServer: Server | undefined;
 const controller = new AbortController();
@@ -54,8 +55,31 @@ try {
       stop('OPS_LISTENER_ERROR');
     });
   }
-  logger.info({ concurrency: env.WORKER_CONCURRENCY }, 'Recovery worker ready');
-  await new RecoveryWorker().run(controller.signal);
+  logger.info({ concurrency: env.WORKER_CONCURRENCY }, 'Background workers ready');
+
+  const runRecoveryWorker = async () => {
+    try {
+      await new RecoveryWorker().run(controller.signal);
+    } catch (error) {
+      logger.error(
+        { category: 'RECOVERY_WORKER_CRASH', error },
+        'Recovery worker encountered unhandled crash',
+      );
+    }
+  };
+
+  const runPushWorker = async () => {
+    try {
+      await notificationPushWorker.run(controller.signal);
+    } catch (error) {
+      logger.error(
+        { category: 'PUSH_WORKER_CRASH', error },
+        'Push notification worker encountered unhandled crash',
+      );
+    }
+  };
+
+  await Promise.allSettled([runRecoveryWorker(), runPushWorker()]);
   await shutdownApplication(
     operationalServer,
     disconnectDatabase,

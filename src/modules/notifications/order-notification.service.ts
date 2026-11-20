@@ -1,4 +1,8 @@
-import type { Prisma, NotificationType } from '../../generated/prisma/client.js';
+import type {
+  Prisma,
+  NotificationType,
+  OrderStatus,
+} from '../../generated/prisma/client.js';
 import { AppError } from '../../common/errors/app-error.js';
 import { notificationRepository } from './notification.repository.instance.js';
 import { mapNotification } from './notification.mapper.js';
@@ -6,9 +10,22 @@ import type { NotificationResponse } from './notification.types.js';
 
 export type OrderEventType =
   | 'ORDER_PLACED'
+  | 'ORDER_CONFIRMED'
+  | 'ORDER_PROCESSING'
+  | 'ORDER_COMPLETED'
   | 'ORDER_CANCELLED'
   | 'ORDER_SHIPPED'
   | 'ORDER_DELIVERED';
+
+export const orderStatusNotificationEvent = {
+  PENDING: null,
+  CONFIRMED: 'ORDER_CONFIRMED',
+  PROCESSING: 'ORDER_PROCESSING',
+  SHIPPED: 'ORDER_SHIPPED',
+  DELIVERED: 'ORDER_DELIVERED',
+  COMPLETED: 'ORDER_COMPLETED',
+  CANCELLED: 'ORDER_CANCELLED',
+} as const satisfies Record<OrderStatus, OrderEventType | null>;
 
 export interface CreateOrderNotificationInput {
   eventType: OrderEventType;
@@ -32,13 +49,34 @@ interface NotificationContent {
 export class OrderNotificationService {
   constructor(private readonly repository = notificationRepository) {}
 
-  private getContent(eventType: OrderEventType, orderNumber: string): NotificationContent {
+  private getContent(
+    eventType: OrderEventType,
+    orderNumber: string,
+  ): NotificationContent {
     switch (eventType) {
       case 'ORDER_PLACED':
         return {
           type: 'ORDER',
           title: `Order Placed: #${orderNumber}`,
           body: `Your order #${orderNumber} has been placed successfully.`,
+        };
+      case 'ORDER_CONFIRMED':
+        return {
+          type: 'ORDER',
+          title: `Order Confirmed: #${orderNumber}`,
+          body: `Your order #${orderNumber} has been confirmed.`,
+        };
+      case 'ORDER_PROCESSING':
+        return {
+          type: 'ORDER',
+          title: `Order Processing: #${orderNumber}`,
+          body: `We are preparing your order #${orderNumber}.`,
+        };
+      case 'ORDER_COMPLETED':
+        return {
+          type: 'ORDER',
+          title: `Order Completed: #${orderNumber}`,
+          body: `Your order #${orderNumber} is complete.`,
         };
       case 'ORDER_CANCELLED':
         return {
@@ -100,6 +138,7 @@ export class OrderNotificationService {
         orderNumber: true,
         tenantId: true,
         userId: true,
+        tenant: { select: { slug: true } },
       },
     });
 
@@ -111,14 +150,17 @@ export class OrderNotificationService {
       );
     }
 
+    // The lifecycle graph is acyclic. An order can enter each status at most
+    // once, so each existing event-and-order key identifies one occurrence.
     const eventKey = `${eventType.toLowerCase()}_${order.id}`;
     const content = this.getContent(eventType, order.orderNumber);
 
+    const resolvedSlug = tenantSlug ?? order.tenant?.slug;
     const dataPayload = {
       orderId: order.id,
       orderNumber: order.orderNumber,
       eventType,
-      ...(tenantSlug ? { tenantSlug } : {}),
+      ...(resolvedSlug ? { tenantSlug: resolvedSlug } : {}),
     };
 
     const notificationRecord = await this.repository.createIdempotent(
@@ -140,6 +182,14 @@ export class OrderNotificationService {
         notification: null,
       };
     }
+
+    await tx.notificationPushJob.create({
+      data: {
+        tenantId: order.tenantId,
+        notificationId: notificationRecord.id,
+        state: 'READY',
+      },
+    });
 
     return {
       status: 'CREATED',

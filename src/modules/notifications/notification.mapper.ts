@@ -10,6 +10,8 @@ export const mapNotification = (
   notification: Notification,
 ): NotificationResponse => ({
   id: notification.id,
+  scope: notification.scope,
+  tenantId: notification.tenantId,
   type: notification.type,
   title: notification.title,
   body: notification.body,

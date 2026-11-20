@@ -1,4 +1,6 @@
+import crypto, { randomUUID } from 'node:crypto';
 import { AppError } from '../../common/errors/app-error.js';
+import { logger } from '../../common/logger/logger.js';
 
 import {
   hashPassword,
@@ -22,6 +24,8 @@ import { hashToken } from '../../common/security/token.js';
 import { createEmailVerificationService } from './email-verification.service.js';
 
 import { prisma } from '../../config/database.js';
+import { securityNotificationService } from '../notifications/security-notification.service.js';
+import { emailService } from '../../common/email/email.service.instance.js';
 
 let dummyHash: Promise<string> | undefined;
 
@@ -247,51 +251,117 @@ export const createAuthService = (
       userId: string,
       currentPassword: string,
       newPassword: string,
-    ): Promise<void> => {
-      const user = await userRepository.findById(userId);
+      idempotencyKey?: string,
+    ): Promise<{ success: boolean; message: string; data: null }> => {
+      const validKey = idempotencyKey?.trim();
+      const secret =
+        env.SECURITY_FINGERPRINT_SECRET ??
+        'default_secure_fingerprint_secret_min_32_chars_long_for_security';
 
-      if (!user) {
-        throw new AppError('User not found', 404, 'USER_NOT_FOUND');
-      }
+      const requestFingerprint = validKey
+        ? crypto
+            .createHmac('sha256', secret)
+            .update(
+              `v1:password_change:${userId}:${currentPassword.normalize('NFC')}:${newPassword.normalize('NFC')}`,
+            )
+            .digest('hex')
+        : null;
 
-      if (!user.isActive) {
-        throw new AppError('Account is inactive', 403, 'ACCOUNT_INACTIVE');
-      }
+      const precomputedPasswordHash = await hashPassword(newPassword);
 
-      const passwordMatches = await verifyPassword(
-        currentPassword,
-        user.passwordHash,
-      );
+      return await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${userId} FOR UPDATE`;
 
-      if (!passwordMatches) {
-        throw new AppError(
-          'Current password is incorrect',
-          400,
-          'INVALID_CURRENT_PASSWORD',
+        const user = await tx.user.findUnique({ where: { id: userId } });
+
+        if (!user || !user.isActive) {
+          throw new AppError('Account is inactive or not found', 403, 'ACCOUNT_INACTIVE');
+        }
+
+        if (validKey && requestFingerprint) {
+          const existing = await tx.passwordChangeRequest.findFirst({
+            where: {
+              userId,
+              idempotencyKey: validKey,
+              expiresAt: { gt: new Date() },
+            },
+          });
+
+          if (existing) {
+            if (existing.requestFingerprint === requestFingerprint) {
+              return existing.responseBody as { success: boolean; message: string; data: null };
+            } else {
+              throw new AppError(
+                'Idempotency key was already used for a different password change request',
+                409,
+                'IDEMPOTENCY_KEY_CONFLICT',
+              );
+            }
+          }
+        }
+
+        const passwordMatches = await verifyPassword(
+          currentPassword,
+          user.passwordHash,
         );
-      }
 
-      const newPasswordHash = await hashPassword(newPassword);
+        if (!passwordMatches) {
+          throw new AppError(
+            'Current password is incorrect',
+            400,
+            'INVALID_CURRENT_PASSWORD',
+          );
+        }
 
-      await prisma.$transaction(async (tx) => {
         await tx.user.update({
-          where: {
-            id: userId,
-          },
-          data: {
-            passwordHash: newPasswordHash,
-          },
+          where: { id: userId },
+          data: { passwordHash: precomputedPasswordHash },
         });
 
         await tx.refreshToken.updateMany({
-          where: {
-            userId,
-            revokedAt: null,
-          },
-          data: {
-            revokedAt: new Date(),
-          },
+          where: { userId, revokedAt: null },
+          data: { revokedAt: new Date() },
         });
+
+        await securityNotificationService.createSecurityNotification({
+          eventType: 'PASSWORD_CHANGED',
+          userId,
+          tx,
+          operationId: validKey || randomUUID(),
+        });
+
+        const responseBody = {
+          success: true,
+          message: 'Password changed successfully',
+          data: null,
+        };
+
+        if (validKey && requestFingerprint) {
+          await tx.passwordChangeRequest.create({
+            data: {
+              userId,
+              idempotencyKey: validKey,
+              requestFingerprint,
+              responseStatus: 200,
+              responseBody,
+              expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            },
+          });
+        }
+
+        try {
+          await emailService.sendPasswordChangedEmail?.({
+            email: user.email,
+            firstName: user.firstName,
+          });
+        } catch (error) {
+          logger.error(
+            { category: 'SECURITY_EMAIL_DELIVERY_FAILED', userId: user.id, error },
+            'Failed to send password changed confirmation email',
+          );
+        }
+
+        return responseBody;
       });
     },
   };

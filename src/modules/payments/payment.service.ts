@@ -13,6 +13,8 @@ import { AppError } from '../../common/errors/app-error.js';
 
 import { paymentRepository } from './payment.repository.instance.js';
 import { inventoryService } from '../inventory/inventory.service.instance.js';
+import { paymentNotificationService } from '../notifications/payment-notification.service.js';
+import type { PaymentEventType } from '../notifications/payment-notification.service.js';
 
 import { PaymentProviderRegistry } from './providers/payment-provider.registry.js';
 
@@ -651,6 +653,32 @@ export class PaymentService {
       );
     }
 
+    const paymentEventTypeMap: Record<PaymentStatus, PaymentEventType | null> = {
+      PENDING: null,
+      REQUIRES_ACTION: null,
+      AUTHORIZED: null,
+      PAID: 'PAYMENT_PAID',
+      FAILED: 'PAYMENT_FAILED',
+      CANCELLED: null,
+      REFUND_PENDING: null,
+      PARTIALLY_REFUNDED: 'PAYMENT_PARTIALLY_REFUNDED',
+      REFUNDED: 'PAYMENT_REFUNDED',
+    };
+
+    const targetPaymentEventType = paymentEventTypeMap[input.status];
+    if (targetPaymentEventType) {
+      await paymentNotificationService.createPaymentNotification({
+        eventType: targetPaymentEventType,
+        paymentId: updatedPayment.id,
+        expectedTenantId: tenantId,
+        tx,
+        ...(input.refundAmount ? { refundAmount: input.refundAmount } : {}),
+        ...(updatedPayment.providerTransactionId
+          ? { providerTransactionId: updatedPayment.providerTransactionId }
+          : {}),
+      });
+    }
+
     return updatedPayment;
   }
 
@@ -734,7 +762,7 @@ export class PaymentService {
 
     return this.updatePaymentStatus(tenantId, payment.id, {
       status: result.status,
-
+      refundAmount,
       ...(result.providerTransactionId === undefined
         ? {}
         : {

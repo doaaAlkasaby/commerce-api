@@ -5,6 +5,7 @@ import { AppError } from '../../common/errors/app-error.js';
 import { validateImageBuffer } from '../../common/storage/image-validation.js';
 
 import { storageService } from '../../common/storage/storage.service.js';
+import { deleteUnreferencedStorageKey } from '../../common/storage/storage-reference.js';
 
 import { productAttributeService } from './product-attribute.service.instance.js';
 
@@ -236,7 +237,13 @@ export class ProductAttributeController {
         valueId: string;
       };
 
+      const previousValue = await productAttributeService.getValueById(req.tenant!.tenantId, valueId);
       const result = await productAttributeService.clearValueImage(req.tenant!.tenantId, valueId);
+
+      const previousStorageKey = previousValue.image?.storageKey;
+      if (previousStorageKey) {
+        await deleteUnreferencedStorageKey(previousStorageKey);
+      }
 
       res.json({
         success: true,
@@ -293,7 +300,7 @@ export class ProductAttributeController {
 
       const previousStorageKey = previousValue.image?.storageKey;
       if (previousStorageKey) {
-        await storageService.delete(previousStorageKey);
+        await deleteUnreferencedStorageKey(previousStorageKey);
       }
 
       res.json({

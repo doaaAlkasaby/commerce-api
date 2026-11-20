@@ -6,8 +6,10 @@ export class NotificationRepository {
 
   async create(input: CreateNotificationInput, tx?: Prisma.TransactionClient) {
     const client = tx ?? this.prisma;
+    const scope = input.scope ?? 'TENANT';
     const createData = {
-      tenantId: input.tenantId,
+      scope,
+      tenantId: scope === 'ACCOUNT' ? null : (input.tenantId ?? null),
       userId: input.userId,
       ...(input.eventKey ? { eventKey: input.eventKey } : {}),
       type: input.type,
@@ -32,14 +34,17 @@ export class NotificationRepository {
     }
 
     const id = crypto.randomUUID();
+    const scope = input.scope ?? 'TENANT';
+    const tenantId = scope === 'ACCOUNT' ? null : (input.tenantId ?? null);
     const dataJson =
       input.data !== undefined ? JSON.stringify(input.data) : null;
 
     const result = await client.$executeRaw`
-      INSERT INTO "Notification" ("id", "tenantId", "userId", "eventKey", "type", "title", "body", "data", "isRead", "createdAt", "updatedAt")
+      INSERT INTO "Notification" ("id", "scope", "tenantId", "userId", "eventKey", "type", "title", "body", "data", "isRead", "createdAt", "updatedAt")
       VALUES (
         ${id},
-        ${input.tenantId},
+        ${scope}::"NotificationScope",
+        ${tenantId},
         ${input.userId},
         ${input.eventKey},
         ${input.type}::"NotificationType",
@@ -57,23 +62,26 @@ export class NotificationRepository {
       return null;
     }
 
-    return this.findById(input.tenantId, input.userId, id, client);
+    return this.findById(tenantId, input.userId, id, client);
   }
 
   async findById(
-    tenantId: string,
+    tenantId: string | null,
     userId: string,
     notificationId: string,
     tx?: Prisma.TransactionClient,
   ) {
     const client = tx ?? this.prisma;
-    return client.notification.findFirst({
-      where: {
-        id: notificationId,
-        tenantId,
-        userId,
-      },
-    });
+    const where: Prisma.NotificationWhereInput = {
+      id: notificationId,
+      userId,
+    };
+
+    if (tenantId) {
+      where.OR = [{ tenantId }, { scope: 'ACCOUNT' }];
+    }
+
+    return client.notification.findFirst({ where });
   }
 
   async findUserNotifications(
@@ -82,9 +90,9 @@ export class NotificationRepository {
     skip: number,
     take: number,
   ) {
-    const where = {
-      tenantId,
+    const where: Prisma.NotificationWhereInput = {
       userId,
+      OR: [{ tenantId }, { scope: 'ACCOUNT' }],
     };
 
     const [items, total, unreadCount] = await Promise.all([
@@ -108,9 +116,9 @@ export class NotificationRepository {
 
       this.prisma.notification.count({
         where: {
-          tenantId,
           userId,
           isRead: false,
+          OR: [{ tenantId }, { scope: 'ACCOUNT' }],
         },
       }),
     ]);
@@ -126,8 +134,8 @@ export class NotificationRepository {
     const result = await this.prisma.notification.updateMany({
       where: {
         id: notificationId,
-        tenantId,
         userId,
+        OR: [{ tenantId }, { scope: 'ACCOUNT' }],
       },
       data: {
         isRead: true,
@@ -137,21 +145,15 @@ export class NotificationRepository {
 
     if (result.count === 0) return null;
 
-    return this.prisma.notification.findFirst({
-      where: {
-        id: notificationId,
-        tenantId,
-        userId,
-      },
-    });
+    return this.findById(tenantId, userId, notificationId);
   }
 
   async markAllAsRead(tenantId: string, userId: string): Promise<void> {
     await this.prisma.notification.updateMany({
       where: {
-        tenantId,
         userId,
         isRead: false,
+        OR: [{ tenantId }, { scope: 'ACCOUNT' }],
       },
       data: {
         isRead: true,
@@ -168,8 +170,8 @@ export class NotificationRepository {
     const result = await this.prisma.notification.deleteMany({
       where: {
         id: notificationId,
-        tenantId,
         userId,
+        OR: [{ tenantId }, { scope: 'ACCOUNT' }],
       },
     });
 

@@ -1,3 +1,4 @@
+import { AppError } from '../../common/errors/app-error.js';
 import type { Prisma, PrismaClient } from '../../generated/prisma/client.js';
 
 export const productAttributeDetailsSelect = {
@@ -26,9 +27,30 @@ export class ProductAttributeRepository {
     return this.prisma.productAttribute.findFirst({ where: { productId, name, ...tenantAttribute(tenantId) }, select: productAttributeDetailsSelect });
   }
   async create(tenantId: string, data: { productId: string; name: string; sortOrder: number }) {
-    const product = await this.prisma.product.findFirst({ where: { id: data.productId, tenantId }, select: { id: true } });
-    if (!product) return null;
-    return this.prisma.productAttribute.create({ data, select: productAttributeDetailsSelect });
+    return this.prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id" FROM "Product"
+        WHERE "id" = ${data.productId} AND "tenantId" = ${tenantId}
+        FOR UPDATE
+      `;
+      if (!locked.length) return null;
+      const optionlessDefault = await tx.productVariant.findFirst({
+        where: {
+          productId: data.productId,
+          isDefault: true,
+          values: { none: {} },
+        },
+        select: { id: true },
+      });
+      if (optionlessDefault) {
+        throw new AppError(
+          'Simple products with a default SKU cannot add attributes',
+          409,
+          'SIMPLE_PRODUCT_HAS_DEFAULT_VARIANT',
+        );
+      }
+      return tx.productAttribute.create({ data, select: productAttributeDetailsSelect });
+    });
   }
   async update(tenantId: string, id: string, data: { name?: string; sortOrder?: number }) {
     const owned = await this.prisma.productAttribute.findFirst({ where: { id, ...tenantAttribute(tenantId) }, select: { id: true } });

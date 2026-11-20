@@ -1,10 +1,12 @@
 import type {
+  NotificationScope,
   NotificationType,
   Prisma,
 } from '../../generated/prisma/client.js';
 
 export interface CreateNotificationInput {
-  tenantId: string;
+  scope?: NotificationScope;
+  tenantId?: string | null;
   userId: string;
   eventKey?: string | null;
   type: NotificationType;
@@ -15,6 +17,8 @@ export interface CreateNotificationInput {
 
 export interface NotificationResponse {
   id: string;
+  scope: NotificationScope;
+  tenantId: string | null;
   type: NotificationType;
   title: string;
   body: string;

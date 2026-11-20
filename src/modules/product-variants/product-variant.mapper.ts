@@ -8,6 +8,7 @@ export const productVariantDetailsSelect = {
   sku: true,
   price: true,
   isActive: true,
+  isDefault: true,
 
   discountType: true,
   discountValue: true,
@@ -127,6 +128,14 @@ export const toProductVariantResponse = (variant: ProductVariantDetails) => {
     effectivePrice,
 
     isActive: variant.isActive,
+    isDefault: variant.isDefault,
+
+    discount: {
+      type: variant.discountType,
+      value: variant.discountValue?.toString() ?? null,
+      startsAt: variant.discountStartsAt,
+      endsAt: variant.discountEndsAt,
+    },
 
     attributes: variant.values.map(({ attributeValue }) => ({
       id: attributeValue.attribute.id,

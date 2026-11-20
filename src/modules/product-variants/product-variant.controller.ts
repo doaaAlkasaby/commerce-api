@@ -46,6 +46,38 @@ export class ProductVariantController {
     }
   }
 
+  async createDefault(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
+    try {
+      const result = await productVariantService.createDefault(
+        req.tenant!.tenantId,
+        req.validatedBody as {
+          productId: string;
+          sku: string;
+          price?: string | null;
+          isActive?: boolean;
+          discount?: {
+            type: 'PERCENTAGE' | 'FIXED_AMOUNT';
+            value: string;
+            startsAt?: Date | null;
+            endsAt?: Date | null;
+          } | null;
+        },
+      );
+
+      res.status(201).json({
+        success: true,
+        message: 'Default product SKU created successfully',
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getById(
     req: Request,
     res: Response,

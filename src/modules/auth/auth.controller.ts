@@ -179,6 +179,7 @@ resetPassword: async (
   await passwordResetService.resetPassword(
     req.body.token,
     req.body.newPassword,
+    req.tenant?.tenantId,
   );
 
   res.status(200).json({
@@ -204,10 +205,14 @@ changePassword: async (
     );
   }
 
+  const idempotencyKey =
+    req.header('Idempotency-Key') ?? req.body.idempotencyKey;
+
   await authService.changePassword(
     userId,
     req.body.currentPassword,
     req.body.newPassword,
+    idempotencyKey,
   );
 
   res.status(200).json({

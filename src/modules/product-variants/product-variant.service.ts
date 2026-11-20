@@ -8,6 +8,7 @@ import type { ProductRepository } from '../products/product.repository.js';
 import { toProductVariantResponse } from './product-variant.mapper.js';
 
 import type {
+  CreateDefaultProductVariantInput,
   CreateProductVariantInput,
   UpdateProductVariantInput,
 } from './product-variant.types.js';
@@ -25,6 +26,57 @@ const isPrismaUniqueConstraintError = (error: unknown): boolean =>
   error !== null &&
   'code' in error &&
   error.code === 'P2002';
+
+const mapUniqueVariantError = (
+  error: unknown,
+  forDefault = false,
+): AppError => {
+  const fields: string[] = [];
+  if (typeof error === 'object' && error !== null && 'meta' in error) {
+    const meta = (error as { meta?: Record<string, unknown> }).meta;
+    if (Array.isArray(meta?.target)) {
+      fields.push(...meta.target.map(String));
+    } else if (typeof meta?.target === 'string') {
+      fields.push(meta.target);
+    }
+    const adapterCause = (
+      meta?.driverAdapterError as
+        | { cause?: { constraint?: { fields?: unknown } } }
+        | undefined
+    )?.cause?.constraint?.fields;
+    if (Array.isArray(adapterCause)) {
+      fields.push(...adapterCause.map(String));
+    }
+  }
+  const message = error instanceof Error ? error.message : '';
+  const combined = `${fields.join(',')} ${message}`;
+  if (combined.includes('sku')) {
+    // Neutral message avoids leaking whether a SKU belongs to another tenant.
+    return new AppError(
+      'This SKU is already in use',
+      409,
+      'DUPLICATE_VARIANT_SKU',
+    );
+  }
+  if (combined.includes('combinationKey')) {
+    return forDefault
+      ? new AppError(
+          'A default SKU already exists for this product',
+          409,
+          'DEFAULT_VARIANT_ALREADY_EXISTS',
+        )
+      : new AppError(
+          'A variant with this attribute combination already exists',
+          409,
+          'DUPLICATE_VARIANT_COMBINATION',
+        );
+  }
+  return new AppError(
+    'Variant combination or SKU already exists',
+    409,
+    'DUPLICATE_VARIANT',
+  );
+};
 
 export class ProductVariantService {
   constructor(
@@ -155,7 +207,7 @@ export class ProductVariantService {
 
     if (existingSku) {
       throw new AppError(
-        'A variant with this SKU already exists',
+        'This SKU is already in use',
         409,
         'DUPLICATE_VARIANT_SKU',
       );
@@ -183,22 +235,42 @@ export class ProductVariantService {
         combinationKey,
 
         attributeValueIds,
+        enforceOptionedInvariant: true,
       });
 
       return toProductVariantResponse(variant);
     } catch (error) {
-      /*
-       * The pre-checks above protect normal requests.
-       *
-       * The database unique constraints protect
-       * concurrent requests.
-       */
       if (isPrismaUniqueConstraintError(error)) {
-        throw new AppError(
-          'Variant combination or SKU already exists',
-          409,
-          'DUPLICATE_VARIANT',
-        );
+        throw mapUniqueVariantError(error);
+      }
+
+      throw error;
+    }
+  }
+
+  async createDefault(
+    tenantId: string,
+    input: CreateDefaultProductVariantInput,
+  ) {
+    this.validateDiscount(input.discount);
+
+    try {
+      const variant = await this.repository.createDefault({
+        tenantId,
+        productId: input.productId,
+        sku: input.sku,
+        price: input.price ?? null,
+        isActive: input.isActive ?? true,
+        discountType: input.discount?.type ?? null,
+        discountValue: input.discount?.value ?? null,
+        discountStartsAt: input.discount?.startsAt ?? null,
+        discountEndsAt: input.discount?.endsAt ?? null,
+      });
+
+      return toProductVariantResponse(variant);
+    } catch (error) {
+      if (isPrismaUniqueConstraintError(error)) {
+        throw mapUniqueVariantError(error, true);
       }
 
       throw error;
@@ -237,6 +309,14 @@ export class ProductVariantService {
     let attributeValueIds: string[] | undefined;
 
     if (input.attributeValueIds !== undefined) {
+      if (existing.isDefault && existing.values.length === 0) {
+        throw new AppError(
+          'Optionless default SKU cannot be converted by attaching attribute values',
+          409,
+          'DEFAULT_VARIANT_OPTIONS_IMMUTABLE',
+        );
+      }
+
       attributeValueIds = normalizeIds(input.attributeValueIds);
 
       const attributeValues =
@@ -270,7 +350,7 @@ export class ProductVariantService {
 
       if (duplicate && duplicate.id !== id) {
         throw new AppError(
-          'A variant with this SKU already exists',
+          'This SKU is already in use',
           409,
           'DUPLICATE_VARIANT_SKU',
         );
@@ -297,11 +377,7 @@ export class ProductVariantService {
       return toProductVariantResponse(updated);
     } catch (error) {
       if (isPrismaUniqueConstraintError(error)) {
-        throw new AppError(
-          'Variant combination or SKU already exists',
-          409,
-          'DUPLICATE_VARIANT',
-        );
+        throw mapUniqueVariantError(error);
       }
 
       throw error;

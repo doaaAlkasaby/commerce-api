@@ -16,6 +16,8 @@ export interface CreatePaymentInput {
 export interface UpdatePaymentStatusInput {
   status: PaymentStatus;
 
+  refundAmount?: string;
+
   providerPaymentId?: string | null;
 
   providerTransactionId?: string | null;

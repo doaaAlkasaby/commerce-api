@@ -70,6 +70,18 @@ export const createProductVariantSchema = z.object({
     }),
 });
 
+export const createDefaultProductVariantSchema = z.strictObject({
+  productId: z.uuid(),
+
+  sku: z.string().trim().min(1).max(100),
+
+  price: moneySchema.nullable().optional(),
+
+  isActive: z.boolean().optional(),
+
+  discount: discountSchema.nullable().optional(),
+});
+
 export const updateProductVariantSchema = z.object({
   sku: z.string().trim().min(1).max(100).optional(),
 

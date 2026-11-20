@@ -17,6 +17,7 @@ import {
 } from './product-variant.controller.js';
 
 import {
+  createDefaultProductVariantSchema,
   createProductVariantSchema,
   updateProductVariantSchema,
   productVariantIdParamsSchema,
@@ -29,6 +30,15 @@ router.use(authenticate);
 
 router.use(tenantMemberMiddleware);
 router.use(requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'));
+
+router.post(
+  '/default',
+  validate(
+    createDefaultProductVariantSchema,
+    'body',
+  ),
+  productVariantController.createDefault,
+);
 
 router.post(
   '/',

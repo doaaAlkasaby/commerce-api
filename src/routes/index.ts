@@ -8,6 +8,7 @@ import verifiedTestRoutes from '../modules/users/verified-test.routes.js';
 import categoryRoutes from '../modules/categories/category.routes.js';
 import brandRoutes from '../modules/brands/brand.routes.js';
 import productRoutes from '../modules/products/product.routes.js';
+import { merchantProductRoutes } from '../modules/products/merchant-product.routes.js';
 import productImageRoutes from '../modules/product-images/product-image.routes.js';
 import inventoryRoutes from '../modules/inventory/inventory.routes.js';
 import cartRoutes from '../modules/cart/cart.routes.js';
@@ -82,6 +83,7 @@ router.use('/categories', categoryRoutes);
 router.use('/brands', brandRoutes);
 
 router.use('/products', productRoutes);
+router.use('/merchant/products', merchantProductRoutes);
 
 router.use('/product-images', productImageRoutes);
 

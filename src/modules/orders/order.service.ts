@@ -11,6 +11,8 @@ import { AppError } from '../../common/errors/app-error.js';
 import { mapOrder, mapOrders } from './order.mapper.js';
 import { prisma } from '../../config/database.js';
 import { inventoryService } from '../inventory/inventory.service.instance.js';
+import { orderNotificationService } from '../notifications/order-notification.service.js';
+import type { OrderEventType } from '../notifications/order-notification.service.js';
 
 import { orderRepository } from './order.repository.instance.js';
 
@@ -114,6 +116,9 @@ export class OrderService {
         409,
         'PAYMENT_RECONCILIATION_REQUIRED',
       );
+    let updatedOrder: Prisma.OrderGetPayload<{
+      include: { items: true; payments: true };
+    }>;
     if (status === 'CANCELLED') {
       if (
         isFinanciallyCommitted(order.paymentStatus) ||
@@ -138,33 +143,56 @@ export class OrderService {
           );
       }
       await inventoryService.releaseOrderReservation(tenantId, orderId, tx);
-      return tx.order.update({
+      updatedOrder = await tx.order.update({
+        where: { id: orderId, tenantId },
+        data: { status },
+        include: { items: true, payments: true },
+      });
+    } else {
+      if (
+        ['PROCESSING', 'SHIPPED', 'DELIVERED', 'COMPLETED'].includes(status) &&
+        order.paymentStatus !== 'PAID' &&
+        order.paymentStatus !== 'AUTHORIZED'
+      )
+        throw new AppError(
+          'Payment must be authorized or paid for fulfillment',
+          409,
+          'PAYMENT_NOT_READY',
+        );
+      if (['FAILED', 'CANCELLED'].includes(order.paymentStatus))
+        throw new AppError(
+          'Order reservation has ended',
+          409,
+          'ORDER_INVENTORY_RESERVATION_RELEASED',
+        );
+      updatedOrder = await tx.order.update({
         where: { id: orderId, tenantId },
         data: { status },
         include: { items: true, payments: true },
       });
     }
-    if (
-      ['PROCESSING', 'SHIPPED', 'DELIVERED', 'COMPLETED'].includes(status) &&
-      order.paymentStatus !== 'PAID' &&
-      order.paymentStatus !== 'AUTHORIZED'
-    )
-      throw new AppError(
-        'Payment must be authorized or paid for fulfillment',
-        409,
-        'PAYMENT_NOT_READY',
-      );
-    if (['FAILED', 'CANCELLED'].includes(order.paymentStatus))
-      throw new AppError(
-        'Order reservation has ended',
-        409,
-        'ORDER_INVENTORY_RESERVATION_RELEASED',
-      );
-    return tx.order.update({
-      where: { id: orderId, tenantId },
-      data: { status },
-      include: { items: true, payments: true },
-    });
+
+    const eventTypeMap: Record<OrderStatus, OrderEventType | null> = {
+      PENDING: null,
+      CONFIRMED: 'ORDER_CONFIRMED',
+      PROCESSING: 'ORDER_PROCESSING',
+      SHIPPED: 'ORDER_SHIPPED',
+      DELIVERED: 'ORDER_DELIVERED',
+      COMPLETED: 'ORDER_COMPLETED',
+      CANCELLED: 'ORDER_CANCELLED',
+    };
+
+    const targetEventType = eventTypeMap[status];
+    if (targetEventType) {
+      await orderNotificationService.createOrderNotification({
+        eventType: targetEventType,
+        orderId: updatedOrder.id,
+        expectedTenantId: tenantId,
+        tx,
+      });
+    }
+
+    return updatedOrder;
   }
 
   /**

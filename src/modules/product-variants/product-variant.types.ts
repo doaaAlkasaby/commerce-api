@@ -19,6 +19,14 @@ export interface CreateProductVariantInput {
   attributeValueIds: string[];
 }
 
+export interface CreateDefaultProductVariantInput {
+  productId: string;
+  sku: string;
+  price?: string | null;
+  isActive?: boolean;
+  discount?: VariantDiscountInput | null;
+}
+
 export interface UpdateProductVariantInput {
   sku?: string;
   price?: string | null;
@@ -67,6 +75,14 @@ export interface ProductVariantResponse {
   };
 
   isActive: boolean;
+  isDefault: boolean;
+
+  discount: {
+    type: DiscountType | null;
+    value: string | null;
+    startsAt: Date | null;
+    endsAt: Date | null;
+  };
 
   attributes: ProductVariantAttributeResponse[];
 

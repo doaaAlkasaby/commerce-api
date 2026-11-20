@@ -5,6 +5,7 @@ import type { StorageService } from '../../common/storage/storage.types.js';
 import type { ProductVariantImageRepository } from './product-variant-image.repository.js';
 
 import { validateImageBuffer } from '../../common/storage/image-validation.js';
+import { deleteUnreferencedStorageKey } from '../../common/storage/storage-reference.js';
 
 const isPrismaUniqueConstraintError = (error: unknown): boolean =>
   typeof error === 'object' &&
@@ -150,6 +151,18 @@ export class ProductVariantImageService {
       );
     }
 
+    const existingVariantImages = await this.repository.findByVariantId(
+      tenantId,
+      data.variantId,
+    );
+    if (existingVariantImages.length >= 20) {
+      throw new AppError(
+        'Maximum number of variant images reached',
+        409,
+        'MAX_VARIANT_IMAGES_EXCEEDED',
+      );
+    }
+
     validateImageBuffer(data.file, data.contentType);
 
     const storedFile = await this.storage.upload(
@@ -246,6 +259,6 @@ export class ProductVariantImageService {
     const deleted = await this.repository.delete(tenantId, id);
     if (!deleted) throw new AppError('Product variant image not found', 404, 'PRODUCT_VARIANT_IMAGE_NOT_FOUND');
 
-    await this.storage.delete(image.storageKey);
+    await deleteUnreferencedStorageKey(image.storageKey, this.storage);
   }
 }
