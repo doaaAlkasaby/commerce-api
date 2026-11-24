@@ -28,3 +28,25 @@ export function catalogTenantFixture() {
     },
   };
 }
+
+// The legacy catalog seeds use fixed tenant IDs. Only remove tenants that did
+// not exist before this suite took ownership of the seed fixtures.
+export function guardCatalogSeedFixtures(tenantIds: string[]) {
+  let createdTenantIds: string[] = [];
+  return {
+    async capture() {
+      const existing = await testPrisma.tenant.findMany({
+        where: { id: { in: tenantIds } },
+        select: { id: true },
+      });
+      const existingIds = new Set(existing.map(({ id }) => id));
+      createdTenantIds = tenantIds.filter((id) => !existingIds.has(id));
+    },
+    async cleanup() {
+      if (createdTenantIds.length === 0) return;
+      const tenantId = { in: createdTenantIds };
+      await testPrisma.product.deleteMany({ where: { tenantId } });
+      await deleteFixtureTenants({ where: { id: tenantId } });
+    },
+  };
+}

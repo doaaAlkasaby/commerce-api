@@ -1,13 +1,20 @@
-import { describe, expect, it } from 'vitest';
+import { guardCatalogSeedFixtures } from '../helpers/catalog.js';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { mapProductListItem } from '../../src/modules/products/product.mapper.js';
 import { seedTask11Products } from '../../prisma/seeds/task11-products.seed.js';
-import { seedTenants } from '../../prisma/seeds/tenants.seed.js';
+import { developmentId, seedTenants, tenantFixtures } from '../../prisma/seeds/tenants.seed.js';
 import { seedCatalog } from '../../prisma/seeds/catalog.seed.js';
 import { testPrisma } from '../../src/config/test-database.js';
 import { ProductRepository } from '../../src/modules/products/product.repository.js';
 import { ProductService } from '../../src/modules/products/product.service.js';
 
 describe('Product Listing Display Pricing Unit & Integration Tests', () => {
+  const fixtures = guardCatalogSeedFixtures(
+    tenantFixtures.map(({ key }) => developmentId(`tenant:${key}`)),
+  );
+  beforeAll(fixtures.capture);
+  afterAll(fixtures.cleanup);
+
   it('1. mapProductListItem unit test: variant discount takes precedence over product discount', () => {
     const product = {
       tenant: { defaultCurrency: 'KWD' },

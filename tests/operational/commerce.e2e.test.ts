@@ -11,11 +11,13 @@ import {
   vi,
 } from 'vitest';
 import { z } from 'zod';
+import { hashPassword } from '../../src/common/security/password.js';
 import request from 'supertest';
 import app from '../../src/app.js';
 import { testPrisma } from '../../src/config/test-database.js';
 import {
   developmentId,
+  developmentStores,
   seedDevelopment,
 } from '../../prisma/development/seed.js';
 import { verifyDevelopmentSeed } from '../../prisma/development/cli.js';
@@ -133,18 +135,61 @@ describe('seeded HTTP commerce and customer onboarding', () => {
     initialCoverage = await testPrisma.warehouseCoverage.findMany({
       where: { tenantId: { in: [tenantId, otherTenantId] } },
     });
-    for (const key of [
-      'fashion-owner',
-      'fashion-manager',
-      'fashion-customer',
-      'fashion-unverified',
-      'independent-owner',
-      'independent-customer',
-    ]) {
+    const passwordHash = await hashPassword(fixture.password);
+    const accounts = [
+      ['fashion-owner', tenantId, 'OWNER'],
+      ['fashion-admin', tenantId, 'ADMIN'],
+      ['fashion-manager', tenantId, 'MANAGER'],
+      ['fashion-customer', tenantId, 'CUSTOMER'],
+      ['fashion-unverified', tenantId, 'CUSTOMER'],
+      ['independent-owner', otherTenantId, 'OWNER'],
+      ['independent-customer', otherTenantId, 'CUSTOMER'],
+    ] as const;
+    await testPrisma.$transaction(async (tx) => {
+      for (const [key, memberTenantId, role] of accounts) {
+        const id = developmentId(`user:${key}`);
+        await tx.user.create({
+          data: {
+            id,
+            email: `${key}@automated-commerce.example.test`,
+            passwordHash,
+            firstName: 'Automated',
+            lastName: key,
+            emailVerifiedAt: key === 'fashion-unverified' ? null : new Date(),
+            tenantMemberships: { create: { tenantId: memberTenantId, role } },
+          },
+        });
+        if (key !== 'fashion-customer' && key !== 'independent-customer')
+          continue;
+        for (const country of key === 'fashion-customer'
+          ? ['KW', 'SA']
+          : ['SA']) {
+          await tx.address.create({
+            data: {
+              id: developmentId(`address:${key}:${country}`),
+              userId: id,
+              firstName: 'Automated',
+              lastName: key,
+              addressLine1: 'Fixture delivery address',
+              city: country === 'KW' ? 'Kuwait City' : 'Riyadh',
+              countryCode: country,
+              latitude: country === 'KW' ? '29.3759' : '24.7136',
+              longitude: country === 'KW' ? '47.9774' : '46.6753',
+              isDefaultShipping:
+                country === (key === 'fashion-customer' ? 'KW' : 'SA'),
+              isDefaultBilling:
+                country === (key === 'fashion-customer' ? 'KW' : 'SA'),
+            },
+          });
+        }
+      }
+    });
+    createdUsers.push(...accounts.map(([key]) => developmentId(`user:${key}`)));
+    for (const [key] of accounts) {
       const login = await request(app)
         .post('/api/v1/auth/login')
         .send({
-          email: `${key}@dev81.example.test`,
+          email: `${key}@automated-commerce.example.test`,
           password: fixture.password,
         });
       expect(login.status).toBe(200);
@@ -220,29 +265,32 @@ describe('seeded HTTP commerce and customer onboarding', () => {
     );
   });
   afterAll(async () => {
+    const seededTenantIds = developmentStores.map(({ key }) =>
+      developmentId(`tenant:${key}`),
+    );
     await testPrisma.couponUsage.deleteMany({
-      where: { coupon: { tenantId: { in: [tenantId, otherTenantId] } } },
+      where: { coupon: { tenantId: { in: seededTenantIds } } },
     });
     await testPrisma.checkoutRequest.deleteMany({
-      where: { tenantId: { in: [tenantId, otherTenantId] } },
+      where: { tenantId: { in: seededTenantIds } },
     });
     await testPrisma.payment.deleteMany({
-      where: { order: { tenantId: { in: [tenantId, otherTenantId] } } },
+      where: { order: { tenantId: { in: seededTenantIds } } },
     });
     await testPrisma.order.deleteMany({
-      where: { tenantId: { in: [tenantId, otherTenantId] } },
+      where: { tenantId: { in: seededTenantIds } },
     });
     await testPrisma.inventory.deleteMany({
-      where: { tenantId: { in: [tenantId, otherTenantId] } },
+      where: { tenantId: { in: seededTenantIds } },
     });
     await testPrisma.warehouse.deleteMany({
-      where: { tenantId: { in: [tenantId, otherTenantId] } },
+      where: { tenantId: { in: seededTenantIds } },
     });
     await testPrisma.taxRule.deleteMany({
-      where: { taxCategory: { tenantId: { in: [tenantId, otherTenantId] } } },
+      where: { taxCategory: { tenantId: { in: seededTenantIds } } },
     });
     await testPrisma.tenant.deleteMany({
-      where: { id: { in: [tenantId, otherTenantId, unrelatedId] } },
+      where: { id: { in: [...seededTenantIds, unrelatedId] } },
     });
     await testPrisma.user.deleteMany({
       where: {
@@ -250,6 +298,12 @@ describe('seeded HTTP commerce and customer onboarding', () => {
           in: [
             ...Object.keys(tokens).map((key) => developmentId(`user:${key}`)),
             ...createdUsers,
+            ...[
+              'admin@example.com',
+              'manager@example.com',
+              'customer1@example.com',
+              'customer2@example.com',
+            ].map((email) => developmentId(`user:${email}`)),
           ],
         },
       },
@@ -293,6 +347,12 @@ describe('seeded HTTP commerce and customer onboarding', () => {
     expect((await verifyDevelopmentSeed(testPrisma)).stores).toEqual([
       { slug, currency: 'KWD', warehouses: 2, inventoryRows: 12 },
       { slug: otherSlug, currency: 'SAR', warehouses: 1, inventoryRows: 6 },
+      ...developmentStores.slice(2).map((store) => ({
+        slug: store.slug,
+        currency: store.currency,
+        warehouses: 1,
+        inventoryRows: 3,
+      })),
     ]);
     expect(
       await testPrisma.tenant.findUniqueOrThrow({ where: { id: unrelatedId } }),
@@ -326,7 +386,9 @@ describe('seeded HTTP commerce and customer onboarding', () => {
     try {
       await expect(
         seedDevelopment(testPrisma, fixture.password),
-      ).rejects.toThrow('owned by unrelated data');
+      ).rejects.toThrow(
+        /Collision: Tenant slug .* is owned by unrelated tenant ID/,
+      );
       expect(
         (
           await testPrisma.tenant.findUniqueOrThrow({
@@ -779,8 +841,14 @@ describe('seeded HTTP commerce and customer onboarding', () => {
           .auth(tokens['fashion-owner']!, { type: 'bearer' })
           .send({ status: 'PAID' });
         expect(directBlocked.status).toBe(409);
-        expect(directBlocked.body.code).toBe('COD_PAYMENT_CONFIRMATION_REQUIRED');
-        for (const nextStatus of ['PROCESSING', 'SHIPPED', 'DELIVERED'] as const) {
+        expect(directBlocked.body.code).toBe(
+          'COD_PAYMENT_CONFIRMATION_REQUIRED',
+        );
+        for (const nextStatus of [
+          'PROCESSING',
+          'SHIPPED',
+          'DELIVERED',
+        ] as const) {
           const step = await request(app)
             .patch(`/api/v1/orders/${orderId}/status`)
             .set('X-Tenant-Slug', slug)

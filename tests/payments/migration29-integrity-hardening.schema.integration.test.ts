@@ -575,7 +575,7 @@ describe('Phase 2D.12 Step 2C-2A.2 — Migration 29 Integrity Hardening & Concur
             providerEnvironment: PaymentProviderEnvironment.SANDBOX,
           },
         }),
-      ).rejects.toThrow(/after external initiation/);
+      ).rejects.toThrow(/Established Payment providerPaymentId cannot be erased or replaced/);
 
       // Verify evidence was NOT cleared
       const stillInitiated = await testPrisma.payment.findUniqueOrThrow({
@@ -706,7 +706,7 @@ describe('Phase 2D.12 Step 2C-2A.2 — Migration 29 Integrity Hardening & Concur
             dispatchedAt: new Date(),
           },
         }),
-      ).rejects.toThrow(/PaymentRefundAttempt_dispatch_evidence_check/);
+      ).rejects.toThrow(/New SUBMIT_REFUND PaymentRefundAttempt must start in PREPARED state \(got ABANDONED\)/);
 
       await expect(
         testPrisma.paymentRefundAttempt.create({
@@ -726,7 +726,7 @@ describe('Phase 2D.12 Step 2C-2A.2 — Migration 29 Integrity Hardening & Concur
             dispatchedAt: null,
           },
         }),
-      ).rejects.toThrow(/PaymentRefundAttempt_dispatch_evidence_check/);
+      ).rejects.toThrow(/New SUBMIT_REFUND PaymentRefundAttempt must start in PREPARED state \(got SUCCEEDED\)/);
 
       // Never-dispatched PREPARED attempt CAN transition to ABANDONED (releasing ownership safely)
       const prepAttempt = await testPrisma.paymentRefundAttempt.create({
@@ -860,7 +860,7 @@ describe('Phase 2D.12 Step 2C-2A.2 — Migration 29 Integrity Hardening & Concur
             requestFingerprint: 'fp-s4-ref',
           },
         }),
-      ).rejects.toMatchObject({ code: 'P2002' });
+      ).rejects.toThrow(/already has a dispatched SUBMIT_REFUND attempt; additional outbound submission is prohibited/);
 
       // Legitimate LOOKUP_STATUS and RECONCILE attempts remain allowed alongside AMBIGUOUS
       const reconcileAtt = await testPrisma.paymentRefundAttempt.create({
@@ -896,7 +896,13 @@ describe('Phase 2D.12 Step 2C-2A.2 — Migration 29 Integrity Hardening & Concur
           where: { id: dispAttempt.id },
           data: { providerRefundId: `MF-S4-TAMPER-${runId}` },
         }),
-      ).rejects.toThrow(/dispatch and provider evidence cannot be erased or replaced/);
+      ).rejects.toThrow(/Terminal PaymentRefundAttempt .* is completely frozen; outcome, evidence, lease, and metadata cannot be modified/);
+      expect(
+        await testPrisma.paymentRefundAttempt.findUniqueOrThrow({
+          where: { id: dispAttempt.id },
+          select: { providerRefundId: true },
+        }),
+      ).toEqual({ providerRefundId: `MF-S4-OK-${runId}` });
     });
   });
 

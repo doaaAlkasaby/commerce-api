@@ -644,6 +644,12 @@ describe('Phase 2D.12 Step 2C-2A — Provider Account Identity & Migration 28 Sc
       });
       expect(distinctAccRefund.providerRefundId).toBe(sharedRefId);
 
+      // A production account starts inactive and needs activation before binding.
+      await testPrisma.paymentProviderAccount.update({
+        where: { id: accAProdId },
+        data: { status: PaymentProviderAccountStatus.ACTIVE },
+      });
+
       // 19. Same providerRefundId in PRODUCTION vs SANDBOX isolated and succeeds
       const prodPay = await seedOrderWithPayment({
         tenantId: tenantAId,
@@ -823,7 +829,7 @@ describe('Phase 2D.12 Step 2C-2A — Provider Account Identity & Migration 28 Sc
         }),
       ).rejects.toMatchObject({ code: 'P2002' });
 
-      // 25. Concurrent SUBMIT_REFUND ownership constraint blocks second SUBMIT_REFUND (P2002)
+      // 25. Concurrent SUBMIT_REFUND ownership constraint blocks second SUBMIT_REFUND after dispatch
       await expect(
         testPrisma.paymentRefundAttempt.create({
           data: {
@@ -841,7 +847,7 @@ describe('Phase 2D.12 Step 2C-2A — Provider Account Identity & Migration 28 Sc
             requestFingerprint: 'fp-d-ref',
           },
         }),
-      ).rejects.toMatchObject({ code: 'P2002' });
+      ).rejects.toThrow(/already has a dispatched SUBMIT_REFUND attempt; additional outbound submission is prohibited/);
 
       // 27. Transition attempt 1 to AMBIGUOUS -> STILL blocks any blind resend of SUBMIT_REFUND
       await testPrisma.paymentRefundAttempt.update({
@@ -870,7 +876,7 @@ describe('Phase 2D.12 Step 2C-2A — Provider Account Identity & Migration 28 Sc
             requestFingerprint: 'fp-d-ref',
           },
         }),
-      ).rejects.toMatchObject({ code: 'P2002' });
+      ).rejects.toThrow(/already has a dispatched SUBMIT_REFUND attempt; additional outbound submission is prohibited/);
 
       // 26 & 28. Safe LOOKUP_STATUS attempts allowed alongside AMBIGUOUS submission; historical attempts preserved
       const lookupAttempt = await testPrisma.paymentRefundAttempt.create({

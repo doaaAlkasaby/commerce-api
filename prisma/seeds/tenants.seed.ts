@@ -1,4 +1,7 @@
-import type { Prisma, PrismaClient } from '../../src/generated/prisma/client.js';
+import type {
+  Prisma,
+  PrismaClient,
+} from '../../src/generated/prisma/client.js';
 import { createHash } from 'node:crypto';
 import { DevelopmentSeedError } from '../../src/config/development-seed-options.js';
 
@@ -84,7 +87,14 @@ export const tenantFixtures = [
   },
 ] as const;
 
-export async function seedTenants(prisma: PrismaClient | Prisma.TransactionClient) {
+export async function seedTenants(
+  prisma: PrismaClient | Prisma.TransactionClient,
+  initialArtwork?: (store: (typeof tenantFixtures)[number]['key']) => {
+    logoUrl: string;
+    logoStorageKey: string;
+    coverImageUrl: string;
+  },
+) {
   console.log('🏪 Seeding 6 branded tenant fixtures...');
 
   for (const [code, name, currencyCode] of [
@@ -93,7 +103,9 @@ export async function seedTenants(prisma: PrismaClient | Prisma.TransactionClien
     ['EG', 'Egypt', 'EGP'],
     ['AE', 'United Arab Emirates', 'AED'],
   ] as const) {
-    const existingCountry = await prisma.country.findUnique({ where: { code } });
+    const existingCountry = await prisma.country.findUnique({
+      where: { code },
+    });
     if (!existingCountry) {
       await prisma.country.create({
         data: {
@@ -129,13 +141,7 @@ export async function seedTenants(prisma: PrismaClient | Prisma.TransactionClien
 
     await prisma.tenant.upsert({
       where: { id: tenantId },
-      update: {
-        name: store.name,
-        isPubliclyListed: store.isPubliclyListed,
-        logoUrl: store.logoUrl,
-        coverImageUrl: store.coverImageUrl,
-        timezone: store.timezone,
-      },
+      update: {},
       create: {
         id: tenantId,
         slug: store.slug,
@@ -148,6 +154,7 @@ export async function seedTenants(prisma: PrismaClient | Prisma.TransactionClien
         timezone: store.timezone,
         logoUrl: store.logoUrl,
         coverImageUrl: store.coverImageUrl,
+        ...initialArtwork?.(store.key),
       },
     });
   }

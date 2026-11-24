@@ -277,16 +277,19 @@ describe('Product service', () => {
     it.each<ProductStatus>(['DRAFT', 'INACTIVE', 'ARCHIVED'])(
       'hides %s products by ID',
       async (status) => {
-        vi.mocked(repository.findById).mockResolvedValue(
+        vi.spyOn(repository, 'findPublicById').mockResolvedValue(
           makeProduct({ status }),
         );
         await expect(
           service.getById(tenantId, productId),
         ).rejects.toMatchObject({ statusCode: 404, code: 'PRODUCT_NOT_FOUND' });
+        expect(repository.findPublicById).toHaveBeenCalledExactlyOnceWith(
+          productId, tenantId,
+        );
       },
     );
     it('returns an active product by ID', async () => {
-      vi.mocked(repository.findById).mockResolvedValue(
+      vi.spyOn(repository, 'findPublicById').mockResolvedValue(
         makeProduct({ status: 'ACTIVE' }),
       );
       await expect(service.getById(tenantId, productId)).resolves.toMatchObject(
@@ -298,7 +301,9 @@ describe('Product service', () => {
           isInWishlist: false,
         },
       );
-      expect(repository.findById).toHaveBeenCalledWith(productId, tenantId);
+      expect(repository.findPublicById).toHaveBeenCalledExactlyOnceWith(
+        productId, tenantId,
+      );
     });
     it('uses the tenant-scoped public listing repository', async () => {
       const query = makeQuery();

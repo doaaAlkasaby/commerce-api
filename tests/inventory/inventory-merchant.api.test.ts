@@ -1,5 +1,5 @@
 import request from 'supertest';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { catalogTenantFixture } from '../helpers/catalog.js';
 import {
   createShippingProfileFixture,
@@ -14,6 +14,18 @@ import {
   PaymentStatus,
 } from '../../src/generated/prisma/client.js';
 import { paymentService } from '../../src/modules/payments/payment.service.instance.js';
+
+vi.mock('../../src/config/env.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../src/config/env.js')>();
+  return {
+    ...original,
+    env: {
+      ...original.env,
+      PAYMENT_PROVIDER: 'MOCK',
+      MOCK_CHECKOUT_SECRET: 'inventory-fixture-only-mock-secret',
+    },
+  };
+});
 
 describe('Phase 2D.5B — Warehouse Inventory Management API', () => {
   const tenantA = catalogTenantFixture();
@@ -610,7 +622,6 @@ describe('Phase 2D.5B — Warehouse Inventory Management API', () => {
         .send({
           shippingAddressId: addressAId,
           paymentMethod: PaymentMethod.CARD,
-          paymentProvider: PaymentProvider.MOCK,
         }),
     ).expect(201);
     const order1Id = checkout1.body.data.order.id as string;
@@ -670,7 +681,6 @@ describe('Phase 2D.5B — Warehouse Inventory Management API', () => {
         .send({
           shippingAddressId: addressAId,
           paymentMethod: PaymentMethod.CARD,
-          paymentProvider: PaymentProvider.MOCK,
         }),
     ).expect(201);
     const payment2Id = checkout2.body.data.payment.id as string;
@@ -686,7 +696,6 @@ describe('Phase 2D.5B — Warehouse Inventory Management API', () => {
     await testPrisma.payment.update({
       where: { id: payment2Id },
       data: {
-        provider: PaymentProvider.MYFATOORAH,
         providerPaymentId: `mock-inv-${payment2Id}`,
       },
     });

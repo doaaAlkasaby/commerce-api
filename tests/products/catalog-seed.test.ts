@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { guardCatalogSeedFixtures } from '../helpers/catalog.js';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../src/config/env.js', async (original) => {
   const actual = await original<typeof import('../../src/config/env.js')>();
@@ -12,10 +13,16 @@ vi.mock('../../src/config/env.js', async (original) => {
 });
 
 import { seedCatalog, catalogDefinitions } from '../../prisma/seeds/catalog.seed.js';
-import { seedTenants } from '../../prisma/seeds/tenants.seed.js';
+import { developmentId, seedTenants, tenantFixtures } from '../../prisma/seeds/tenants.seed.js';
 import { testPrisma } from '../../src/config/test-database.js';
 
 describe('Demo Catalog Seed Module Integration Tests', () => {
+  const fixtures = guardCatalogSeedFixtures(
+    tenantFixtures.map(({ key }) => developmentId(`tenant:${key}`)),
+  );
+  beforeAll(fixtures.capture);
+  afterAll(fixtures.cleanup);
+
   it('1. First seedCatalog execution creates categories, products, images, and inventory for all 6 stores', async () => {
     await seedTenants(testPrisma);
     await seedCatalog(testPrisma);

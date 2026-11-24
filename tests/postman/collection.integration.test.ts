@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { join } from 'node:path';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { expect as chaiExpect } from 'chai';
@@ -6,9 +7,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { z } from 'zod';
 import app from '../../src/app.js';
+import { hashPassword } from '../../src/common/security/password.js';
+import { env } from '../../src/config/env.js';
+import { discoverRoutes } from '../../scripts/postman/routes.js';
 import { testPrisma as db } from '../../src/config/test-database.js';
 import {
   developmentId,
+  developmentStores,
   seedDevelopment,
 } from '../../prisma/development/seed.js';
 import {
@@ -17,22 +22,21 @@ import {
   verify,
 } from '../../scripts/postman/verify.js';
 
-const collection = readCollection(),
+const artifactDirectory = process.env.POSTMAN_TEST_ARTIFACT_DIR ?? 'postman';
+const collection = readCollection(artifactDirectory),
   items = collection.item.flatMap((folder) => folder.item);
 const variables = Object.fromEntries(
   collection.variable.map((item) => [item.key, item.value]),
 );
 let countriesBefore: string[] = [];
-const tenantIds = ['fashion', 'independent'].map((key) =>
+const tenantIds = developmentStores.map(({ key }) =>
   developmentId(`tenant:${key}`),
 );
 const accounts = [
-  'fashion-owner',
-  'fashion-manager',
-  'fashion-customer',
-  'fashion-unverified',
-  'independent-owner',
-  'independent-customer',
+  'admin@example.com',
+  'manager@example.com',
+  'customer1@example.com',
+  'customer2@example.com',
 ].map((key) => developmentId(`user:${key}`));
 describe('canonical Postman contracts and safe HTTP smoke', () => {
   beforeAll(async () => {
@@ -61,7 +65,10 @@ describe('canonical Postman contracts and safe HTTP smoke', () => {
     await db.$disconnect();
   });
   it('validates official schema, full route parity, Zod bodies/queries/params and secrets', async () => {
-    expect(await verify()).toEqual({ routes: 180, requests: 200 });
+    expect(await verify(artifactDirectory)).toEqual({
+      routes: discoverRoutes().length,
+      requests: discoverRoutes().length + 54 + 2,
+    });
   });
   it('independently checks the runtime Express tree includes every inventoried route', () => {
     function count(handle: unknown): number {
@@ -87,7 +94,32 @@ describe('canonical Postman contracts and safe HTTP smoke', () => {
         return sum + count(Reflect.get(layer, 'handle'));
       }, 0);
     }
-    expect(count(Reflect.get(app, 'router'))).toBe(181); // 180 API/ops/provider + docs.json; static mounts are middleware.
+    const mockRoutes = new Set([
+      'GET /{{apiPrefix}}/payments/mock/checkout/:id',
+      'POST /{{apiPrefix}}/payments/mock/checkout/:id/scenario',
+    ]);
+    const runtimeRoutes = discoverRoutes().filter(
+      ({ method, path }) =>
+        !mockRoutes.has(`${method} ${path}`) ||
+        (env.PAYMENT_PROVIDER === 'MOCK' &&
+          process.env.NODE_ENV !== 'production'),
+    );
+    // The explicit docs.json route is outside discoverRoutes; static mounts
+    // are middleware and do not add runtime route methods.
+    expect(count(Reflect.get(app, 'router'))).toBe(runtimeRoutes.length + 1);
+    expect(
+      runtimeRoutes.map(({ method, path }) => `${method} ${path}`),
+    ).toEqual(
+      expect.arrayContaining([
+        'GET /{{apiPrefix}}/storefront/tenants',
+        'GET /{{apiPrefix}}/merchant/products',
+        'GET /{{apiPrefix}}/merchant/products/:id',
+        'POST /{{apiPrefix}}/product-variants/default',
+        'POST /{{apiPrefix}}/orders/:id/cod/confirm-payment',
+        'POST /{{apiPrefix}}/orders/:id/cod/mark-refused',
+        'POST /{{apiPrefix}}/orders/:id/cod/confirm-return',
+      ]),
+    );
   });
   it('guards every mutation and the side-effecting cart/verification GETs by default', () => {
     const stopped = Symbol('skip');
@@ -154,6 +186,63 @@ describe('canonical Postman contracts and safe HTTP smoke', () => {
       expect(data.ownerRefreshToken).toBe('synthetic-owner-refresh');
     }
   });
+  it('uses candidate bearer metadata for protected catalog reads with an independent account', async () => {
+    const id = developmentId('test:postman:catalog-manager');
+    const email = 'catalog-manager@automated-postman.example.test';
+    const password = `PostmanTest!${randomUUID()}Aa1`;
+    await db.user.create({
+      data: {
+        id,
+        email,
+        passwordHash: await hashPassword(password),
+        firstName: 'Postman',
+        lastName: 'Fixture',
+        emailVerifiedAt: new Date(),
+        tenantMemberships: {
+          create: { tenantId: tenantIds[0]!, role: 'MANAGER' },
+        },
+      },
+    });
+    try {
+      const login = await request(app)
+        .post('/api/v1/auth/login')
+        .send({ email, password })
+        .expect(200);
+      const token = z.string().parse(login.body.data.accessToken);
+      for (const name of [
+        'GET /product-images/:id',
+        'GET /merchant/products',
+        'GET /merchant/products/:id',
+      ]) {
+        const item = items.find((item) => item.name === name);
+        expect(item?.request.auth.type).toBe('bearer');
+        expect(item?.request.header).toContainEqual({
+          key: 'X-Tenant-Slug',
+          value: '{{tenantSlug}}',
+        });
+        const url = resolveVariables(
+          item!.request.url.raw.replace('{{baseUrl}}', ''),
+          variables,
+        );
+        const call = (tenantSlug = variables.tenantSlug!) =>
+          request(app).get(url).set('X-Tenant-Slug', tenantSlug);
+        await call().expect(401);
+        await call().auth(token, { type: 'bearer' }).expect(200);
+        if (name === 'GET /merchant/products/:id') {
+          await call()
+            .query({ unexpected: 'value' })
+            .auth(token, { type: 'bearer' })
+            .expect(400);
+          await call(variables.secondTenantSlug)
+            .auth(token, { type: 'bearer' })
+            .expect(401);
+        }
+      }
+    } finally {
+      await db.user.delete({ where: { id } });
+    }
+  });
+
   for (const environment of ['local', 'independent'])
     it(`executes public read-only ${environment} requests and their assertions over actual HTTP`, async () => {
       const env = z
@@ -163,7 +252,10 @@ describe('canonical Postman contracts and safe HTTP smoke', () => {
         .parse(
           JSON.parse(
             await readFile(
-              `postman/commerce-api.${environment}.postman_environment.json`,
+              join(
+                artifactDirectory,
+                `commerce-api.${environment}.postman_environment.json`,
+              ),
               'utf8',
             ),
           ),
@@ -171,14 +263,29 @@ describe('canonical Postman contracts and safe HTTP smoke', () => {
       const vars = Object.fromEntries(
         env.values.map((item) => [item.key, item.value]),
       );
-      const safe = items.filter(
+      const mockCheckout = 'GET /payments/mock/checkout/:id';
+      const publicGetCandidates = items.filter(
         (item) =>
           item.request.method === 'GET' &&
           item.request.auth.type === 'noauth' &&
           !item.name.includes('/auth/verify-email') &&
           !item.name.includes('/cart'),
       );
-      expect(safe.length).toBe(51);
+      const publicDiscovery = 'GET /storefront/tenants';
+      expect(publicGetCandidates.map(({ name }) => name)).toEqual(
+        expect.arrayContaining([mockCheckout, publicDiscovery]),
+      );
+      const safe = publicGetCandidates.filter(
+        ({ name }) => name !== mockCheckout,
+      );
+      expect(
+        safe.filter(({ name }) =>
+          name.startsWith('GET /uploads/development-v82/'),
+        ),
+      ).toHaveLength(54);
+      expect(safe.some(({ name }) => name === 'GET /product-images/:id')).toBe(
+        false,
+      );
       for (const item of safe) {
         const url = resolveVariables(
           item.request.url.raw.replace('{{baseUrl}}', ''),

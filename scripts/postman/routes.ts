@@ -6,6 +6,7 @@ export interface SchemaRef {
   file: string;
   name: string;
   expression: string;
+  inline?: 'empty-strict-object';
 }
 export interface Route {
   method: string;
@@ -59,6 +60,24 @@ export function leafRoutes(file: string, prefix: string): Route[] {
     imports = imported(sf),
     routes: Route[] = [],
     middleware: string[] = [];
+  const zodBindings = new Set<string>();
+  for (const statement of sf.statements) {
+    if (
+      ts.isImportDeclaration(statement) &&
+      ts.isStringLiteralLike(statement.moduleSpecifier) &&
+      statement.moduleSpecifier.text === 'zod' &&
+      !statement.importClause?.isTypeOnly
+    ) {
+      const bindings = statement.importClause?.namedBindings;
+      if (bindings && ts.isNamedImports(bindings))
+        for (const binding of bindings.elements)
+          if (
+            !binding.isTypeOnly &&
+            (binding.propertyName ?? binding.name).text === 'z'
+          )
+            zodBindings.add(binding.name.text);
+    }
+  }
   const routers = new Set<string>();
   function find(node: ts.Node) {
     if (
@@ -125,25 +144,41 @@ export function leafRoutes(file: string, prefix: string): Route[] {
           )
             continue;
           const location = literal(arg.arguments[1]);
-          const expression = arg.arguments[0]?.getText(sf);
+          const schema = arg.arguments[0];
           if (
-            !expression ||
-            !['body', 'query', 'params'].includes(location ?? '')
+            !schema ||
+            (location !== 'body' &&
+              location !== 'query' &&
+              location !== 'params')
           )
             throw new Error(`Unresolved validation in ${file}`);
+          const expression = schema.getText(sf);
           const name = expression.split('.')[0]!;
           const item = imports.get(name);
-          if (!item) throw new Error(`Unresolved schema ${name}`);
+          if (item) {
+            schemas[location] = { ...item, expression };
+            continue;
+          }
           if (
-            location === 'body' ||
-            location === 'query' ||
-            location === 'params'
-          )
+            ts.isCallExpression(schema) &&
+            ts.isPropertyAccessExpression(schema.expression) &&
+            ts.isIdentifier(schema.expression.expression) &&
+            zodBindings.has(schema.expression.expression.text) &&
+            schema.expression.name.text === 'strictObject' &&
+            !schema.typeArguments?.length &&
+            schema.arguments.length === 1 &&
+            ts.isObjectLiteralExpression(schema.arguments[0]!) &&
+            schema.arguments[0]!.properties.length === 0
+          ) {
             schemas[location] = {
-              file: item.file,
-              name: item.name,
+              file: path.resolve(file),
+              name: 'strictObject',
               expression,
+              inline: 'empty-strict-object',
             };
+            continue;
+          }
+          throw new Error(`Unresolved schema ${name} in ${file} (${location})`);
         }
         const text = args.map((arg) => arg.getText(sf)).join('\n');
         const upload = text.match(/\.single\(['"]([^'"]+)['"]\)/)?.[1];

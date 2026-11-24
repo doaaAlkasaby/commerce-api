@@ -1,5 +1,7 @@
 # Phase 8.1 — Operational readiness and Flutter integration
 
+The account and fixture tables in this report are historical. See the [current development seed and automated fixture contract](development-seed-contract.md).
+
 ## Scope and compatibility
 
 This report supersedes Phase 8's timezone and seed limitations.

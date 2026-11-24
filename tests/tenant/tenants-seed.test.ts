@@ -87,7 +87,7 @@ describe('Dedicated Tenants Seed Module Unit & Integration Tests', () => {
     const collidingCode = `COLLISION_${randomUUID()}`;
 
     // Clean up any existing store with slug toota-kids first
-    await testPrisma.tenant.deleteMany({ where: { slug: targetSlug } });
+    await deleteFixtureTenants({ where: { slug: targetSlug } });
 
     const collidingTenant = await testPrisma.tenant.create({
       data: {
@@ -129,7 +129,9 @@ describe('Dedicated Tenants Seed Module Unit & Integration Tests', () => {
     const collidingSlug = `unrelated-${randomUUID()}`;
 
     // Clean up any existing store with code or slug DAR_HOME / dar-home
-    await testPrisma.tenant.deleteMany({ where: { OR: [{ code: targetCode }, { slug: targetSlug }] } });
+    await deleteFixtureTenants({
+      where: { OR: [{ code: targetCode }, { slug: targetSlug }] },
+    });
 
     const collidingTenant = await testPrisma.tenant.create({
       data: {

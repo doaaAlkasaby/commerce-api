@@ -265,7 +265,6 @@ describe('Phase NOTIF-7C: Payment & Refund Notifications PostgreSQL Integration 
           status: 'PARTIALLY_REFUNDED',
           refundId: seeded1.id,
           refundAmount: '20',
-          providerTransactionId: 'txn-refund-part-1',
         },
         tx,
         { transition: { kind: 'PAYMENT_REFUND', refundId: seeded1.id } },
@@ -288,7 +287,6 @@ describe('Phase NOTIF-7C: Payment & Refund Notifications PostgreSQL Integration 
           status: 'PARTIALLY_REFUNDED',
           refundId: seeded2.id,
           refundAmount: '30',
-          providerTransactionId: 'txn-refund-part-2',
         },
         tx,
         { transition: { kind: 'PAYMENT_REFUND', refundId: seeded2.id } },
@@ -300,6 +298,7 @@ describe('Phase NOTIF-7C: Payment & Refund Notifications PostgreSQL Integration 
 
     expect((notifs[1]!.data as Record<string, unknown>).amount).toBe('20');
     expect((notifs[2]!.data as Record<string, unknown>).amount).toBe('30');
+    expect(notifs[1]!.eventKey).not.toBe(notifs[2]!.eventKey);
   });
 
   it('5. Duplicate webhook for the same partial refund is deduplicated via providerTransactionId', async () => {

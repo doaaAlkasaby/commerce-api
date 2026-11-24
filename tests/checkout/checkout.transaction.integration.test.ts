@@ -49,6 +49,7 @@ import express from 'express';
 import request from 'supertest';
 import orderRoutes from '../../src/modules/orders/order.routes.js';
 import { OrderService } from '../../src/modules/orders/order.service.js';
+import { inventoryService } from '../../src/modules/inventory/inventory.service.instance.js';
 import { createAccessToken } from '../../src/common/security/jwt.js';
 import { PaymentService } from '../../src/modules/payments/payment.service.js';
 import {
@@ -3089,15 +3090,13 @@ suite('checkout transaction against PostgreSQL', () => {
       expect(await ledger('SALE')).toBe(0);
     });
     it('uses the order-specific RELEASE ledger to reject legacy resurrection even if stock is reserved elsewhere', async () => {
-      await order('CANCELLED');
-      await testPrisma.order.update({
-        where: { id: result.order.id },
-        data: { status: 'PENDING', paymentStatus: 'PENDING' },
-      });
-      await testPrisma.payment.update({
-        where: { id: result.payment!.id },
-        data: { status: 'PENDING' },
-      });
+      // Model a legacy outstanding payment with a recorded stock release while
+      // leaving the checkout-created payment in its original PENDING state.
+      await testPrisma.$transaction((tx) =>
+        inventoryService.releaseOrderReservation(tenantId, result.order.id, tx),
+      );
+      expect((await state()).payments[0]!.status).toBe('PENDING');
+      expect(await ledger('RELEASE')).toBe(1);
       await testPrisma.inventory.update({
         where: { id: inventoryId },
         data: { reservedQuantity: 2 },

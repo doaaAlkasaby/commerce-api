@@ -63,6 +63,7 @@ export const values: Record<string, string> = {
   tenantSlug: 'dev81-kuwait-fashion',
   secondTenantSlug: 'dev81-independent',
   activeAccessToken: '',
+  mockCheckoutToken: '',
   activeRefreshToken: '',
   customerAccessToken: '',
   customerRefreshToken: '',
@@ -187,6 +188,7 @@ export function access(route: Route) {
 }
 function variableFor(name: string, route: Route): string {
   if (name !== 'id') return fieldVars[name] ?? name;
+  if (route.path.endsWith('/merchant/products/:id')) return 'productId';
   return (
     {
       products: 'productId',
@@ -290,6 +292,9 @@ export async function buildRequest(route: Route): Promise<Item> {
     body = example(json, '', route.method === 'PATCH');
   }
   const endpoint = `${route.method} ${route.path.replace('/{{apiPrefix}}', '')}`;
+  const mockCheckout = endpoint === 'GET /payments/mock/checkout/:id';
+  const mockScenario = endpoint === 'POST /payments/mock/checkout/:id/scenario';
+  if (mockScenario) body = { status: 'PAID' };
   if (endpoint === 'POST /products/:productId/reviews')
     body = {
       rating: 5,
@@ -397,6 +402,10 @@ export async function buildRequest(route: Route): Promise<Item> {
       .join('&');
     if (active) request.url.raw += '?' + active;
   }
+  if (mockCheckout || mockScenario) {
+    request.url.query = [{ key: 'token', value: '{{mockCheckoutToken}}' }];
+    request.url.raw += '?token={{mockCheckoutToken}}';
+  }
   if (endpoint === 'POST /checkout')
     request.header.push({
       key: 'Idempotency-Key',
@@ -426,13 +435,17 @@ pm.variables.set('activeRefreshToken', pm.environment.get(profile+'RefreshToken'
 pm.variables.set('activeAccessToken', pm.environment.get(profile+'AccessToken') || '');`
     : ''
 }
+${mockCheckout || mockScenario ? `if (!pm.variables.get('mockCheckoutToken')) pm.execution.skipRequest();` : ''}
 ${a.auth || route.path === '/ops/metrics' ? `if (!pm.variables.get('${token}')) pm.execution.skipRequest();` : ''}
 ${endpoint === 'POST /checkout' ? `if (!pm.variables.get('idempotencyKey')) throw new Error('Set a new idempotencyKey once for this purchase; keep it for retries');` : ''}
 `;
   let post = `pm.test('Expected successful status', () => pm.expect(pm.response.code).to.be.oneOf(${JSON.stringify(success)}));`;
-  if (!route.path.startsWith('/ops/'))
+  if (mockCheckout)
     post += `
-pm.test('Success envelope', () => { const body=pm.response.json(); pm.expect(body.success).to.eql(true); pm.expect(body).to.have.property('message'); pm.expect(body).to.have.property('data'); });`;
+pm.test('Mock checkout HTML', () => pm.expect(pm.response.headers.get('Content-Type')).to.include('text/html'));`;
+  else if (!route.path.startsWith('/ops/'))
+    post += `
+pm.test('Success envelope', () => { const body=pm.response.json(); pm.expect(body.success).to.eql(true); ${endpoint.includes('/merchant/products') ? '' : "pm.expect(body).to.have.property('message');"} pm.expect(body).to.have.property('data'); });`;
   if (route.method === 'POST' && /\/auth\/(login|refresh)$/.test(route.path))
     post += `
 if (pm.response.code === 200) {
@@ -472,6 +485,11 @@ if(pm.response.code===200){const data=pm.response.json().data;pm.expect(data.cur
     `Authentication: ${a.auth ? `Bearer ${token}` : route.path === '/ops/metrics' ? 'Independent OPS_METRICS_TOKEN, not a user JWT' : 'Public; no bearer'}. Tenant header: ${a.tenant ? 'X-Tenant-Slug: {{tenantSlug}}' : 'not required'}. ${a.member ? 'Active tenant membership required.' : ''} ${a.verified ? 'Verified email required.' : ''} ${a.roles.length ? 'Tenant roles: ' + a.roles.join('/') + '.' : ''} ${a.globalAdmin ? 'Global ADMIN required.' : ''} ${a.management ? 'Path tenant access governed by tenantManagement; see tenant folder.' : ''}`,
     `Headers: ${request.header.map((header) => header.key).join(', ') || 'none'}. Path parameters: ${[...route.path.matchAll(/:([A-Za-z0-9_]+)/g)].map((item) => `${item[1]}={{${variableFor(item[1]!, route)}}}`).join(', ') || 'none'}. Success status: ${success.join(' or ')}.`,
     `Body: ${request.body?.mode ?? 'none'}. ${json ? 'Input JSON schema (required fields and supported optional fields):\n' + JSON.stringify(json, null, 2) : body !== undefined ? 'Use the exact example; no invented tenant/currency selectors.' : ''}`,
+    ...(mockCheckout || mockScenario
+      ? [
+          'Development MOCK mode only. Set the short-lived signed token from the mock checkout URL. Missing or expired token returns 403. The scenario mutation additionally requires a bearer token and the mutation opt-ins.',
+        ]
+      : []),
     `Query: ${queryJson ? JSON.stringify(queryJson, null, 2) : 'none documented by route validation'}.`,
     `Important module business errors: ${errors(route).join(', ')}. Shared failures include AUTHENTICATION_REQUIRED/INVALID_ACCESS_TOKEN (protected requests), UNAUTHORIZED/TENANT_NOT_FOUND (tenant context), FORBIDDEN (roles), and VALIDATION_ERROR. Business errors retain {success:false,message,code,data:null}.`,
     `Side effects: ${mutates ? 'may modify state; requires allowMutations=true; do not run against existing/production data without explicit intent.' : 'read-only'}. ${payment ? 'Also requires allowPaymentMutations=true.' : ''}`,

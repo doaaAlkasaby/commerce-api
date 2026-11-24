@@ -43,7 +43,8 @@ describe('Phase 2.2: Real Checkout ORDER_PLACED Notification Integration Tests',
     if (
       effectiveDbName === 'commerce_api_dev' ||
       effectiveDbName.endsWith('_dev') ||
-      !effectiveDbName.endsWith('_test') ||
+      (effectiveDbName !== 'commerce_api_test' &&
+        !/^commerce_api_test_phase1b_[a-f0-9]{32}$/.test(effectiveDbName)) ||
       effectiveDbName !== expectedDbName
     ) {
       throw new Error(
@@ -292,6 +293,7 @@ describe('Phase 2.2: Real Checkout ORDER_PLACED Notification Integration Tests',
       orderId: result.order.id,
       orderNumber: result.order.orderNumber,
       eventType: 'ORDER_PLACED',
+      tenantSlug,
     });
   });
 
@@ -336,6 +338,7 @@ describe('Phase 2.2: Real Checkout ORDER_PLACED Notification Integration Tests',
       orderId: result.order.id,
       orderNumber: result.order.orderNumber,
       eventType: 'ORDER_PLACED',
+      tenantSlug,
     });
   });
 

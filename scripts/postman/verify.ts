@@ -56,7 +56,7 @@ export const itemSchema = z.object({
   ),
   response: z.array(z.unknown()).optional(),
 });
-export function readCollection() {
+export function readCollection(directory = 'postman') {
   return z
     .object({
       info: z.object({ name: z.string() }),
@@ -65,7 +65,10 @@ export function readCollection() {
     })
     .parse(
       JSON.parse(
-        fs.readFileSync('postman/commerce-api.postman_collection.json', 'utf8'),
+        fs.readFileSync(
+          path.join(directory, 'commerce-api.postman_collection.json'),
+          'utf8',
+        ),
       ),
     );
 }
@@ -82,9 +85,12 @@ export function resolveVariables(
       })(),
   );
 }
-export async function verify() {
+export async function verify(directory = 'postman') {
   const raw = JSON.parse(
-    fs.readFileSync('postman/commerce-api.postman_collection.json', 'utf8'),
+    fs.readFileSync(
+      path.join(directory, 'commerce-api.postman_collection.json'),
+      'utf8',
+    ),
   );
   const ajv = new Ajv({ schemaId: 'auto', allErrors: true });
   ajv.addMetaSchema(
@@ -104,7 +110,7 @@ export async function verify() {
     )
   )
     throw new Error(JSON.stringify(ajv.errors));
-  const collection = readCollection(),
+  const collection = readCollection(directory),
     items = collection.item.flatMap((folder) => folder.item),
     routes = discoverRoutes();
   const env = z
@@ -114,7 +120,7 @@ export async function verify() {
     .parse(
       JSON.parse(
         fs.readFileSync(
-          'postman/commerce-api.local.postman_environment.json',
+          path.join(directory, 'commerce-api.local.postman_environment.json'),
           'utf8',
         ),
       ),

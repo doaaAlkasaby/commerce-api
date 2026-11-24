@@ -13,7 +13,10 @@ import {
   developmentStores,
   seedDevelopment,
 } from '../../prisma/development/seed.js';
-import { developmentMedia } from '../../prisma/development/visuals.js';
+import {
+  developmentMedia,
+  developmentProducts,
+} from '../../prisma/development/visuals.js';
 
 const imageSchema = z.object({
   id: z.string(),
@@ -61,7 +64,7 @@ const get = (path: string, store = 'fashion') =>
     .get(`/api/v1${path}`)
     .set(
       'X-Tenant-Slug',
-      store === 'fashion' ? 'dev81-kuwait-fashion' : 'dev81-independent',
+      developmentStores.find(({ key }) => key === store)!.slug,
     );
 const password = `Visual!${randomUUID()}Aa1`;
 const tenantIds = developmentStores.map((store) => id(`tenant:${store.key}`));
@@ -82,7 +85,16 @@ describe('guarded development visual fixtures through public HTTP contracts', ()
     });
     await db.tenant.deleteMany({ where: { id: { in: tenantIds } } });
     await db.user.deleteMany({
-      where: { email: { endsWith: '@dev81.example.test' } },
+      where: {
+        id: {
+          in: [
+            'admin@example.com',
+            'manager@example.com',
+            'customer1@example.com',
+            'customer2@example.com',
+          ].map((email) => id(`user:${email}`)),
+        },
+      },
     });
     await db.country.deleteMany({
       where: {
@@ -102,9 +114,21 @@ describe('guarded development visual fixtures through public HTTP contracts', ()
         .object({ items: z.array(cardSchema) })
         .parse(response.body.data).items;
       expect(cards).toHaveLength(3);
+      const warehouseStock = await db.inventory.findMany({
+        where: { tenantId: id(`tenant:${store.key}`) },
+        select: { quantity: true },
+      });
+      expect(warehouseStock.some(({ quantity }) => quantity === 0)).toBe(true);
+      expect(
+        warehouseStock.some(({ quantity }) => quantity > 0 && quantity <= 3),
+      ).toBe(true);
+      expect(warehouseStock.some(({ quantity }) => quantity > 3)).toBe(true);
       for (const card of cards) {
         expect(card.primaryImage?.url).toContain(
-          `/development-v82/${store.key}/`,
+          developmentMedia(store.key, 'identity').url.replace(
+            /identity\.webp$/,
+            '',
+          ),
         );
         const detail = await get(`/products/${card.id}`, store.key);
         expect(detail.status).toBe(200);
@@ -119,9 +143,37 @@ describe('guarded development visual fixtures through public HTTP contracts', ()
             image.altText?.includes('development illustration'),
           ),
         ).toBe(true);
-        expect(product.variants).toHaveLength(2);
-        for (const variant of product.variants)
-          expect(variant.images[0]?.url).toBe(card.primaryImage?.url);
+        const seeded = developmentProducts[store.key].find(
+          ({ name }) => name === detail.body.data.name,
+        );
+        expect(seeded).toBeDefined();
+        expect(product.variants).toHaveLength(seeded!.sizes.length || 1);
+        for (const variant of product.variants) {
+          if (seeded!.sizes.length)
+            expect(variant.images[0]?.url).toBe(card.primaryImage?.url);
+          else expect(variant.images).toEqual([]);
+        }
+        const stored = await db.product.findUniqueOrThrow({
+          where: { id: card.id },
+          include: { variants: { include: { inventory: true, values: true } } },
+        });
+        expect(stored.tenantId).toBe(id(`tenant:${store.key}`));
+        expect(stored.taxCategoryId).toBe(id(`tax:${store.key}`));
+        expect(stored.description).toBe(seeded!.description);
+        expect(stored.basePrice.equals(seeded!.price)).toBe(true);
+        for (const variant of stored.variants) {
+          expect(variant.values).toHaveLength(seeded!.sizes.length ? 1 : 0);
+          expect(variant.inventory).toHaveLength(
+            store.key === 'fashion' ? 2 : 1,
+          );
+          expect(
+            variant.inventory.every(
+              (stock) =>
+                stock.tenantId === stored.tenantId &&
+                stock.quantity >= stock.reservedQuantity,
+            ),
+          ).toBe(true);
+        }
       }
     });
     it(`${store.key}: serves public store/category/brand branding and hierarchy`, async () => {
@@ -144,9 +196,11 @@ describe('guarded development visual fixtures through public HTTP contracts', ()
         )
         .parse(categories.body.data);
       expect(rows).toHaveLength(5);
-      expect(rows.find((row) => row.name === 'T-shirts')?.parentId).toBe(
-        id(`visual-category:${store.key}:clothing`),
-      );
+      expect(
+        rows.find(
+          (row) => row.name === developmentProducts[store.key][0]!.category,
+        )?.parentId,
+      ).toBe(id(`visual-category:${store.key}:clothing`));
       const brands = await get('/brands/active', store.key);
       expect(brands.status).toBe(200);
       expect(
@@ -186,7 +240,12 @@ describe('guarded development visual fixtures through public HTTP contracts', ()
         expect(products).toHaveLength(3);
         expect(
           products?.every((product) =>
-            product.image?.includes(`/development-v82/${store.key}/`),
+            product.image?.includes(
+              developmentMedia(store.key, 'identity').url.replace(
+                /identity\.webp$/,
+                '',
+              ),
+            ),
           ),
         ).toBe(true);
       }
@@ -206,12 +265,12 @@ describe('guarded development visual fixtures through public HTTP contracts', ()
         'everyday-edit',
         'everyday-edit-mobile',
       ]) {
-        const path = `/uploads/development-v82/${store.key}/${file}.webp`;
+        const { url: path, storageKey } = developmentMedia(store.key, file);
         const asset = await request(app).get(path);
         expect(asset.status, path).toBe(200);
         expect(asset.headers['content-type']).toBe('image/webp');
         const bytes = await readFile(
-          `public/seed-media/${store.key}/${file}.webp`,
+          `public/seed-media/${storageKey.slice('development-v82/'.length)}`,
         );
         expect(bytes.subarray(0, 4).toString()).toBe('RIFF');
         expect(bytes.subarray(8, 12).toString()).toBe('WEBP');
@@ -239,7 +298,7 @@ describe('guarded development visual fixtures through public HTTP contracts', ()
             typeof item === 'string'
           ) {
             expect(item).toMatch(
-              /^\/uploads\/development-v82\/(fashion|independent)\/[a-z0-9-]+\.webp$/,
+              /^\/uploads\/development-v82\/(fashion|independent|toota|dar|velo|sera)\/[a-z0-9-]+\.webp$/,
             );
             references.add(item);
           } else collect(item);
@@ -267,7 +326,7 @@ describe('guarded development visual fixtures through public HTTP contracts', ()
             ).body.data,
           );
       }
-      expect(references.size).toBe(18);
+      expect(references.size).toBe(54);
       for (const reference of references) {
         const response = await request(app).get(reference);
         expect(response.status, reference).toBe(200);
@@ -429,9 +488,9 @@ describe('guarded development visual fixtures through public HTTP contracts', ()
       }),
     });
     const before = await snapshot();
-    expect(before.images).toHaveLength(12);
+    expect(before.images).toHaveLength(36);
     expect(before.variants).toHaveLength(12);
-    expect(before.stock).toHaveLength(18);
+    expect(before.stock).toHaveLength(30);
     await seedDevelopment(db, password);
     expect(await snapshot()).toEqual(before);
   });
@@ -574,6 +633,89 @@ describe('guarded development visual fixtures through public HTTP contracts', ()
       (await get('/brands/' + id('visual-brand:fashion'))).body.data.imageUrl,
     ).toBe('https://merchant.example.test/brand.webp');
     expect((await get('/home?platform=mobile')).body.data.banners).toEqual([]);
+  });
+
+  it('preserves edited storefront, product, stock, account and membership values on reseed', async () => {
+    const tenantId = tenantIds[0]!;
+    const user = await db.user.findUniqueOrThrow({
+      where: { email: 'manager@example.com' },
+    });
+    const productId = id('product:fashion:tee');
+    const warehouseId = id('warehouse:fashion:kuwait');
+    const variantId = id('variant:fashion:tee:small');
+    const roles = { tenantId_userId: { tenantId, userId: user.id } };
+    const removed = {
+      tenantId_userId: { tenantId: tenantIds[1]!, userId: user.id },
+    };
+    const imageId = id('visual-product:fashion:shoes:detail');
+    const image = await db.productImage.findUniqueOrThrow({
+      where: { id: imageId },
+    });
+    await db.productImage.delete({ where: { id: imageId } });
+    await db.tenant.update({
+      where: { id: tenantId },
+      data: {
+        coverImageUrl: null,
+        logoUrl: null,
+        isPubliclyListed: false,
+        timezone: 'UTC',
+      },
+    });
+    await db.product.update({
+      where: { id: productId },
+      data: {
+        basePrice: '19.125',
+        description: 'Edited description',
+        status: 'DRAFT',
+      },
+    });
+    await db.inventory.update({
+      where: { warehouseId_variantId: { warehouseId, variantId } },
+      data: { quantity: 7 },
+    });
+    await db.user.update({ where: { id: user.id }, data: { isActive: false } });
+    await db.tenantMember.update({
+      where: roles,
+      data: { role: 'CUSTOMER', status: 'SUSPENDED' },
+    });
+    await db.tenantMember.delete({ where: removed });
+    await seedDevelopment(db, `Different!${randomUUID()}Aa1`);
+    expect(
+      await db.tenant.findUniqueOrThrow({ where: { id: tenantId } }),
+    ).toMatchObject({
+      coverImageUrl: null,
+      logoUrl: null,
+      isPubliclyListed: false,
+      timezone: 'UTC',
+    });
+    const product = await db.product.findUniqueOrThrow({
+      where: { id: productId },
+    });
+    expect(product.basePrice.toString()).toBe('19.125');
+    expect(product).toMatchObject({
+      description: 'Edited description',
+      status: 'DRAFT',
+    });
+    expect(
+      await db.inventory.findUniqueOrThrow({
+        where: { warehouseId_variantId: { warehouseId, variantId } },
+      }),
+    ).toMatchObject({ quantity: 7, reservedQuantity: 0 });
+    const reseededUser = await db.user.findUniqueOrThrow({
+      where: { id: user.id },
+    });
+    expect(reseededUser.isActive).toBe(false);
+    expect(reseededUser.passwordHash === user.passwordHash).toBe(true);
+    expect(
+      await db.tenantMember.findUniqueOrThrow({ where: roles }),
+    ).toMatchObject({ role: 'CUSTOMER', status: 'SUSPENDED' });
+    expect(await db.tenantMember.findUnique({ where: removed })).toBeNull();
+    expect(
+      await db.productImage.findUniqueOrThrow({ where: { id: image.id } }),
+    ).toMatchObject({
+      storageKey: image.storageKey,
+      productId: image.productId,
+    });
   });
 
   it('retains nullable image contracts for products without media', async () => {

@@ -9,8 +9,152 @@ import { developmentId } from './seed.js';
 import { normalizeVisualPaths } from './normalize-visual-paths.js';
 import { developmentMediaRoot } from '../../src/common/storage/development-media.js';
 
+const apparel = (multiplier: number) => [
+  {
+    name: 'Cotton T-shirt',
+    description: 'Everyday cotton top with a relaxed cut.',
+    price: String(12.5 * multiplier),
+    sizes: ['small', 'medium'],
+    stock: [20, 2],
+    sa: [8, 15],
+    category: 'T-shirts',
+  },
+  {
+    name: 'Straight denim',
+    description: 'Straight-leg everyday denim.',
+    price: String(20 * multiplier),
+    sizes: ['30', '32'],
+    stock: [4, 0],
+    sa: [0, multiplier === 1 ? 12 : 2],
+    category: 'Jeans',
+  },
+  {
+    name: 'Everyday sneakers',
+    description: 'Low-profile lace-up sneakers.',
+    price: String(35 * multiplier),
+    sizes: ['40', '41'],
+    stock: [0, 3],
+    sa: [0, 0],
+    category: 'Footwear',
+  },
+];
+const simple = (
+  name: string,
+  description: string,
+  price: string,
+  qty: number,
+  category: string,
+) => ({
+  name,
+  description,
+  price,
+  sizes: [],
+  stock: [qty],
+  sa: [qty],
+  category,
+});
+
+export const developmentProducts = {
+  fashion: apparel(1),
+  independent: apparel(10),
+  toota: [
+    simple(
+      'Stacking blocks',
+      'Illustrated play blocks for supervised play.',
+      '350',
+      18,
+      'Learning toys',
+    ),
+    simple(
+      'Picture book',
+      'A short illustrated reading book.',
+      '95',
+      2,
+      'Books',
+    ),
+    simple(
+      'Soft play ball',
+      'A lightweight indoor play ball.',
+      '160',
+      0,
+      'Active play',
+    ),
+  ],
+  dar: [
+    simple(
+      'Ceramic vase',
+      'Decorative vase for a shelf or side table.',
+      '85',
+      16,
+      'Decor',
+    ),
+    simple(
+      'Cotton cushion',
+      'Textured cotton cushion for seating.',
+      '65',
+      2,
+      'Textiles',
+    ),
+    simple(
+      'Desk lamp',
+      'Compact lamp for a study or side table.',
+      '140',
+      0,
+      'Lighting',
+    ),
+  ],
+  velo: [
+    simple(
+      'Training mat',
+      'Roll-up mat for floor training.',
+      '11',
+      24,
+      'Training',
+    ),
+    simple(
+      'Resistance band',
+      'Portable loop for mobility exercises.',
+      '4',
+      2,
+      'Accessories',
+    ),
+    simple(
+      'Sports bottle',
+      'Reusable bottle for training sessions.',
+      '6',
+      0,
+      'Hydration',
+    ),
+  ],
+  sera: [
+    simple(
+      'Gentle cleanser',
+      'Illustrative daily cleansing product.',
+      '38',
+      20,
+      'Cleansers',
+    ),
+    simple(
+      'Face moisturizer',
+      'Illustrative daily face moisturizer.',
+      '62',
+      2,
+      'Moisturizers',
+    ),
+    simple(
+      'Lip balm',
+      'Illustrative pocket-sized lip care.',
+      '18',
+      0,
+      'Lip care',
+    ),
+  ],
+} as const;
+export type DevelopmentStore = keyof typeof developmentProducts;
+const storeKeys = Object.keys(developmentProducts) as DevelopmentStore[];
+
 export async function verifyDevelopmentAssets() {
-  for (const store of ['fashion', 'independent']) {
+  for (const store of storeKeys) {
     for (const file of [
       'tee-front',
       'tee-detail',
@@ -23,7 +167,12 @@ export async function verifyDevelopmentAssets() {
       'everyday-edit-mobile',
     ]) {
       const bytes = await readFile(
-        resolve(developmentMediaRoot, `${store}/${file}.webp`),
+        resolve(
+          developmentMediaRoot,
+          developmentMedia(store, file).storageKey.slice(
+            'development-v82/'.length,
+          ),
+        ),
       ).catch(() => {
         throw new DevelopmentSeedError(
           'The bundled public/seed-media assets must be packaged before seeding; see docs/phase8.2-visual-seed-data.md',
@@ -42,7 +191,7 @@ export async function verifyDevelopmentAssets() {
 
 export async function verifyDevelopmentVisuals(db: PrismaClient) {
   const stores = [];
-  for (const store of ['fashion', 'independent']) {
+  for (const store of storeKeys) {
     const tenantId = developmentId(`tenant:${store}`);
     const tenant = await db.tenant.findUniqueOrThrow({
       where: { id: tenantId },
@@ -84,22 +233,29 @@ export async function verifyDevelopmentVisuals(db: PrismaClient) {
 }
 
 export function developmentMedia(store: string, file: string) {
-  if (!['fashion', 'independent'].includes(store) || !/^[a-z0-9-]+$/.test(file))
+  if (!Object.hasOwn(developmentProducts, store) || !/^[a-z0-9-]+$/.test(file))
     throw new DevelopmentSeedError('Invalid bundled development media path');
-  const storageKey = `development-v82/${store}/${file}.webp`;
+  // The immutable mount serves two physical folders. Extra stores use
+  // store-prefixed assets in the existing fashion folder.
+  const asset =
+    store === 'fashion' || store === 'independent'
+      ? `${store}/${file}`
+      : `fashion/${store}-${file}`;
+  const storageKey = `development-v82/${asset}.webp`;
   return { storageKey, url: `/uploads/${storageKey}` };
 }
 
 /** Add fixture media only. Never update an existing image or merchant configuration. */
 export async function seedVisuals(
   tx: Prisma.TransactionClient,
-  store: 'fashion' | 'independent',
+  store: DevelopmentStore,
 ) {
   const tenantId = developmentId(`tenant:${store}`);
   // Serialize repeat seed invocations; merchant writes are never replaced by upsert updates.
   await tx.$queryRaw`SELECT id FROM "Tenant" WHERE id = ${tenantId} FOR UPDATE`;
   await normalizeVisualPaths(tx, store);
   const identity = developmentMedia(store, 'identity');
+  const apparelStore = store === 'fashion' || store === 'independent';
   await tx.tenant.updateMany({
     where: {
       id: tenantId,
@@ -119,7 +275,12 @@ export async function seedVisuals(
     create: {
       id: brandId,
       tenantId,
-      name: store === 'fashion' ? 'Dune 81 Studio' : 'Form 81 Studio',
+      name:
+        store === 'fashion'
+          ? 'Dune 81 Studio'
+          : store === 'independent'
+            ? 'Form 81 Studio'
+            : `${store.toUpperCase()} development label`,
       slug: 'development-studio',
       description:
         'Fictional development label; original illustrative imagery.',
@@ -131,20 +292,25 @@ export async function seedVisuals(
     throw new DevelopmentSeedError('Visual brand ownership conflict');
   const rootId = developmentId(`category:${store}`);
   for (const [key, name, parentId, file] of [
-    ['clothing', 'Clothing', rootId, 'tee-front'],
+    [
+      'clothing',
+      apparelStore ? 'Clothing' : 'Collections',
+      rootId,
+      'tee-front',
+    ],
     [
       'tee',
-      'T-shirts',
+      developmentProducts[store][0]!.category,
       developmentId(`visual-category:${store}:clothing`),
       'tee-front',
     ],
     [
       'denim',
-      'Jeans',
+      developmentProducts[store][1]!.category,
       developmentId(`visual-category:${store}:clothing`),
       'denim-front',
     ],
-    ['shoes', 'Footwear', rootId, 'shoes-front'],
+    ['shoes', developmentProducts[store][2]!.category, rootId, 'shoes-front'],
   ]) {
     if (!key || !name || !parentId || !file)
       throw new DevelopmentSeedError('Invalid visual category fixture');
@@ -245,13 +411,7 @@ export async function seedVisuals(
           throw new DevelopmentSeedError('Visual image ownership conflict');
       }
     }
-    // Sizes depict the same garment, not fictional color variations.
-    const sizes =
-      key === 'tee'
-        ? ['small', 'medium']
-        : key === 'denim'
-          ? ['30', '32']
-          : ['40', '41'];
+    const sizes = developmentProducts[store][index]!.sizes;
     for (const variant of product.variants) {
       if (
         !sizes.some(

@@ -45,7 +45,8 @@ describe('Phase 2.1: PostgreSQL Integration Tests for Order Notifications', () =
     if (
       effectiveDbName === 'commerce_api_dev' ||
       effectiveDbName.endsWith('_dev') ||
-      !effectiveDbName.endsWith('_test') ||
+      (effectiveDbName !== 'commerce_api_test' &&
+        !/^commerce_api_test_phase1b_[a-f0-9]{32}$/.test(effectiveDbName)) ||
       effectiveDbName !== expectedDbName
     ) {
       throw new Error(

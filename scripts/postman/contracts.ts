@@ -52,6 +52,7 @@ export function completeSchemas(route: Route) {
   if (extra[key]) route.schemas.body = extra[key];
 }
 export async function loadSchema(ref: SchemaRef): Promise<z.ZodType> {
+  if (ref.inline === 'empty-strict-object') return z.strictObject({});
   const module: unknown = await import(pathToFileURL(ref.file).href);
   const candidate = object(module)[ref.name];
   if (!(candidate instanceof z.ZodType))

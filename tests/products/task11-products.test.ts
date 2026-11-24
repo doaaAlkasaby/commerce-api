@@ -1,16 +1,33 @@
-import { describe, expect, it } from 'vitest';
+import { guardCatalogSeedFixtures } from '../helpers/catalog.js';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { seedTask11Products, linenShirtVariantsDef } from '../../prisma/seeds/task11-products.seed.js';
-import { seedTenants } from '../../prisma/seeds/tenants.seed.js';
+import { developmentId, seedTenants, tenantFixtures } from '../../prisma/seeds/tenants.seed.js';
 import { seedCatalog } from '../../prisma/seeds/catalog.seed.js';
 import { testPrisma } from '../../src/config/test-database.js';
 
 describe('Task 11 Test Products Integration Tests', () => {
+  const fixtures = guardCatalogSeedFixtures(
+    tenantFixtures.map(({ key }) => developmentId(`tenant:${key}`)),
+  );
+  beforeAll(fixtures.capture);
+  afterAll(fixtures.cleanup);
+
   it('1. seedTask11Products creates Product A (Linen Shirt) with 8 sparse variants and 20% discount', async () => {
     await seedTenants(testPrisma);
     await seedCatalog(testPrisma);
 
     const luma = await testPrisma.tenant.findUnique({ where: { slug: 'dev81-kuwait-fashion' } });
     if (luma) {
+      await testPrisma.taxCategory.upsert({
+        where: { tenantId_code: { tenantId: luma.id, code: 'STANDARD' } },
+        update: {},
+        create: {
+          tenantId: luma.id,
+          code: 'STANDARD',
+          name: 'Standard tax test fixture',
+          treatment: 'STANDARD',
+        },
+      });
       await testPrisma.inventory.deleteMany({
         where: { tenantId: luma.id },
       });

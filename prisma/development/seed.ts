@@ -1,12 +1,19 @@
 import { createHash } from 'node:crypto';
-import { seedVisuals } from './visuals.js';
+import {
+  developmentMedia,
+  developmentProducts,
+  seedVisuals,
+} from './visuals.js';
 import type {
   PrismaClient,
   TenantMemberRole,
 } from '../../src/generated/prisma/client.js';
 import { hashPassword } from '../../src/common/security/password.js';
 import { DevelopmentSeedError } from '../../src/config/development-seed-options.js';
-import { tenantFixtures as developmentStores, seedTenants } from '../seeds/tenants.seed.js';
+import {
+  tenantFixtures as developmentStores,
+  seedTenants,
+} from '../seeds/tenants.seed.js';
 
 export { tenantFixtures as developmentStores } from '../seeds/tenants.seed.js';
 
@@ -16,6 +23,13 @@ const warehouseCities = {
   EG: 'Cairo',
   AE: 'Dubai',
 } as const;
+
+const developmentAccounts: Array<[string, TenantMemberRole]> = [
+  ['admin@example.com', 'ADMIN'],
+  ['manager@example.com', 'MANAGER'],
+  ['customer1@example.com', 'CUSTOMER'],
+  ['customer2@example.com', 'CUSTOMER'],
+];
 
 export function developmentId(name: string) {
   const hex = createHash('sha256')
@@ -28,7 +42,24 @@ export async function seedDevelopment(db: PrismaClient, password: string) {
   const passwordHash = await hashPassword(password);
   return db.$transaction(
     async (tx) => {
-      await seedTenants(tx);
+      const existingAccounts = new Set(
+        (
+          await tx.user.findMany({
+            where: {
+              email: { in: developmentAccounts.map(([email]) => email) },
+            },
+            select: { email: true },
+          })
+        ).map(({ email }) => email),
+      );
+      await seedTenants(tx, (store) => {
+        const logo = developmentMedia(store, 'identity');
+        return {
+          logoUrl: logo.url,
+          logoStorageKey: logo.storageKey,
+          coverImageUrl: developmentMedia(store, 'everyday-edit').url,
+        };
+      });
 
       for (const store of developmentStores) {
         const tenantId = developmentId(`tenant:${store.key}`);
@@ -95,7 +126,8 @@ export async function seedDevelopment(db: PrismaClient, password: string) {
             treatment: 'STANDARD',
           },
         });
-        const destinations = store.key === 'fashion' ? ['KW', 'SA'] : ['SA'];
+        const destinations =
+          store.key === 'fashion' ? (['KW', 'SA'] as const) : [store.country];
         for (const countryCode of destinations) {
           await tx.taxRule.upsert({
             where: {
@@ -119,153 +151,279 @@ export async function seedDevelopment(db: PrismaClient, password: string) {
               tenantId,
               countryCode,
               currency: store.currency,
+              pricesIncludeTax: false,
               defaultTaxCategoryId: taxCategory.id,
             },
           });
-        }
-        const shippingProfile = await tx.shippingProfile.upsert({
-          where: { id: developmentId(`shipping-profile:${store.key}`) },
-          update: {},
-          create: {
-            id: developmentId(`shipping-profile:${store.key}`),
-            tenantId,
-            countryCode: store.country,
-            currency: store.currency,
-            originLatitude: '29.3759',
-            originLongitude: '47.9774',
-          },
-        });
-        const shippingZone = await tx.shippingZone.upsert({
-          where: { id: developmentId(`shipping-zone:${store.key}`) },
-          update: {},
-          create: {
-            id: developmentId(`shipping-zone:${store.key}`),
-            profileId: shippingProfile.id,
-            code: 'DEFAULT',
-            name: 'Default zone',
-            countryCode: store.country,
-          },
-        });
-        const shippingMethod = await tx.shippingMethod.upsert({
-          where: { id: developmentId(`shipping-method:${store.key}`) },
-          update: {},
-          create: {
-            id: developmentId(`shipping-method:${store.key}`),
-            zoneId: shippingZone.id,
-            code: 'STANDARD',
-            name: 'Standard delivery',
-          },
-        });
-        await tx.shippingRule.upsert({
-          where: { id: developmentId(`shipping-rule:${store.key}`) },
-          update: {},
-          create: {
-            id: developmentId(`shipping-rule:${store.key}`),
-            methodId: shippingMethod.id,
-            flatRate: store.key === 'fashion' ? '2.500' : '15.000',
-          },
-        });
-        const warehouse = await tx.warehouse.upsert({
-          where: { id: developmentId(`warehouse:${store.key}`) },
-          update: {},
-          create: {
-            id: developmentId(`warehouse:${store.key}`),
-            tenantId,
-            code: 'PRIMARY',
-            name: 'Primary Warehouse',
-            countryCode: store.country,
-            city: warehouseCities[store.country],
-            address: 'Development showroom',
-          },
-        });
-        await tx.warehouseCoverage.upsert({
-          where: {
-            warehouseId_countryCode: {
-              warehouseId: warehouse.id,
-              countryCode: store.country,
+          const profile = await tx.shippingProfile.upsert({
+            where: { tenantId_countryCode: { tenantId, countryCode } },
+            update: {},
+            create: {
+              id: developmentId(`shipping:${store.key}:${countryCode}`),
+              tenantId,
+              countryCode,
+              currency: store.currency,
             },
-          },
-          update: {},
-          create: {
-            tenantId,
-            warehouseId: warehouse.id,
-            countryCode: store.country,
-          },
-        });
-
-        const brand = await tx.brand.upsert({
-          where: {
-            tenantId_slug: { tenantId, slug: 'dune-81' },
-          },
-          update: {},
-          create: {
-            id: developmentId(`brand:${store.key}`),
-            tenantId,
-            name: 'DUNE / 81',
-            slug: 'dune-81',
-          },
-        });
-
-        for (const [key, name, price] of [
-          ['tee', 'Cotton T-Shirt', '12.500'],
-          ['denim', 'Straight Denim', '20.000'],
-          ['shoes', 'Everyday Sneakers', '35.000'],
-        ]) {
-          if (!key || !name || !price)
-            throw new DevelopmentSeedError('Invalid product fixture');
+          });
+          const zone = await tx.shippingZone.upsert({
+            where: {
+              profileId_code: { profileId: profile.id, code: 'DEV81_COUNTRY' },
+            },
+            update: {},
+            create: {
+              id: developmentId(`zone:${store.key}:${countryCode}`),
+              profileId: profile.id,
+              code: 'DEV81_COUNTRY',
+              name: 'Development country coverage',
+              countryCode,
+            },
+          });
+          for (const methodCode of ['local', 'standard']) {
+            const method = await tx.shippingMethod.upsert({
+              where: { zoneId_code: { zoneId: zone.id, code: methodCode } },
+              update: {},
+              create: {
+                id: developmentId(
+                  `method:${store.key}:${countryCode}:${methodCode}`,
+                ),
+                zoneId: zone.id,
+                code: methodCode,
+                name:
+                  methodCode === 'local'
+                    ? 'Local delivery'
+                    : 'Standard delivery',
+                sortOrder: methodCode === 'local' ? 0 : 10,
+              },
+            });
+            await tx.shippingRule.upsert({
+              where: {
+                id: developmentId(
+                  `rate:${store.key}:${countryCode}:${methodCode}`,
+                ),
+              },
+              update: {},
+              create: {
+                id: developmentId(
+                  `rate:${store.key}:${countryCode}:${methodCode}`,
+                ),
+                methodId: method.id,
+                maxDistanceKm: methodCode === 'local' ? '80' : '2000',
+                flatRate:
+                  store.currency !== 'KWD'
+                    ? methodCode === 'local'
+                      ? '15'
+                      : '35'
+                    : methodCode === 'local'
+                      ? '1.250'
+                      : '3.750',
+              },
+            });
+          }
+        }
+        const sources =
+          store.key === 'fashion' ? (['KW', 'SA'] as const) : [store.country];
+        const warehouses = [];
+        for (const country of sources) {
+          const legacyId = developmentId(`warehouse:${store.key}`);
+          const source =
+            country === 'KW'
+              ? 'kuwait'
+              : country === 'SA'
+                ? 'saudi'
+                : country.toLowerCase();
+          const historicalId = developmentId(
+            `warehouse:${store.key}:${source}`,
+          );
+          const existing = await tx.warehouse.findFirst({
+            where: {
+              tenantId,
+              OR: [
+                { id: historicalId },
+                ...(country === store.country
+                  ? [
+                      { id: legacyId },
+                      { code: 'PRIMARY', countryCode: country },
+                    ]
+                  : []),
+              ],
+            },
+            orderBy: { id: 'asc' },
+          });
+          const warehouse =
+            existing ??
+            (await tx.warehouse.create({
+              data: {
+                id: historicalId,
+                tenantId,
+                code: `DEV81_${source.toUpperCase()}`,
+                name: `Development ${warehouseCities[country]} warehouse`,
+                countryCode: country,
+                city: warehouseCities[country],
+                address: 'Development showroom',
+                latitude:
+                  country === 'KW'
+                    ? '29.3759'
+                    : country === 'SA'
+                      ? '24.7136'
+                      : null,
+                longitude:
+                  country === 'KW'
+                    ? '47.9774'
+                    : country === 'SA'
+                      ? '46.6753'
+                      : null,
+                isDefault: country === store.country,
+                priority: country === store.country ? 10 : 20,
+                coverage: { create: { countryCode: country } },
+              },
+            }));
+          warehouses.push(warehouse);
+        }
+        for (const [index, product] of developmentProducts[
+          store.key
+        ].entries()) {
+          const key = ['tee', 'denim', 'shoes'][index]!;
           const productId = developmentId(`product:${store.key}:${key}`);
-          const product = await tx.product.upsert({
+          const saved = await tx.product.upsert({
             where: { id: productId },
             update: {},
             create: {
               id: productId,
               tenantId,
               categoryId: category.id,
-              brandId: brand.id,
-              name,
+              taxCategoryId: taxCategory.id,
+              name: product.name,
               slug: key,
-              basePrice: price,
+              description: product.description,
+              basePrice: product.price,
               status: 'ACTIVE',
             },
+            include: { variants: true },
           });
-          const variantId = developmentId(`variant:${store.key}:${key}`);
-          await tx.productVariant.upsert({
-            where: { id: variantId },
-            update: {},
-            create: {
-              id: variantId,
-              productId: product.id,
-              sku: `DEV81-${store.key.toUpperCase()}-${key.toUpperCase()}`,
-              combinationKey: 'DEFAULT',
-              price,
-              isDefault: true,
-            },
-          });
-          await tx.inventory.upsert({
-            where: {
-              warehouseId_variantId: {
-                variantId,
-                warehouseId: warehouse.id,
+          if (saved.tenantId !== tenantId)
+            throw new DevelopmentSeedError(
+              'Development product ownership conflict',
+            );
+          const genericId = developmentId(`variant:${store.key}:${key}`);
+          const knownGeneric = saved.variants.find(
+            ({ id }) => id === genericId,
+          );
+          const sized = product.sizes.length > 0 && !knownGeneric;
+          if (
+            saved.variants.length &&
+            !knownGeneric &&
+            !saved.variants.some(({ id }) =>
+              product.sizes.some(
+                (size) =>
+                  id === developmentId(`variant:${store.key}:${key}:${size}`),
+              ),
+            )
+          )
+            continue;
+          const variants = sized ? product.sizes : [''];
+          const attribute = sized
+            ? await tx.productAttribute.upsert({
+                where: { productId_name: { productId, name: 'Size' } },
+                update: {},
+                create: {
+                  id: developmentId(`attribute:${store.key}:${key}`),
+                  productId,
+                  name: 'Size',
+                },
+              })
+            : null;
+          for (const [position, size] of variants.entries()) {
+            const value = attribute
+              ? await tx.productAttributeValue.upsert({
+                  where: {
+                    attributeId_value: {
+                      attributeId: attribute.id,
+                      value: size,
+                    },
+                  },
+                  update: {},
+                  create: {
+                    id: developmentId(`value:${store.key}:${key}:${size}`),
+                    attributeId: attribute.id,
+                    value: size,
+                  },
+                })
+              : null;
+            const variantId = size
+              ? developmentId(`variant:${store.key}:${key}:${size}`)
+              : genericId;
+            const variant = await tx.productVariant.upsert({
+              where: { id: variantId },
+              update: {},
+              create: {
+                id: variantId,
+                productId,
+                sku: size
+                  ? `DEV81-${store.key}-${key}-${size}`
+                  : `DEV81-${store.key.toUpperCase()}-${key.toUpperCase()}`,
+                combinationKey: value?.id ?? 'DEFAULT',
+                taxCategoryId: taxCategory.id,
+                isDefault: !size,
+                price: product.price,
+                ...(value
+                  ? { values: { create: { attributeValueId: value.id } } }
+                  : {}),
               },
-            },
-            update: {},
-            create: {
-              tenantId,
-              warehouseId: warehouse.id,
-              variantId,
-              quantity: 100,
-              reservedQuantity: 0,
-            },
-          });
+            });
+            if (variant.productId !== productId)
+              throw new DevelopmentSeedError(
+                'Development variant ownership conflict',
+              );
+            for (const warehouse of warehouses) {
+              const source =
+                warehouse.countryCode === 'KW'
+                  ? 'kuwait'
+                  : warehouse.countryCode === 'SA'
+                    ? 'saudi'
+                    : warehouse.countryCode.toLowerCase();
+              const quantity =
+                (warehouse.countryCode === 'SA' ? product.sa : product.stock)[
+                  position
+                ] ?? 0;
+              const stock = await tx.inventory.upsert({
+                where: {
+                  warehouseId_variantId: {
+                    warehouseId: warehouse.id,
+                    variantId,
+                  },
+                },
+                update: {},
+                create: {
+                  id: developmentId(
+                    `inventory:${store.key}:${source}:${key}:${size || 'default'}`,
+                  ),
+                  tenantId,
+                  warehouseId: warehouse.id,
+                  variantId,
+                  quantity,
+                },
+              });
+              if (stock.tenantId !== tenantId)
+                throw new DevelopmentSeedError(
+                  'Development inventory ownership conflict',
+                );
+            }
+          }
         }
-
-        const userAccounts: Array<[string, TenantMemberRole]> = [
-          ['admin@example.com', 'ADMIN'],
-          ['manager@example.com', 'MANAGER'],
-          ['customer1@example.com', 'CUSTOMER'],
-          ['customer2@example.com', 'CUSTOMER'],
-        ];
-        for (const [email, role] of userAccounts) {
+        await tx.coupon.upsert({
+          where: { tenantId_code: { tenantId, code: 'DEV81SAVE10' } },
+          update: {},
+          create: {
+            id: developmentId(`coupon:${store.key}`),
+            tenantId,
+            code: 'DEV81SAVE10',
+            discountType: 'PERCENTAGE',
+            discountValue: '10',
+            perUserLimit: 10,
+            usageLimit: 1000,
+          },
+        });
+        for (const [email, role] of developmentAccounts) {
           const user = await tx.user.upsert({
             where: { email },
             update: {},
@@ -278,6 +436,7 @@ export async function seedDevelopment(db: PrismaClient, password: string) {
               emailVerifiedAt: new Date(),
             },
           });
+          if (existingAccounts.has(email)) continue;
           await tx.tenantMember.upsert({
             where: {
               tenantId_userId: {
@@ -294,9 +453,7 @@ export async function seedDevelopment(db: PrismaClient, password: string) {
           });
         }
 
-        if (['fashion', 'independent'].includes(store.key)) {
-          await seedVisuals(tx, store.key as 'fashion' | 'independent');
-        }
+        await seedVisuals(tx, store.key);
       }
     },
     { timeout: 30000 },
