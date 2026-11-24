@@ -43,7 +43,9 @@ describe('Product Listing Display Pricing Unit & Integration Tests', () => {
       defaultVariantId: 'var-1',
     };
 
-    const mapped = mapProductListItem(product as any);
+    const mapped = mapProductListItem(
+      product as unknown as Parameters<typeof mapProductListItem>[0],
+    );
 
     expect(mapped.basePrice).toBe('20.000');
     expect(mapped.discountType).toBe('PERCENTAGE'); // Raw product table field preserved
@@ -94,7 +96,9 @@ describe('Product Listing Display Pricing Unit & Integration Tests', () => {
       defaultVariantId: 'var-1',
     };
 
-    const mapped = mapProductListItem(product as any);
+    const mapped = mapProductListItem(
+      product as unknown as Parameters<typeof mapProductListItem>[0],
+    );
 
     expect(mapped.displayPricing).toEqual({
       originalPrice: '50.000',
@@ -130,7 +134,9 @@ describe('Product Listing Display Pricing Unit & Integration Tests', () => {
       defaultVariantId: null,
     };
 
-    const mapped = mapProductListItem(product as any);
+    const mapped = mapProductListItem(
+      product as unknown as Parameters<typeof mapProductListItem>[0],
+    );
 
     expect(mapped.displayPricing).toEqual({
       originalPrice: '10.000',
@@ -149,6 +155,16 @@ describe('Product Listing Display Pricing Unit & Integration Tests', () => {
     const luma = await testPrisma.tenant.findUnique({ where: { slug: 'dev81-kuwait-fashion' } });
     if (luma) {
       await testPrisma.inventory.deleteMany({ where: { tenantId: luma.id } });
+      await testPrisma.taxCategory.upsert({
+        where: { tenantId_code: { tenantId: luma.id, code: 'STANDARD' } },
+        update: { isActive: true },
+        create: {
+          tenantId: luma.id,
+          code: 'STANDARD',
+          name: 'Standard Tax',
+          isActive: true,
+        },
+      });
     }
 
     await seedTask11Products(testPrisma);

@@ -1,16 +1,25 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { AppError } from '../../../common/errors/app-error.js';
+import { validateAmount } from '../../../common/pricing/money.js';
 import { prisma } from '../../../config/database.js';
 import {
   PaymentProvider,
   PaymentStatus,
+  Prisma,
 } from '../../../generated/prisma/client.js';
 import type { PaymentProviderAdapter } from './payment-provider.js';
 import type {
   PaymentProviderCreateInput,
   PaymentProviderCreateResult,
+  ProviderRefundInput,
+  ProviderRefundResult,
   VerifiedProviderPayment,
 } from '../payment.types.js';
+
+export type MockRefundBehavior =
+  | ((input: ProviderRefundInput) => Promise<ProviderRefundResult> | ProviderRefundResult)
+  | ProviderRefundResult
+  | { throwError: Error };
 
 interface MockInvoiceRecord {
   invoiceId: string;
@@ -24,8 +33,12 @@ interface MockInvoiceRecord {
 export class MockMyFatoorahProvider implements PaymentProviderAdapter {
   readonly provider = PaymentProvider.MYFATOORAH;
   readonly supportsIdempotentInitiation = true;
+  readonly supportsRefunds = true;
 
   private static readonly mockInvoices = new Map<string, MockInvoiceRecord>();
+  private static readonly mockRefundedTotals = new Map<string, Prisma.Decimal>();
+  private static readonly refundCallCounts = new Map<string, number>();
+  private static readonly refundBehaviors = new Map<string, MockRefundBehavior[]>();
 
   private static getSecret(): string {
     const secret = process.env.MOCK_CHECKOUT_SECRET;
@@ -79,6 +92,26 @@ export class MockMyFatoorahProvider implements PaymentProviderAdapter {
 
   static clearMockInvoices(): void {
     MockMyFatoorahProvider.mockInvoices.clear();
+    MockMyFatoorahProvider.resetRefundState();
+  }
+
+  static resetRefundState(): void {
+    MockMyFatoorahProvider.mockRefundedTotals.clear();
+    MockMyFatoorahProvider.refundCallCounts.clear();
+    MockMyFatoorahProvider.refundBehaviors.clear();
+  }
+
+  static enqueueRefundBehavior(
+    invoiceId: string,
+    behavior: MockRefundBehavior,
+  ): void {
+    const queue = MockMyFatoorahProvider.refundBehaviors.get(invoiceId) ?? [];
+    queue.push(behavior);
+    MockMyFatoorahProvider.refundBehaviors.set(invoiceId, queue);
+  }
+
+  static getRefundCallCount(invoiceId: string): number {
+    return MockMyFatoorahProvider.refundCallCounts.get(invoiceId) ?? 0;
   }
 
   validatePayment(input: Pick<PaymentProviderCreateInput, 'amount' | 'currency'>): void {
@@ -185,11 +218,119 @@ export class MockMyFatoorahProvider implements PaymentProviderAdapter {
     return { status: PaymentStatus.CANCELLED };
   }
 
-  async refundPayment(invoiceId: string): Promise<{ status: PaymentStatus; providerTransactionId: string }> {
-    const record = MockMyFatoorahProvider.mockInvoices.get(invoiceId);
-    if (record) {
-      record.status = PaymentStatus.REFUNDED;
+  async executeRefund(
+    input: ProviderRefundInput,
+  ): Promise<ProviderRefundResult> {
+    if (process.env.NODE_ENV === 'production') {
+      throw new AppError(
+        'Mock payment provider is prohibited in production',
+        500,
+        'MOCK_PAYMENT_PROHIBITED_IN_PRODUCTION',
+      );
     }
-    return { status: PaymentStatus.REFUNDED, providerTransactionId: `ref-${invoiceId}` };
+
+    const previousCalls =
+      MockMyFatoorahProvider.refundCallCounts.get(input.providerPaymentId) ?? 0;
+    MockMyFatoorahProvider.refundCallCounts.set(
+      input.providerPaymentId,
+      previousCalls + 1,
+    );
+
+    const queue = MockMyFatoorahProvider.refundBehaviors.get(
+      input.providerPaymentId,
+    );
+    if (queue && queue.length > 0) {
+      const next = queue.shift()!;
+      if (typeof next === 'function') {
+        return next(input);
+      }
+      if ('throwError' in next) {
+        throw next.throwError;
+      }
+      return next;
+    }
+
+    const amountDecimal = validateAmount(input.amount, input.currency);
+    if (amountDecimal.lte(0)) {
+      return {
+        outcome: 'FAILED',
+        definitiveFailure: true,
+        refundId: input.refundId,
+        originalProviderPaymentId: input.providerPaymentId,
+        amount: input.amount,
+        currency: input.currency,
+        failureCode: 'MOCK_INVALID_REFUND_AMOUNT',
+        failureMessage: 'Refund amount must be positive',
+      };
+    }
+
+    const record = MockMyFatoorahProvider.mockInvoices.get(
+      input.providerPaymentId,
+    );
+    const alreadyRefunded =
+      MockMyFatoorahProvider.mockRefundedTotals.get(input.providerPaymentId) ??
+      new Prisma.Decimal(0);
+    if (record) {
+      const captured = new Prisma.Decimal(record.amount);
+      if (alreadyRefunded.add(amountDecimal).gt(captured)) {
+        return {
+          outcome: 'FAILED',
+          definitiveFailure: true,
+          refundId: input.refundId,
+          originalProviderPaymentId: input.providerPaymentId,
+          amount: input.amount,
+          currency: input.currency,
+          failureCode: 'MOCK_REFUND_EXCEEDS_CAPTURED',
+          failureMessage: 'Requested refund exceeds captured invoice amount',
+        };
+      }
+      const nextTotal = alreadyRefunded.add(amountDecimal);
+      MockMyFatoorahProvider.mockRefundedTotals.set(
+        input.providerPaymentId,
+        nextTotal,
+      );
+      record.status = nextTotal.equals(captured)
+        ? PaymentStatus.REFUNDED
+        : PaymentStatus.PARTIALLY_REFUNDED;
+    } else {
+      MockMyFatoorahProvider.mockRefundedTotals.set(
+        input.providerPaymentId,
+        alreadyRefunded.add(amountDecimal),
+      );
+    }
+
+    return {
+      outcome: 'SUCCEEDED',
+      refundId: input.refundId,
+      originalProviderPaymentId: input.providerPaymentId,
+      amount: input.amount,
+      currency: input.currency,
+      providerRefundId: `mock-ref-${input.refundId}`,
+      providerRefundReference: `mock-ref-no-${input.refundId.slice(0, 8)}`,
+      providerRefundInvoiceId: input.providerPaymentId,
+      metadata: {
+        environment: 'mock',
+        apiVersion: 'v2',
+      },
+    };
+  }
+
+  async refundPayment(
+    invoiceId: string,
+    amount: string,
+  ): Promise<{ status: PaymentStatus; providerTransactionId: string }> {
+    const result = await this.executeRefund({
+      refundId: `legacy-${invoiceId}`,
+      idempotencyKey: `legacy-${invoiceId}-${amount}`,
+      providerPaymentId: invoiceId,
+      amount,
+      currency: 'KWD',
+      reason: 'Legacy mock refund',
+    });
+    const record = MockMyFatoorahProvider.mockInvoices.get(invoiceId);
+    return {
+      status: record?.status ?? PaymentStatus.REFUNDED,
+      providerTransactionId: result.providerRefundId ?? `ref-${invoiceId}`,
+    };
   }
 }

@@ -36,6 +36,9 @@ router.get(
 
 router.get(
   '/:id',
+  authenticate,
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
   validate(
     productImageIdSchema,
     'params',

@@ -205,4 +205,25 @@ describe('Phase NOTIF-8E: Password Security Notifications PostgreSQL Integration
       authService.changePassword(customerId, currentPassword, 'ConflictingPassword999!', key),
     ).rejects.toMatchObject({ code: 'IDEMPOTENCY_KEY_CONFLICT' });
   });
+
+  it('9. Expired idempotency record is ignored and allows key reuse for a new valid request', async () => {
+    const expiredKey = 'expired-idempotency-key-999';
+
+    // Seed expired record
+    await testPrisma.passwordChangeRequest.create({
+      data: {
+        userId: customerId,
+        idempotencyKey: expiredKey,
+        requestFingerprint: 'stale-fingerprint',
+        responseStatus: 200,
+        responseBody: { success: true, message: 'Old', data: null },
+        expiresAt: new Date(Date.now() - 1000), // Expired!
+      },
+    });
+
+    const pwdFresh = 'FreshPassword777!';
+    const res = await authService.changePassword(customerId, currentPassword, pwdFresh, expiredKey);
+    expect(res).toEqual({ success: true, message: 'Password changed successfully', data: null });
+    currentPassword = pwdFresh;
+  });
 });

@@ -79,11 +79,7 @@ const envSchema = z
 
     PASSWORD_RESET_EXPIRES_HOURS: z.coerce.number().int().positive().default(1),
 
-    SECURITY_FINGERPRINT_SECRET: z
-      .string()
-      .trim()
-      .min(32)
-      .default('default_secure_fingerprint_secret_min_32_chars_long_for_security'),
+    SECURITY_FINGERPRINT_SECRET: z.string().trim().min(32),
 
     GOOGLE_APPLICATION_CREDENTIALS: z.string().trim().optional(),
     FIREBASE_PROJECT_ID: z.string().trim().optional(),

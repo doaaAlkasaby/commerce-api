@@ -13,6 +13,9 @@ import {
 } from './order.service.instance.js';
 
 import type {
+  ConfirmCodPaymentInput,
+  ConfirmCodReturnInput,
+  MarkCodRefusedInput,
   OrderListQuery,
   UpdateOrderStatusInput,
 } from './order.types.js';
@@ -159,12 +162,97 @@ export class OrderController {
           req.tenant!.tenantId,
           params.id,
           input,
+          req.user?.userId,
         );
 
       res.status(200).json({
         success: true,
         message:
           'Order status updated',
+        data: order,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  confirmCodPayment = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    try {
+      const params = req.validatedParams as {
+        id: string;
+      };
+      const input = req.validatedBody as ConfirmCodPaymentInput;
+
+      const order = await orderService.confirmCodPayment(
+        req.tenant!.tenantId,
+        params.id,
+        req.user!.userId,
+        input,
+      );
+
+      res.status(200).json({
+        success: true,
+        message: 'COD payment confirmed',
+        data: order,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  markCodDeliveryRefused = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    try {
+      const params = req.validatedParams as {
+        id: string;
+      };
+      const input = req.validatedBody as MarkCodRefusedInput;
+
+      const order = await orderService.markCodDeliveryRefused(
+        req.tenant!.tenantId,
+        params.id,
+        req.user!.userId,
+        input,
+      );
+
+      res.status(200).json({
+        success: true,
+        message: 'COD delivery marked as refused',
+        data: order,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  confirmCodWarehouseReturn = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    try {
+      const params = req.validatedParams as {
+        id: string;
+      };
+      const input = req.validatedBody as ConfirmCodReturnInput;
+
+      const order = await orderService.confirmCodWarehouseReturn(
+        req.tenant!.tenantId,
+        params.id,
+        req.user!.userId,
+        input,
+      );
+
+      res.status(200).json({
+        success: true,
+        message: 'COD warehouse return confirmed',
         data: order,
       });
     } catch (error) {

@@ -1,19 +1,31 @@
 import { z } from 'zod';
 
-const positiveInteger = z.number().int().positive();
+const MAX_QUANTITY_DELTA = 1_000_000_000;
+
+const positiveInteger = z.number().int().positive().max(MAX_QUANTITY_DELTA);
 
 const nonZeroInteger = z
   .number()
   .int()
+  .min(-MAX_QUANTITY_DELTA)
+  .max(MAX_QUANTITY_DELTA)
   .refine((value) => value !== 0, {
     message: 'Quantity cannot be zero',
   });
+
+const optionalReferenceId = z.string().trim().min(1).max(255).optional();
 
 export const createInventorySchema = z.object({
   warehouseId: z.string().uuid().optional(),
   variantId: z.string().uuid(),
 
-  quantity: z.number().int().nonnegative().optional().default(0),
+  quantity: z
+    .number()
+    .int()
+    .nonnegative()
+    .max(MAX_QUANTITY_DELTA)
+    .optional()
+    .default(0),
 });
 
 export const inventoryIdParamsSchema = z.object({
@@ -25,7 +37,7 @@ export const stockInSchema = z.object({
 
   reason: z.string().trim().max(500).optional(),
 
-  referenceId: z.string().trim().max(255).optional(),
+  referenceId: optionalReferenceId,
 });
 
 export const stockOutSchema = z.object({
@@ -33,7 +45,7 @@ export const stockOutSchema = z.object({
 
   reason: z.string().trim().max(500).optional(),
 
-  referenceId: z.string().trim().max(255).optional(),
+  referenceId: optionalReferenceId,
 });
 
 export const adjustmentSchema = z.object({
@@ -41,31 +53,7 @@ export const adjustmentSchema = z.object({
 
   reason: z.string().trim().min(1).max(500),
 
-  referenceId: z.string().trim().max(255).optional(),
-});
-
-export const reservationSchema = z.object({
-  quantity: positiveInteger,
-
-  referenceId: z.string().trim().min(1).max(255),
-
-  reason: z.string().trim().max(500).optional(),
-});
-
-export const releaseSchema = z.object({
-  quantity: positiveInteger,
-
-  referenceId: z.string().trim().min(1).max(255),
-
-  reason: z.string().trim().max(500).optional(),
-});
-
-export const saleSchema = z.object({
-  quantity: positiveInteger,
-
-  referenceId: z.string().trim().min(1).max(255),
-
-  reason: z.string().trim().max(500).optional(),
+  referenceId: optionalReferenceId,
 });
 
 export const inventoryListQuerySchema = z.object({
@@ -75,6 +63,8 @@ export const inventoryListQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(100).default(20),
 
   variantId: z.string().uuid().optional(),
+
+  search: z.string().trim().min(1).max(200).optional(),
 
   lowStock: z.coerce.number().int().nonnegative().optional(),
 });
@@ -96,12 +86,6 @@ export type StockInRequest = z.infer<typeof stockInSchema>;
 export type StockOutRequest = z.infer<typeof stockOutSchema>;
 
 export type AdjustmentRequest = z.infer<typeof adjustmentSchema>;
-
-export type ReservationRequest = z.infer<typeof reservationSchema>;
-
-export type ReleaseRequest = z.infer<typeof releaseSchema>;
-
-export type SaleRequest = z.infer<typeof saleSchema>;
 
 export type InventoryListQueryRequest = z.infer<
   typeof inventoryListQuerySchema

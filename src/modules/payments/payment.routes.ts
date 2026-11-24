@@ -104,7 +104,7 @@ router.get(
 );
 
 /**
- * Admin / Manager
+ * Owner / Admin
  *
  * PATCH /api/v1/payments/:id/status
  */
@@ -114,7 +114,7 @@ router.patch(
   authenticate,
 
   tenantMemberMiddleware,
-  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
+  requireTenantRoles('OWNER', 'ADMIN'),
 
   validate(paymentIdParamsSchema, 'params'),
 
@@ -153,6 +153,7 @@ router.post(
 
   tenantMemberMiddleware,
   requireTenantRoles('OWNER', 'ADMIN'),
+  sensitiveRateLimiter,
 
   validate(paymentIdParamsSchema, 'params'),
 

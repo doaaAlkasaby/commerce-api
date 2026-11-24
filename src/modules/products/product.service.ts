@@ -171,7 +171,7 @@ export class ProductService {
   }
 
   async getById(tenantId: string, id: string, userId?: string) {
-    const product = await this.productRepository.findById(id, tenantId);
+    const product = await this.productRepository.findPublicById(id, tenantId);
 
     if (!product || product.status !== ProductStatus.ACTIVE) {
       throw new AppError('Product not found', 404, 'PRODUCT_NOT_FOUND');

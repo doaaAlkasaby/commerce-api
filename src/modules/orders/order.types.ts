@@ -14,6 +14,73 @@ export interface UpdateOrderStatusInput {
   status: OrderStatus;
 }
 
+export type CodReceivedCondition = 'RESELLABLE' | 'DAMAGED';
+
+export type CodCollectionStatus =
+  | 'NOT_APPLICABLE'
+  | 'AWAITING_DELIVERY'
+  | 'AWAITING_COLLECTION'
+  | 'COLLECTED'
+  | 'REFUSED_WITH_COURIER'
+  | 'RETURNED_TO_WAREHOUSE'
+  | 'CANCELLED';
+
+export interface ConfirmCodPaymentInput {
+  referenceId: string;
+  collectedAmount: string;
+  currency: string;
+  note?: string;
+}
+
+export interface MarkCodRefusedInput {
+  referenceId: string;
+  reason: string;
+  courierReference?: string;
+}
+
+export interface ConfirmCodReturnInput {
+  referenceId: string;
+  warehouseId: string;
+  receivedCondition: CodReceivedCondition;
+  note: string;
+}
+
+export interface OrderCodCollectionSummary {
+  referenceId: string;
+  collectedAmount: string;
+  currency: string;
+  collectedByUserId: string;
+  collectedAt: string;
+  note: string | null;
+}
+
+export interface OrderCodReturnSummary {
+  state: 'REFUSED_WITH_COURIER' | 'RETURNED_TO_WAREHOUSE';
+  refusalReferenceId: string;
+  refusedByUserId: string;
+  refusedAt: string;
+  reason: string;
+  courierReference: string | null;
+  returnReferenceId: string | null;
+  returnedByUserId: string | null;
+  returnedAt: string | null;
+  warehouseId: string | null;
+  receivedCondition: CodReceivedCondition | null;
+  returnNote: string | null;
+}
+
+export interface OrderCodSummary {
+  isCod: boolean;
+  collectionStatus: CodCollectionStatus;
+  canConfirmPayment: boolean;
+  canMarkRefused: boolean;
+  canConfirmReturn: boolean;
+  deliveredAt: string | null;
+  unpaidDeliveredAgeHours: number | null;
+  collection: OrderCodCollectionSummary | null;
+  returnInfo: OrderCodReturnSummary | null;
+}
+
 export interface OrderVariantSnapshot {
   attributes?: Array<{
     attributeId: string;
@@ -90,6 +157,8 @@ export interface OrderResponse {
 
   status: OrderStatus;
   paymentStatus: PaymentStatus;
+  paymentMethod: string | null;
+  codSummary: OrderCodSummary;
 
   currency: string;
 

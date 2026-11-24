@@ -6,7 +6,7 @@ import type { ProductRepository } from './product.repository.js';
 import type { ProductCardResponse } from './product.types.js';
 
 type ProductDetails = NonNullable<
-  Awaited<ReturnType<ProductRepository['findById']>>
+  Awaited<ReturnType<ProductRepository['findPublicById']>>
 >;
 type ProductListItem = Awaited<
   ReturnType<ProductRepository['findList']>
@@ -196,6 +196,14 @@ const mapVariant = (variant: ProductVariant, product: ProductDetails) => {
 };
 
 export const mapProductDetails = (product: ProductDetails) => {
+  const activeVariants = product.variants.filter((variant) => variant.isActive);
+  const activeAttributeValueIds = new Set<string>();
+  for (const variant of activeVariants) {
+    for (const item of variant.values) {
+      activeAttributeValueIds.add(item.attributeValue.id);
+    }
+  }
+
   const productPricing = calculateEffectivePrice(
     product.basePrice.toString(),
     mapDiscount(product),
@@ -208,6 +216,23 @@ export const mapProductDetails = (product: ProductDetails) => {
     new Date(),
     product.tenant.defaultCurrency ?? '',
   );
+
+  const publicAttributes = product.attributes
+    .map((attribute) => ({
+      id: attribute.id,
+      name: attribute.name,
+      sortOrder: attribute.sortOrder,
+
+      values: attribute.values
+        .filter((value) => activeAttributeValueIds.has(value.id))
+        .map((value) => ({
+          id: value.id,
+          value: value.value,
+          sortOrder: value.sortOrder,
+          imageUrl: value.imageUrl,
+        })),
+    }))
+    .filter((attribute) => attribute.values.length > 0);
 
   return {
     id: product.id,
@@ -233,21 +258,9 @@ export const mapProductDetails = (product: ProductDetails) => {
       isPrimary: image.isPrimary,
     })),
 
-    attributes: product.attributes.map((attribute) => ({
-      id: attribute.id,
-      name: attribute.name,
-      sortOrder: attribute.sortOrder,
+    attributes: publicAttributes,
 
-      values: attribute.values.map((value) => ({
-        id: value.id,
-        value: value.value,
-        sortOrder: value.sortOrder,
-        imageStorageKey: value.imageStorageKey,
-        imageUrl: value.imageUrl,
-      })),
-    })),
-
-    variants: product.variants.map((variant) => mapVariant(variant, product)),
+    variants: activeVariants.map((variant) => mapVariant(variant, product)),
 
     createdAt: product.createdAt,
 
@@ -264,7 +277,8 @@ export function mapProductCard(
     startsAt: product.discountStartsAt,
     endsAt: product.discountEndsAt,
   };
-  const variants = product.variants.length > 0 ? product.variants : [null];
+  const activeVariants = product.variants.filter((variant) => variant.isActive);
+  const variants = activeVariants.length > 0 ? activeVariants : [null];
   const pricing = variants
     .map((variant) =>
       calculateEffectivePrice(

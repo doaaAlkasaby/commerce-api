@@ -7,7 +7,7 @@ import {
 import { AppError } from '../../common/errors/app-error.js';
 import { prisma } from '../../config/database.js';
 import { env } from '../../config/env.js';
-import { Prisma } from '../../generated/prisma/client.js';
+import { PaymentStatus, Prisma } from '../../generated/prisma/client.js';
 import type {
   Payment,
   MyFatoorahWebhookEvent,
@@ -299,6 +299,41 @@ export class PaymentVerificationService {
             current.id,
             verified.invoiceId,
           );
+        // A verified late PAID observation on a payment that has already entered
+        // the refund lifecycle must NOT attempt to regress aggregate status to
+        // PAID or falsely flag reconciliationRequired. Preserve current status,
+        // provider IDs, PaymentRefund rows, and any existing reconciliation flag.
+        const isPostCaptureRefundStatus =
+          current.status === PaymentStatus.REFUND_PENDING ||
+          current.status === PaymentStatus.PARTIALLY_REFUNDED ||
+          current.status === PaymentStatus.REFUNDED;
+        if (isPostCaptureRefundStatus && verified.status === PaymentStatus.PAID) {
+          if (
+            current.providerTransactionId &&
+            verified.transactionId &&
+            current.providerTransactionId !== verified.transactionId
+          ) {
+            throw conflict('MYFATOORAH_IDENTITY_MISMATCH');
+          }
+          const observed =
+            current.initiationState === 'INITIATED'
+              ? current
+              : await this.repository.setInitiationState(
+                  tx,
+                  tenantId,
+                  payment.order.userId,
+                  payment.id,
+                  'INITIATED',
+                );
+          if (event) {
+            await this.repository.recordWebhookEvent(tx, {
+              ...event,
+              paymentId: payment.id,
+              state: 'PROCESSED',
+            });
+          }
+          return observed;
+        }
         // Pending is an observation, never a request to resurrect a terminal state.
         if (verified.status !== 'PENDING') {
           await this.lifecycle.applyPaymentStatusWithClient(
@@ -312,6 +347,13 @@ export class PaymentVerificationService {
                 : {}),
             },
             tx,
+            {
+              transition: {
+                kind: 'PROVIDER_VERIFICATION',
+                provider: current.provider,
+                providerPaymentId: verified.invoiceId,
+              },
+            },
           );
         }
         const updated = await this.repository.setInitiationState(

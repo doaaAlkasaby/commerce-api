@@ -29,9 +29,11 @@ export class InventoryController {
       const result = await inventoryService.list(
         req.tenant!.tenantId,
         req.validatedQuery as {
+          warehouseId?: string;
           page: number;
           limit: number;
           variantId?: string;
+          search?: string;
           lowStock?: number;
         },
       );
@@ -176,92 +178,6 @@ export class InventoryController {
       res.status(200).json({
         success: true,
         message: 'Inventory adjusted successfully',
-        data: result,
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  async reserve(
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ): Promise<void> {
-    try {
-      const { id } = req.validatedParams as {
-        id: string;
-      };
-
-      const result = await inventoryService.reserve(
-        req.tenant!.tenantId,
-        id,
-        req.validatedBody as {
-          quantity: number;
-          referenceId: string;
-          reason?: string;
-        },
-      );
-
-      res.status(200).json({
-        success: true,
-        message: 'Inventory reserved successfully',
-        data: result,
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  async release(
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ): Promise<void> {
-    try {
-      const { id } = req.validatedParams as {
-        id: string;
-      };
-
-      const result = await inventoryService.release(
-        req.tenant!.tenantId,
-        id,
-        req.validatedBody as {
-          quantity: number;
-          referenceId: string;
-          reason?: string;
-        },
-      );
-
-      res.status(200).json({
-        success: true,
-        message: 'Inventory reservation released successfully',
-        data: result,
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  async sale(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const { id } = req.validatedParams as {
-        id: string;
-      };
-
-      const result = await inventoryService.sale(
-        req.tenant!.tenantId,
-        id,
-        req.validatedBody as {
-          quantity: number;
-          referenceId: string;
-          reason?: string;
-        },
-      );
-
-      res.status(200).json({
-        success: true,
-        message: 'Inventory sale completed successfully',
         data: result,
       });
     } catch (error) {

@@ -16,7 +16,9 @@ export interface CreatePaymentNotificationInput {
   expectedTenantId: string;
   tx: Prisma.TransactionClient;
   tenantSlug?: string;
+  refundId?: string;
   refundAmount?: string;
+  isIncrementalFinalRefund?: boolean;
   providerTransactionId?: string;
 }
 
@@ -38,6 +40,7 @@ export class PaymentNotificationService {
     orderNumber: string,
     currency: string,
     amount: string,
+    isIncrementalFinalRefund = false,
   ): NotificationContent {
     switch (eventType) {
       case 'PAYMENT_PAID':
@@ -53,7 +56,9 @@ export class PaymentNotificationService {
       case 'PAYMENT_REFUNDED':
         return {
           title: `Refund Processed: #${orderNumber}`,
-          body: `A full refund of ${currency} ${amount} has been processed for order #${orderNumber}.`,
+          body: isIncrementalFinalRefund
+            ? `A refund of ${currency} ${amount} has been processed for order #${orderNumber}, completing the full refund for this order.`
+            : `A full refund of ${currency} ${amount} has been processed for order #${orderNumber}.`,
         };
       case 'PAYMENT_PARTIALLY_REFUNDED':
         return {
@@ -72,7 +77,9 @@ export class PaymentNotificationService {
       expectedTenantId,
       tx,
       tenantSlug,
+      refundId,
       refundAmount,
+      isIncrementalFinalRefund,
       providerTransactionId,
     } = input;
 
@@ -100,7 +107,7 @@ export class PaymentNotificationService {
       );
     }
 
-    if (eventType === 'PAYMENT_PARTIALLY_REFUNDED' && !refundAmount) {
+    if (eventType === 'PAYMENT_PARTIALLY_REFUNDED' && !refundAmount?.trim()) {
       throw new AppError(
         'Refund amount is required for partial refund notifications',
         400,
@@ -143,12 +150,17 @@ export class PaymentNotificationService {
     const displayAmount = refundAmount ?? payment.amount.toString();
 
     let eventKey: string;
+    const normalizedRefundId = refundId?.trim();
     if (
       eventType === 'PAYMENT_PARTIALLY_REFUNDED' ||
       eventType === 'PAYMENT_REFUNDED'
     ) {
-      const txRef = providerTransactionId || displayAmount;
-      eventKey = `${eventType.toLowerCase()}_${payment.id}_${txRef}`;
+      if (normalizedRefundId) {
+        eventKey = `${eventType.toLowerCase()}_${payment.id}_refund_${normalizedRefundId}`;
+      } else {
+        const txRef = providerTransactionId || displayAmount;
+        eventKey = `${eventType.toLowerCase()}_${payment.id}_${txRef}`;
+      }
     } else {
       eventKey = `${eventType.toLowerCase()}_${payment.id}`;
     }
@@ -158,6 +170,7 @@ export class PaymentNotificationService {
       order.orderNumber,
       payment.currency,
       displayAmount,
+      isIncrementalFinalRefund === true,
     );
 
     const resolvedSlug = tenantSlug ?? order.tenant?.slug;
@@ -168,6 +181,12 @@ export class PaymentNotificationService {
       amount: displayAmount,
       currency: payment.currency,
       eventType,
+      ...(normalizedRefundId ? { refundId: normalizedRefundId } : {}),
+      ...(eventType === 'PAYMENT_REFUNDED'
+        ? { aggregatePaymentStatus: 'REFUNDED' }
+        : eventType === 'PAYMENT_PARTIALLY_REFUNDED'
+          ? { aggregatePaymentStatus: 'PARTIALLY_REFUNDED' }
+          : {}),
       ...(resolvedSlug ? { tenantSlug: resolvedSlug } : {}),
     };
 

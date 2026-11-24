@@ -10,14 +10,13 @@ import { InventoryRepository } from './inventory.repository.js';
 import type {
   AdjustmentInput,
   InventoryListQuery,
-  ReleaseInput,
-  ReservationInput,
-  SaleInput,
   StockInInput,
   StockOutInput,
   CreateInventoryInput,
   InventoryResponse,
 } from './inventory.types.js';
+
+const RESERVED_MANUAL_REFERENCE_PREFIXES = ['cod-dmg:', 'init:'] as const;
 
 const isPrismaUniqueConstraintError = (error: unknown): boolean =>
   typeof error === 'object' &&
@@ -225,6 +224,162 @@ export class InventoryService {
     }
   }
 
+  async releaseOrderReservationAsDamaged(
+    tenantId: string,
+    orderId: string,
+    tx: Prisma.TransactionClient,
+    reason?: string,
+  ): Promise<void> {
+    const order = await tx.order.findFirst({
+      where: { id: orderId, tenantId },
+      include: { items: true, payments: true },
+    });
+
+    if (!order) {
+      throw new AppError('Order not found', 404, 'ORDER_NOT_FOUND');
+    }
+    if (
+      order.paymentStatus === 'PAID' ||
+      order.payments.some((payment) => payment.status === 'PAID')
+    ) {
+      throw new AppError(
+        'Cannot process damaged return for a paid order',
+        409,
+        'ORDER_ALREADY_PAID',
+      );
+    }
+
+    const repository = new InventoryRepository(tx);
+    const damageReferenceId = `cod-dmg:${orderId}`;
+    const trimmedReason = reason?.trim() || null;
+
+    // Match checkout lock ordering across orders sharing multiple variants.
+    for (const item of [...order.items].sort((a, b) =>
+      a.variantId.localeCompare(b.variantId),
+    )) {
+      const inventory = await repository.findReservedInventory(
+        tenantId,
+        orderId,
+        item.variantId,
+        order.warehouseId,
+      );
+      if (!inventory) {
+        throw new AppError(
+          `Active inventory reservation not found for SKU "${item.sku}"`,
+          409,
+          'ORDER_INVENTORY_RESERVATION_NOT_FOUND',
+        );
+      }
+
+      const existingSale = await repository.findTransactionByReference(
+        tenantId,
+        inventory.id,
+        'SALE',
+        orderId,
+      );
+      if (existingSale) {
+        throw new AppError(
+          `Inventory sale already committed for SKU "${item.sku}"`,
+          409,
+          'INVENTORY_SALE_ALREADY_COMMITTED',
+        );
+      }
+
+      const existingRelease = await repository.findTransactionByReference(
+        tenantId,
+        inventory.id,
+        'RELEASE',
+        orderId,
+      );
+      const existingDamageOut = await repository.findTransactionByReference(
+        tenantId,
+        inventory.id,
+        'STOCK_OUT',
+        damageReferenceId,
+      );
+
+      if (existingRelease && existingDamageOut) {
+        if (
+          existingRelease.quantity !== item.quantity ||
+          existingDamageOut.quantity !== item.quantity
+        ) {
+          throw new AppError(
+            `Damaged return ledger quantity mismatch for SKU "${item.sku}"`,
+            409,
+            'INVENTORY_DAMAGED_RETURN_MISMATCH',
+          );
+        }
+        continue;
+      }
+
+      if (existingRelease || existingDamageOut) {
+        throw new AppError(
+          `Inconsistent inventory ledger state for damaged return of SKU "${item.sku}"`,
+          409,
+          'INVENTORY_DAMAGED_RETURN_CONFLICT',
+        );
+      }
+
+      const reservation = await repository.findTransactionByReference(
+        tenantId,
+        inventory.id,
+        'RESERVATION',
+        orderId,
+      );
+      if (!reservation || reservation.quantity !== item.quantity) {
+        throw new AppError(
+          `Active inventory reservation not found for SKU "${item.sku}"`,
+          409,
+          'ORDER_INVENTORY_RESERVATION_NOT_FOUND',
+        );
+      }
+
+      const releasedRows = await repository.release(
+        tenantId,
+        inventory.id,
+        item.quantity,
+      );
+      if (releasedRows !== 1) {
+        throw new AppError(
+          `Cannot release inventory reservation for SKU "${item.sku}"`,
+          409,
+          'INVALID_INVENTORY_RELEASE',
+        );
+      }
+
+      await repository.createTransaction(tenantId, {
+        inventoryId: inventory.id,
+        type: 'RELEASE',
+        quantity: item.quantity,
+        referenceId: orderId,
+        reason: `Reservation released for damaged COD return of order ${order.orderNumber}`,
+      });
+
+      const stockedOutRows = await repository.stockOut(
+        tenantId,
+        inventory.id,
+        item.quantity,
+      );
+      if (stockedOutRows !== 1) {
+        throw new AppError(
+          `Cannot write off damaged inventory for SKU "${item.sku}"`,
+          409,
+          'INSUFFICIENT_INVENTORY',
+        );
+      }
+
+      await repository.createTransaction(tenantId, {
+        inventoryId: inventory.id,
+        type: 'STOCK_OUT',
+        quantity: item.quantity,
+        referenceId: damageReferenceId,
+        reason: trimmedReason
+          ? `Damaged COD return for order ${order.orderNumber}: ${trimmedReason}`
+          : `Damaged COD return write-off for order ${order.orderNumber}`,
+      });
+    }
+  }
+
   /*
    * ==================================================
    * CREATE INVENTORY
@@ -264,11 +419,11 @@ export class InventoryService {
       );
     }
 
-    if (variant.product.status !== 'ACTIVE') {
+    if (variant.product.status === 'ARCHIVED') {
       throw new AppError(
-        'Cannot create inventory for an inactive product',
+        'Cannot create inventory for an archived product',
         409,
-        'PRODUCT_NOT_ACTIVE',
+        'PRODUCT_ARCHIVED',
       );
     }
 
@@ -286,8 +441,26 @@ export class InventoryService {
       );
     }
 
-    const inventory = await this.repository
-      .create(tenantId, input.variantId, quantity, input.warehouseId)
+    const inventory = await prisma
+      .$transaction(async (tx) => {
+        const repository = new InventoryRepository(tx);
+        const created = await repository.create(
+          tenantId,
+          input.variantId,
+          quantity,
+          input.warehouseId,
+        );
+        if (quantity > 0) {
+          await repository.createTransaction(tenantId, {
+            inventoryId: created.id,
+            type: 'STOCK_IN',
+            quantity,
+            referenceId: `init:${created.id}`,
+            reason: 'Initial stock',
+          });
+        }
+        return created;
+      })
       .catch((error: unknown) => {
         if (isPrismaUniqueConstraintError(error)) {
           throw new AppError(
@@ -368,42 +541,32 @@ export class InventoryService {
 
   async stockIn(tenantId: string, inventoryId: string, input: StockInInput) {
     this.validatePositiveQuantity(input.quantity);
+    const referenceId = input.referenceId?.trim() || undefined;
+    const reason = input.reason?.trim() || null;
 
-    return prisma.$transaction(async (tx) => {
-      const repository = new InventoryRepository(tx);
-
-      await this.ensureInventoryExists(tenantId, repository, inventoryId);
-
-      const affectedRows = await repository.stockIn(
-        tenantId,
-        inventoryId,
-        input.quantity,
-      );
-
-      if (affectedRows !== 1) {
-        throw new AppError(
-          'Unable to increase inventory',
-          409,
-          'INVENTORY_UPDATE_FAILED',
+    return this.runManualMovement(
+      tenantId,
+      inventoryId,
+      'STOCK_IN',
+      input.quantity,
+      reason,
+      referenceId,
+      async (repository) => {
+        const affectedRows = await repository.stockIn(
+          tenantId,
+          inventoryId,
+          input.quantity,
         );
-      }
 
-      await repository.createTransaction(tenantId, {
-        inventoryId,
-        type: 'STOCK_IN',
-        quantity: input.quantity,
-        referenceId: input.referenceId ?? null,
-        reason: input.reason ?? null,
-      });
-
-      const inventory = await repository.findById(tenantId, inventoryId);
-
-      if (!inventory) {
-        throw new AppError('Inventory not found', 404, 'INVENTORY_NOT_FOUND');
-      }
-
-      return mapInventory(inventory);
-    });
+        if (affectedRows !== 1) {
+          throw new AppError(
+            'Inventory quantity would exceed maximum supported limit',
+            409,
+            'INVENTORY_QUANTITY_OVERFLOW',
+          );
+        }
+      },
+    );
   }
 
   /*
@@ -414,42 +577,32 @@ export class InventoryService {
 
   async stockOut(tenantId: string, inventoryId: string, input: StockOutInput) {
     this.validatePositiveQuantity(input.quantity);
+    const referenceId = input.referenceId?.trim() || undefined;
+    const reason = input.reason?.trim() || null;
 
-    return prisma.$transaction(async (tx) => {
-      const repository = new InventoryRepository(tx);
-
-      await this.ensureInventoryExists(tenantId, repository, inventoryId);
-
-      const affectedRows = await repository.stockOut(
-        tenantId,
-        inventoryId,
-        input.quantity,
-      );
-
-      if (affectedRows !== 1) {
-        throw new AppError(
-          'Insufficient available inventory',
-          409,
-          'INSUFFICIENT_INVENTORY',
+    return this.runManualMovement(
+      tenantId,
+      inventoryId,
+      'STOCK_OUT',
+      input.quantity,
+      reason,
+      referenceId,
+      async (repository) => {
+        const affectedRows = await repository.stockOut(
+          tenantId,
+          inventoryId,
+          input.quantity,
         );
-      }
 
-      await repository.createTransaction(tenantId, {
-        inventoryId,
-        type: 'STOCK_OUT',
-        quantity: input.quantity,
-        referenceId: input.referenceId ?? null,
-        reason: input.reason ?? null,
-      });
-
-      const inventory = await repository.findById(tenantId, inventoryId);
-
-      if (!inventory) {
-        throw new AppError('Inventory not found', 404, 'INVENTORY_NOT_FOUND');
-      }
-
-      return mapInventory(inventory);
-    });
+        if (affectedRows !== 1) {
+          throw new AppError(
+            'Insufficient available inventory',
+            409,
+            'INSUFFICIENT_INVENTORY',
+          );
+        }
+      },
+    );
   }
 
   /*
@@ -463,298 +616,52 @@ export class InventoryService {
     inventoryId: string,
     input: AdjustmentInput,
   ) {
-    if (!Number.isInteger(input.quantity) || input.quantity === 0) {
+    if (
+      !Number.isInteger(input.quantity) ||
+      input.quantity === 0 ||
+      Math.abs(input.quantity) > 1_000_000_000
+    ) {
       throw new AppError(
-        'Adjustment quantity must be a non-zero integer',
+        'Adjustment quantity must be a non-zero integer within supported bounds',
         400,
         'INVALID_ADJUSTMENT',
       );
     }
+    const referenceId = input.referenceId?.trim() || undefined;
+    const reason = input.reason.trim();
+    if (!reason) {
+      throw new AppError('Reason is required', 400, 'INVALID_ADJUSTMENT');
+    }
 
-    return prisma.$transaction(async (tx) => {
-      const repository = new InventoryRepository(tx);
-
-      await this.ensureInventoryExists(tenantId, repository, inventoryId);
-
-      const affectedRows = await repository.adjustment(
-        tenantId,
-        inventoryId,
-        input.quantity,
-      );
-
-      if (affectedRows !== 1) {
-        throw new AppError(
-          'Inventory adjustment would make physical quantity lower than reserved quantity',
-          409,
-          'INVALID_INVENTORY_ADJUSTMENT',
+    return this.runManualMovement(
+      tenantId,
+      inventoryId,
+      'ADJUSTMENT',
+      input.quantity,
+      reason,
+      referenceId,
+      async (repository) => {
+        const affectedRows = await repository.adjustment(
+          tenantId,
+          inventoryId,
+          input.quantity,
         );
-      }
 
-      await repository.createTransaction(tenantId, {
-        inventoryId,
-        type: 'ADJUSTMENT',
-        quantity: input.quantity,
-        referenceId: input.referenceId ?? null,
-        reason: input.reason,
-      });
-
-      const inventory = await repository.findById(tenantId, inventoryId);
-
-      if (!inventory) {
-        throw new AppError('Inventory not found', 404, 'INVENTORY_NOT_FOUND');
-      }
-
-      return mapInventory(inventory);
-    });
-  }
-
-  /*
-   * ==================================================
-   * RESERVE
-   * ==================================================
-   */
-
-  async reserve(
-    tenantId: string,
-    inventoryId: string,
-    input: ReservationInput,
-  ) {
-    this.validatePositiveQuantity(input.quantity);
-    this.validateReferenceId(input.referenceId);
-
-    return this.runIdempotentTransaction(
-      tenantId,
-      inventoryId,
-      'RESERVATION',
-      input.referenceId,
-      input.quantity,
-      () =>
-        prisma.$transaction(async (tx) => {
-          const repository = new InventoryRepository(tx);
-
-          const existing = await repository.findTransactionByReference(
-            tenantId,
-            inventoryId,
-            'RESERVATION',
-            input.referenceId,
-          );
-
-          if (existing) {
-            this.validateIdempotentQuantity(existing.quantity, input.quantity);
-
-            const inventory = await repository.findById(tenantId, inventoryId);
-
-            if (!inventory) {
-              throw new AppError(
-                'Inventory not found',
-                404,
-                'INVENTORY_NOT_FOUND',
-              );
-            }
-
-            return mapInventory(inventory);
-          }
-
-          await this.ensureInventoryExists(tenantId, repository, inventoryId);
-
-          const affectedRows = await repository.reserve(
-            tenantId,
-            inventoryId,
-            input.quantity,
-          );
-
-          if (affectedRows !== 1) {
+        if (affectedRows !== 1) {
+          if (input.quantity > 0) {
             throw new AppError(
-              'Insufficient available inventory',
+              'Inventory quantity would exceed maximum supported limit',
               409,
-              'INSUFFICIENT_INVENTORY',
+              'INVENTORY_QUANTITY_OVERFLOW',
             );
           }
-
-          await repository.createTransaction(tenantId, {
-            inventoryId,
-            type: 'RESERVATION',
-            quantity: input.quantity,
-            referenceId: input.referenceId,
-            reason: input.reason ?? null,
-          });
-
-          const inventory = await repository.findById(tenantId, inventoryId);
-
-          if (!inventory) {
-            throw new AppError(
-              'Inventory not found',
-              404,
-              'INVENTORY_NOT_FOUND',
-            );
-          }
-
-          return mapInventory(inventory);
-        }),
-    );
-  }
-
-  /*
-   * ==================================================
-   * RELEASE
-   * ==================================================
-   */
-
-  async release(tenantId: string, inventoryId: string, input: ReleaseInput) {
-    this.validatePositiveQuantity(input.quantity);
-    this.validateReferenceId(input.referenceId);
-
-    return this.runIdempotentTransaction(
-      tenantId,
-      inventoryId,
-      'RELEASE',
-      input.referenceId,
-      input.quantity,
-      () =>
-        prisma.$transaction(async (tx) => {
-          const repository = new InventoryRepository(tx);
-
-          const existing = await repository.findTransactionByReference(
-            tenantId,
-            inventoryId,
-            'RELEASE',
-            input.referenceId,
+          throw new AppError(
+            'Inventory adjustment would make physical quantity lower than reserved quantity',
+            409,
+            'INVALID_INVENTORY_ADJUSTMENT',
           );
-
-          if (existing) {
-            this.validateIdempotentQuantity(existing.quantity, input.quantity);
-
-            const inventory = await repository.findById(tenantId, inventoryId);
-
-            if (!inventory) {
-              throw new AppError(
-                'Inventory not found',
-                404,
-                'INVENTORY_NOT_FOUND',
-              );
-            }
-
-            return mapInventory(inventory);
-          }
-
-          await this.ensureInventoryExists(tenantId, repository, inventoryId);
-
-          const affectedRows = await repository.release(
-            tenantId,
-            inventoryId,
-            input.quantity,
-          );
-
-          if (affectedRows !== 1) {
-            throw new AppError(
-              'Cannot release more inventory than currently reserved',
-              409,
-              'INVALID_INVENTORY_RELEASE',
-            );
-          }
-
-          await repository.createTransaction(tenantId, {
-            inventoryId,
-            type: 'RELEASE',
-            quantity: input.quantity,
-            referenceId: input.referenceId,
-            reason: input.reason ?? null,
-          });
-
-          const inventory = await repository.findById(tenantId, inventoryId);
-
-          if (!inventory) {
-            throw new AppError(
-              'Inventory not found',
-              404,
-              'INVENTORY_NOT_FOUND',
-            );
-          }
-
-          return mapInventory(inventory);
-        }),
-    );
-  }
-
-  /*
-   * ==================================================
-   * SALE
-   * ==================================================
-   */
-
-  async sale(tenantId: string, inventoryId: string, input: SaleInput) {
-    this.validatePositiveQuantity(input.quantity);
-    this.validateReferenceId(input.referenceId);
-
-    return this.runIdempotentTransaction(
-      tenantId,
-      inventoryId,
-      'SALE',
-      input.referenceId,
-      input.quantity,
-      () =>
-        prisma.$transaction(async (tx) => {
-          const repository = new InventoryRepository(tx);
-
-          const existing = await repository.findTransactionByReference(
-            tenantId,
-            inventoryId,
-            'SALE',
-            input.referenceId,
-          );
-
-          if (existing) {
-            this.validateIdempotentQuantity(existing.quantity, input.quantity);
-
-            const inventory = await repository.findById(tenantId, inventoryId);
-
-            if (!inventory) {
-              throw new AppError(
-                'Inventory not found',
-                404,
-                'INVENTORY_NOT_FOUND',
-              );
-            }
-
-            return mapInventory(inventory);
-          }
-
-          await this.ensureInventoryExists(tenantId, repository, inventoryId);
-
-          const affectedRows = await repository.sale(
-            tenantId,
-            inventoryId,
-            input.quantity,
-          );
-
-          if (affectedRows !== 1) {
-            throw new AppError(
-              'Cannot complete sale because reserved inventory is insufficient',
-              409,
-              'INVALID_INVENTORY_SALE',
-            );
-          }
-
-          await repository.createTransaction(tenantId, {
-            inventoryId,
-            type: 'SALE',
-            quantity: input.quantity,
-            referenceId: input.referenceId,
-            reason: input.reason ?? null,
-          });
-
-          const inventory = await repository.findById(tenantId, inventoryId);
-
-          if (!inventory) {
-            throw new AppError(
-              'Inventory not found',
-              404,
-              'INVENTORY_NOT_FOUND',
-            );
-          }
-
-          return mapInventory(inventory);
-        }),
+        }
+      },
     );
   }
 
@@ -813,71 +720,134 @@ export class InventoryService {
     return inventory;
   }
 
-  private async runIdempotentTransaction(
+  private async runManualMovement(
     tenantId: string,
     inventoryId: string,
-    type: 'RESERVATION' | 'RELEASE' | 'SALE',
-    referenceId: string,
+    type: 'STOCK_IN' | 'STOCK_OUT' | 'ADJUSTMENT',
     quantity: number,
-    operation: () => Promise<InventoryResponse>,
+    reason: string | null,
+    referenceId: string | undefined,
+    applyUpdate: (repository: InventoryRepository) => Promise<void>,
   ): Promise<InventoryResponse> {
+    const execute = () =>
+      prisma.$transaction(async (tx) => {
+        const repository = new InventoryRepository(tx);
+
+        await this.ensureInventoryExists(tenantId, repository, inventoryId);
+
+        if (referenceId) {
+          await this.assertManualReferenceAllowed(tx, tenantId, referenceId);
+          await repository.lockReference(inventoryId, referenceId);
+          const existing = await repository.findAnyTransactionByReference(
+            tenantId,
+            inventoryId,
+            referenceId,
+          );
+          if (existing) {
+            this.validateManualIdempotentMatch(existing, type, quantity, reason);
+            const inventory = await repository.findById(tenantId, inventoryId);
+            if (!inventory) {
+              throw new AppError('Inventory not found', 404, 'INVENTORY_NOT_FOUND');
+            }
+            return mapInventory(inventory);
+          }
+        }
+
+        await applyUpdate(repository);
+
+        await repository.createTransaction(tenantId, {
+          inventoryId,
+          type,
+          quantity,
+          referenceId: referenceId ?? null,
+          reason,
+        });
+
+        const inventory = await repository.findById(tenantId, inventoryId);
+        if (!inventory) {
+          throw new AppError('Inventory not found', 404, 'INVENTORY_NOT_FOUND');
+        }
+        return mapInventory(inventory);
+      });
+
     try {
-      return await operation();
+      return await execute();
     } catch (error) {
-      if (!isPrismaUniqueConstraintError(error)) {
+      if (!referenceId || !isPrismaUniqueConstraintError(error)) {
         throw error;
       }
-
-      const existing = await this.repository.findTransactionByReference(
+      const existing = await this.repository.findAnyTransactionByReference(
         tenantId,
         inventoryId,
-        type,
         referenceId,
       );
-
-      if (!existing) {
-        throw error;
-      }
-
-      this.validateIdempotentQuantity(existing.quantity, quantity);
-
+      if (!existing) throw error;
+      this.validateManualIdempotentMatch(existing, type, quantity, reason);
       const inventory = await this.repository.findById(tenantId, inventoryId);
-
       if (!inventory) {
         throw new AppError('Inventory not found', 404, 'INVENTORY_NOT_FOUND');
       }
-
       return mapInventory(inventory);
     }
   }
 
-  private validateIdempotentQuantity(
-    existingQuantity: number,
-    requestedQuantity: number,
-  ): void {
-    if (existingQuantity !== requestedQuantity) {
+  private async assertManualReferenceAllowed(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    referenceId: string,
+  ): Promise<void> {
+    const normalized = referenceId.trim().toLowerCase();
+    if (
+      RESERVED_MANUAL_REFERENCE_PREFIXES.some((prefix) =>
+        normalized.startsWith(prefix),
+      )
+    ) {
       throw new AppError(
-        'Reference ID has already been used with a different quantity',
+        'Reference ID uses a system-reserved prefix',
+        400,
+        'RESERVED_REFERENCE_ID',
+      );
+    }
+
+    const existingOrder = await tx.order.findFirst({
+      where: {
+        id: referenceId,
+        tenantId,
+      },
+      select: { id: true },
+    });
+    if (existingOrder) {
+      throw new AppError(
+        'Order IDs cannot be used as manual inventory reference IDs',
+        409,
+        'ORDER_REFERENCE_ID_FORBIDDEN',
+      );
+    }
+  }
+
+  private validateManualIdempotentMatch(
+    existing: { type: string; quantity: number; reason: string | null },
+    expectedType: 'STOCK_IN' | 'STOCK_OUT' | 'ADJUSTMENT',
+    expectedQuantity: number,
+    expectedReason: string | null,
+  ): void {
+    if (
+      existing.type !== expectedType ||
+      existing.quantity !== expectedQuantity ||
+      (existing.reason ?? null) !== (expectedReason ?? null)
+    ) {
+      throw new AppError(
+        'Reference ID has already been used with conflicting mutation parameters',
         409,
         'IDEMPOTENCY_KEY_REUSED',
       );
     }
   }
 
-  private validateReferenceId(referenceId: string | undefined): void {
-    if (!referenceId || referenceId.trim().length === 0) {
-      throw new AppError(
-        'Reference ID is required',
-        400,
-        'REFERENCE_ID_REQUIRED',
-      );
-    }
-  }
-
   private validateNonNegativeQuantity(quantity: number): void {
-    if (!Number.isInteger(quantity) || quantity < 0) {
+    if (!Number.isInteger(quantity) || quantity < 0 || quantity > 1_000_000_000) {
       throw new AppError(
-        'Quantity must be a non-negative integer',
+        'Quantity must be a non-negative integer within supported bounds',
         400,
         'INVALID_QUANTITY',
       );
@@ -885,9 +855,9 @@ export class InventoryService {
   }
 
   private validatePositiveQuantity(quantity: number): void {
-    if (!Number.isInteger(quantity) || quantity <= 0) {
+    if (!Number.isInteger(quantity) || quantity <= 0 || quantity > 1_000_000_000) {
       throw new AppError(
-        'Quantity must be a positive integer',
+        'Quantity must be a positive integer within supported bounds',
         400,
         'INVALID_QUANTITY',
       );

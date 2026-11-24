@@ -74,6 +74,55 @@ const productVariantSelect = {
   },
 } satisfies Prisma.ProductVariantSelect;
 
+const publicProductVariantSelect = {
+  id: true,
+  sku: true,
+  price: true,
+
+  isActive: true,
+  isDefault: true,
+
+  discountType: true,
+  discountValue: true,
+  discountStartsAt: true,
+  discountEndsAt: true,
+
+  combinationKey: true,
+
+  values: {
+    select: {
+      attributeValue: {
+        select: {
+          id: true,
+          value: true,
+          attribute: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      },
+    },
+  },
+
+  images: {
+    orderBy: [
+      { isPrimary: 'desc' },
+      { sortOrder: 'asc' },
+      { createdAt: 'asc' },
+      { id: 'asc' },
+    ],
+    select: {
+      id: true,
+      url: true,
+      altText: true,
+      sortOrder: true,
+      isPrimary: true,
+    },
+  },
+} satisfies Prisma.ProductVariantSelect;
+
 /**
  * ProductRepository
  *
@@ -148,6 +197,98 @@ export class ProductRepository {
             ...productVariantSelect,
 
             inventory: { where: { tenantId, warehouse: { isActive: true } } },
+          },
+        },
+      },
+    });
+  }
+
+  // ============================================================
+  // FIND PUBLIC PRODUCT BY ID
+  // ============================================================
+
+  async findPublicById(id: string, tenantId: string) {
+    return this.prisma.product.findUnique({
+      where: {
+        id,
+        tenantId,
+      },
+
+      include: {
+        tenant: { select: { defaultCurrency: true } },
+        category: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
+        },
+
+        brand: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
+        },
+
+        images: {
+          orderBy: [
+            { isPrimary: 'desc' },
+            { sortOrder: 'asc' },
+            { createdAt: 'asc' },
+            { id: 'asc' },
+          ],
+          select: {
+            id: true,
+            url: true,
+            altText: true,
+            sortOrder: true,
+            isPrimary: true,
+          },
+        },
+
+        attributes: {
+          orderBy: {
+            sortOrder: 'asc',
+          },
+
+          select: {
+            id: true,
+            name: true,
+            sortOrder: true,
+            values: {
+              orderBy: {
+                sortOrder: 'asc',
+              },
+              select: {
+                id: true,
+                value: true,
+                sortOrder: true,
+                imageUrl: true,
+              },
+            },
+          },
+        },
+
+        variants: {
+          where: {
+            isActive: true,
+          },
+
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+
+          select: {
+            ...publicProductVariantSelect,
+
+            inventory: {
+              where: { tenantId, warehouse: { isActive: true } },
+              select: {
+                id: true,
+                quantity: true,
+                reservedQuantity: true,
+              },
+            },
           },
         },
       },

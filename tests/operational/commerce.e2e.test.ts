@@ -767,16 +767,45 @@ describe('seeded HTTP commerce and customer onboarding', () => {
         .auth(tokens['fashion-owner']!, { type: 'bearer' })
         .send({ isDefault: true });
       expect(changed.status).toBe(200);
+      const orderId: string = result.body.data.order.id;
       const paymentId: string = result.body.data.payment.id;
       expect(
         (await post(`/payments/${paymentId}/initiate`).send({})).status,
       ).toBe(200);
-      const updated = await request(app)
-        .patch(`/api/v1/payments/${paymentId}/status`)
-        .set('X-Tenant-Slug', slug)
-        .auth(tokens['fashion-owner']!, { type: 'bearer' })
-        .send({ status });
-      expect(updated.status).toBe(200);
+      if (status === 'PAID') {
+        const directBlocked = await request(app)
+          .patch(`/api/v1/payments/${paymentId}/status`)
+          .set('X-Tenant-Slug', slug)
+          .auth(tokens['fashion-owner']!, { type: 'bearer' })
+          .send({ status: 'PAID' });
+        expect(directBlocked.status).toBe(409);
+        expect(directBlocked.body.code).toBe('COD_PAYMENT_CONFIRMATION_REQUIRED');
+        for (const nextStatus of ['PROCESSING', 'SHIPPED', 'DELIVERED'] as const) {
+          const step = await request(app)
+            .patch(`/api/v1/orders/${orderId}/status`)
+            .set('X-Tenant-Slug', slug)
+            .auth(tokens['fashion-owner']!, { type: 'bearer' })
+            .send({ status: nextStatus });
+          expect(step.status).toBe(200);
+        }
+        const confirmed = await request(app)
+          .post(`/api/v1/orders/${orderId}/cod/confirm-payment`)
+          .set('X-Tenant-Slug', slug)
+          .auth(tokens['fashion-owner']!, { type: 'bearer' })
+          .send({
+            referenceId: `e2e-cod-${orderId}`,
+            collectedAmount: result.body.data.order.totalAmount,
+            currency: result.body.data.order.currency,
+          });
+        expect(confirmed.status).toBe(200);
+      } else {
+        const updated = await request(app)
+          .patch(`/api/v1/payments/${paymentId}/status`)
+          .set('X-Tenant-Slug', slug)
+          .auth(tokens['fashion-owner']!, { type: 'bearer' })
+          .send({ status });
+        expect(updated.status).toBe(200);
+      }
       expect(await stock(kw)).toMatchObject({
         quantity: status === 'PAID' ? 18 : 20,
         reservedQuantity: 0,

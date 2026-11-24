@@ -8,6 +8,7 @@ import { MockMyFatoorahProvider } from './providers/mock-myfatoorah.provider.js'
 import { prisma } from '../../config/database.js';
 
 import { paymentService } from './payment.service.instance.js';
+import { paymentRefundService } from './payment-refund.service.instance.js';
 
 import type {
   PaymentFilterInput,
@@ -305,7 +306,7 @@ export class PaymentController {
 
       const body = req.validatedBody as UpdatePaymentStatusInput;
 
-      const payment = await paymentService.updatePaymentStatus(
+      const payment = await paymentService.updatePaymentStatusByMerchant(
         req.tenant!.tenantId,
         params.id,
         body,
@@ -358,18 +359,37 @@ export class PaymentController {
 
       const body = (req.validatedBody ?? {}) as {
         amount?: string;
+        idempotencyKey?: string;
+        reason?: string;
       };
 
-      const payment = await paymentService.refundPayment(
+      const headerKey = req.header('Idempotency-Key')?.trim();
+      const bodyKey = body.idempotencyKey?.trim();
+      if (headerKey && bodyKey && headerKey !== bodyKey) {
+        throw new AppError(
+          'Idempotency-Key header does not match body idempotencyKey',
+          400,
+          'IDEMPOTENCY_KEY_MISMATCH',
+        );
+      }
+
+      const idempotencyKey = headerKey || bodyKey;
+
+      const result = await paymentRefundService.refundPayment(
         req.tenant!.tenantId,
         params.id,
-        body.amount,
+        {
+          ...(body.amount === undefined ? {} : { amount: body.amount }),
+          ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
+          ...(body.reason === undefined ? {} : { reason: body.reason }),
+          requestedByUserId: req.user!.userId,
+        },
       );
 
       res.status(200).json({
         success: true,
         message: 'Payment refund processed successfully',
-        data: mapPaymentToResponse(payment),
+        data: result,
       });
     } catch (error) {
       next(error);

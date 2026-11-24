@@ -4,13 +4,10 @@ import request from 'supertest';
 
 vi.mock('../../src/config/env.js', async (original) => {
   const actual = await original<typeof import('../../src/config/env.js')>();
-  const devDbUrl = 'postgresql://commerce_user:commerce_password@localhost:5432/commerce_api_dev?schema=public';
   return {
     ...actual,
     env: {
       ...actual.env,
-      DATABASE_URL: devDbUrl,
-      TEST_DATABASE_URL: devDbUrl,
       PAYMENT_PROVIDER: 'MOCK',
       MOCK_CHECKOUT_SECRET: 'secret-123456789012345678901234567890',
       JWT_ACCESS_SECRET: 'secret-123456789012345678901234567890',
@@ -283,6 +280,17 @@ describe('Real HTTP Mock Payment Lifecycle Integration Test', () => {
     });
     userId = user.id;
     token = await createAccessToken(userId);
+
+    await prisma.country.upsert({
+      where: { code: 'KW' },
+      update: { isActive: true },
+      create: {
+        code: 'KW',
+        name: 'Kuwait',
+        currencyCode: 'KWD',
+        isActive: true,
+      },
+    });
 
     const taxCategory = await prisma.taxCategory.create({
       data: {

@@ -1,4 +1,6 @@
+import { setTimeout as pause } from 'node:timers/promises';
 import {
+  type ClaimedPushJob,
   NotificationPushRepository,
   notificationPushRepository as defaultPushRepo,
 } from './notification-push.repository.js';
@@ -32,7 +34,7 @@ export class NotificationPushWorker {
     return jobs.length;
   }
 
-  private async processSingleJob(job: any): Promise<void> {
+  private async processSingleJob(job: ClaimedPushJob): Promise<void> {
     const { id: jobId, claimToken, attempts, deliveredTokens = [], notification } = job;
 
     try {
@@ -66,6 +68,7 @@ export class NotificationPushWorker {
         ...(rawData.orderNumber
           ? { orderNumber: String(rawData.orderNumber) }
           : {}),
+        ...(rawData.refundId ? { refundId: String(rawData.refundId) } : {}),
         ...(rawData.tenantSlug ? { tenantSlug: String(rawData.tenantSlug) } : {}),
         title: notification.title,
         body: notification.body,
@@ -189,6 +192,22 @@ export class NotificationPushWorker {
     }
   }
 
+  private async sleep(ms: number, signal: AbortSignal): Promise<void> {
+    if (signal.aborted) return;
+    try {
+      await pause(ms, undefined, { signal });
+    } catch (error) {
+      if (
+        signal.aborted &&
+        error instanceof Error &&
+        error.name === 'AbortError'
+      ) {
+        return;
+      }
+      throw error;
+    }
+  }
+
   async run(signal: AbortSignal): Promise<void> {
     logger.info(
       { category: 'PUSH_WORKER_START' },
@@ -198,15 +217,16 @@ export class NotificationPushWorker {
     while (!signal.aborted) {
       try {
         const processed = await this.processBatch();
-        if (processed === 0) {
-          await new Promise((res) => setTimeout(res, 2000));
+        if (processed === 0 && !signal.aborted) {
+          await this.sleep(2000, signal);
         }
       } catch (error) {
+        if (signal.aborted) break;
         logger.error(
           { category: 'PUSH_WORKER_LOOP_ERROR', error },
           'Error in NotificationPushWorker main loop',
         );
-        await new Promise((res) => setTimeout(res, 3000));
+        await this.sleep(3000, signal);
       }
     }
 

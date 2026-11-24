@@ -19,6 +19,9 @@ import {
 } from './order.controller.js';
 
 import {
+  confirmCodPaymentSchema,
+  confirmCodReturnSchema,
+  markCodRefusedSchema,
   orderIdParamsSchema,
   orderListQuerySchema,
   updateOrderStatusSchema,
@@ -96,6 +99,54 @@ router.patch(
     'body',
   ),
   orderController.updateStatus,
+);
+
+router.post(
+  '/:id/cod/confirm-payment',
+  authenticate,
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN'),
+  validate(
+    orderIdParamsSchema,
+    'params',
+  ),
+  validate(
+    confirmCodPaymentSchema,
+    'body',
+  ),
+  orderController.confirmCodPayment,
+);
+
+router.post(
+  '/:id/cod/mark-refused',
+  authenticate,
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
+  validate(
+    orderIdParamsSchema,
+    'params',
+  ),
+  validate(
+    markCodRefusedSchema,
+    'body',
+  ),
+  orderController.markCodDeliveryRefused,
+);
+
+router.post(
+  '/:id/cod/confirm-return',
+  authenticate,
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN'),
+  validate(
+    orderIdParamsSchema,
+    'params',
+  ),
+  validate(
+    confirmCodReturnSchema,
+    'body',
+  ),
+  orderController.confirmCodWarehouseReturn,
 );
 
 export default router;

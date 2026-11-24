@@ -35,6 +35,7 @@ describe('Phase NOTIF-7C: Payment & Refund Notifications PostgreSQL Integration 
   });
 
   afterAll(async () => {
+    await testPrisma.paymentRefund.deleteMany({ where: { tenantId } });
     await testPrisma.notificationPushJob.deleteMany({ where: { tenantId } });
     await testPrisma.notification.deleteMany({ where: { tenantId } });
     await testPrisma.payment.deleteMany({ where: { order: { tenantId } } });
@@ -45,6 +46,34 @@ describe('Phase NOTIF-7C: Payment & Refund Notifications PostgreSQL Integration 
     });
     await testPrisma.$disconnect();
   });
+
+  async function seedSettledRefund(
+    tx: Parameters<Parameters<typeof testPrisma.$transaction>[0]>[0],
+    orderId: string,
+    paymentId: string,
+    amount: string,
+    providerRefundId: string,
+  ) {
+    return tx.paymentRefund.create({
+      data: {
+        tenantId,
+        paymentId,
+        orderId,
+        provider: 'MYFATOORAH',
+        method: 'CARD',
+        amount,
+        currency: 'USD',
+        status: 'SUCCEEDED',
+        idempotencyKey: `notif-ref-${randomUUID()}`,
+        requestFingerprint: `fp-${randomUUID()}`,
+        providerRefundId,
+        reason: 'Notification test ledger-backed refund',
+        requestedByUserId: customerId,
+        submittedAt: new Date(),
+        completedAt: new Date(),
+      },
+    });
+  }
 
   async function createOrderWithPayment(
     initialPaymentStatus: PaymentStatus = 'PENDING',
@@ -67,7 +96,7 @@ describe('Phase NOTIF-7C: Payment & Refund Notifications PostgreSQL Integration 
         billingAddress: {},
         payments: {
           create: {
-            provider: 'NONE',
+            provider: 'MYFATOORAH',
             method: 'CARD',
             status: initialPaymentStatus,
             amount: amount,
@@ -91,10 +120,19 @@ describe('Phase NOTIF-7C: Payment & Refund Notifications PostgreSQL Integration 
   it('1. Enqueues PAYMENT_PAID notification and outbox job on status transition to PAID', async () => {
     const { order, payment } = await createOrderWithPayment('PENDING', 100);
 
-    await paymentService.updatePaymentStatus(tenantId, payment.id, {
-      status: 'PAID',
-      providerPaymentId: `prov-${payment.id}`,
-    });
+    await paymentService.applyTrustedPaymentStatus(
+      tenantId,
+      payment.id,
+      {
+        status: 'PAID',
+        providerPaymentId: `prov-${payment.id}`,
+      },
+      {
+        kind: 'PROVIDER_VERIFICATION',
+        provider: 'MYFATOORAH',
+        providerPaymentId: `prov-${payment.id}`,
+      },
+    );
 
     const notifs = await getNotificationsForOrder(order.id);
     expect(notifs).toHaveLength(1);
@@ -148,21 +186,40 @@ describe('Phase NOTIF-7C: Payment & Refund Notifications PostgreSQL Integration 
     const { order, payment } = await createOrderWithPayment('PENDING', 100);
 
     // Pay first
-    await paymentService.updatePaymentStatus(tenantId, payment.id, {
-      status: 'PAID',
-    });
+    await paymentService.applyTrustedPaymentStatus(
+      tenantId,
+      payment.id,
+      {
+        status: 'PAID',
+        providerPaymentId: `prov-${payment.id}`,
+      },
+      {
+        kind: 'PROVIDER_VERIFICATION',
+        provider: 'MYFATOORAH',
+        providerPaymentId: `prov-${payment.id}`,
+      },
+    );
 
-    // Partial refund 20
+    // Partial refund 20 via trusted internal PAYMENT_REFUND boundary with persisted ledger proof
     await testPrisma.$transaction(async (tx) => {
+      const seeded = await seedSettledRefund(
+        tx,
+        order.id,
+        payment.id,
+        '20',
+        'txn-partial-20',
+      );
       await paymentService.applyPaymentStatusWithClient(
         tenantId,
         payment.id,
         {
           status: 'PARTIALLY_REFUNDED',
+          refundId: seeded.id,
           refundAmount: '20',
           providerTransactionId: 'txn-partial-20',
         },
         tx,
+        { transition: { kind: 'PAYMENT_REFUND', refundId: seeded.id } },
       );
     });
 
@@ -171,70 +228,119 @@ describe('Phase NOTIF-7C: Payment & Refund Notifications PostgreSQL Integration 
 
     const partialNotif = notifs[1]!;
     expect(partialNotif.body).toContain('20');
-    expect((partialNotif.data as any).amount).toBe('20');
+    expect((partialNotif.data as Record<string, unknown>).amount).toBe('20');
   });
 
   it('4. Two separate partial refunds of 20 and 30 create two distinct notifications', async () => {
     const { order, payment } = await createOrderWithPayment('PENDING', 100);
 
     // Pay first
-    await paymentService.updatePaymentStatus(tenantId, payment.id, {
-      status: 'PAID',
-    });
+    await paymentService.applyTrustedPaymentStatus(
+      tenantId,
+      payment.id,
+      {
+        status: 'PAID',
+        providerPaymentId: `prov-${payment.id}`,
+      },
+      {
+        kind: 'PROVIDER_VERIFICATION',
+        provider: 'MYFATOORAH',
+        providerPaymentId: `prov-${payment.id}`,
+      },
+    );
 
-    // Partial refund 1: 20
+    // Partial refund 1: 20 (with persisted ledger proof)
     await testPrisma.$transaction(async (tx) => {
+      const seeded1 = await seedSettledRefund(
+        tx,
+        order.id,
+        payment.id,
+        '20',
+        'txn-refund-part-1',
+      );
       await paymentService.applyPaymentStatusWithClient(
         tenantId,
         payment.id,
         {
           status: 'PARTIALLY_REFUNDED',
+          refundId: seeded1.id,
           refundAmount: '20',
           providerTransactionId: 'txn-refund-part-1',
         },
         tx,
+        { transition: { kind: 'PAYMENT_REFUND', refundId: seeded1.id } },
       );
     });
 
-    // Partial refund 2: 30
+    // Partial refund 2: 30 (cumulative 50 < 100 -> PARTIALLY_REFUNDED)
     await testPrisma.$transaction(async (tx) => {
+      const seeded2 = await seedSettledRefund(
+        tx,
+        order.id,
+        payment.id,
+        '30',
+        'txn-refund-part-2',
+      );
       await paymentService.applyPaymentStatusWithClient(
         tenantId,
         payment.id,
         {
           status: 'PARTIALLY_REFUNDED',
+          refundId: seeded2.id,
           refundAmount: '30',
           providerTransactionId: 'txn-refund-part-2',
         },
         tx,
+        { transition: { kind: 'PAYMENT_REFUND', refundId: seeded2.id } },
       );
     });
 
     const notifs = await getNotificationsForOrder(order.id);
     expect(notifs).toHaveLength(3); // 1 PAID + 2 PARTIALLY_REFUNDED
 
-    expect((notifs[1]!.data as any).amount).toBe('20');
-    expect((notifs[2]!.data as any).amount).toBe('30');
+    expect((notifs[1]!.data as Record<string, unknown>).amount).toBe('20');
+    expect((notifs[2]!.data as Record<string, unknown>).amount).toBe('30');
   });
 
   it('5. Duplicate webhook for the same partial refund is deduplicated via providerTransactionId', async () => {
     const { order, payment } = await createOrderWithPayment('PENDING', 100);
 
-    await paymentService.updatePaymentStatus(tenantId, payment.id, {
-      status: 'PAID',
-    });
+    await paymentService.applyTrustedPaymentStatus(
+      tenantId,
+      payment.id,
+      {
+        status: 'PAID',
+        providerPaymentId: `prov-${payment.id}`,
+      },
+      {
+        kind: 'PROVIDER_VERIFICATION',
+        provider: 'MYFATOORAH',
+        providerPaymentId: `prov-${payment.id}`,
+      },
+    );
 
     // Webhook call 1 for partial refund
+    let seededRefundId = '';
     await testPrisma.$transaction(async (tx) => {
+      const seeded = await seedSettledRefund(
+        tx,
+        order.id,
+        payment.id,
+        '20',
+        'txn-duplicate-refund',
+      );
+      seededRefundId = seeded.id;
       await paymentService.applyPaymentStatusWithClient(
         tenantId,
         payment.id,
         {
           status: 'PARTIALLY_REFUNDED',
+          refundId: seededRefundId,
           refundAmount: '20',
           providerTransactionId: 'txn-duplicate-refund',
         },
         tx,
+        { transition: { kind: 'PAYMENT_REFUND', refundId: seededRefundId } },
       );
     });
 
@@ -245,10 +351,12 @@ describe('Phase NOTIF-7C: Payment & Refund Notifications PostgreSQL Integration 
         payment.id,
         {
           status: 'PARTIALLY_REFUNDED',
+          refundId: seededRefundId,
           refundAmount: '20',
           providerTransactionId: 'txn-duplicate-refund',
         },
         tx,
+        { transition: { kind: 'PAYMENT_REFUND', refundId: seededRefundId } },
       );
     });
 
@@ -259,26 +367,45 @@ describe('Phase NOTIF-7C: Payment & Refund Notifications PostgreSQL Integration 
   it('6. Full refund displays full payment amount in notification', async () => {
     const { order, payment } = await createOrderWithPayment('PENDING', 100);
 
-    await paymentService.updatePaymentStatus(tenantId, payment.id, {
-      status: 'PAID',
-    });
+    await paymentService.applyTrustedPaymentStatus(
+      tenantId,
+      payment.id,
+      {
+        status: 'PAID',
+        providerPaymentId: `prov-${payment.id}`,
+      },
+      {
+        kind: 'PROVIDER_VERIFICATION',
+        provider: 'MYFATOORAH',
+        providerPaymentId: `prov-${payment.id}`,
+      },
+    );
 
     await testPrisma.$transaction(async (tx) => {
+      const seededFull = await seedSettledRefund(
+        tx,
+        order.id,
+        payment.id,
+        '100',
+        'txn-full-refund',
+      );
       await paymentService.applyPaymentStatusWithClient(
         tenantId,
         payment.id,
         {
           status: 'REFUNDED',
+          refundId: seededFull.id,
           refundAmount: '100',
           providerTransactionId: 'txn-full-refund',
         },
         tx,
+        { transition: { kind: 'PAYMENT_REFUND', refundId: seededFull.id } },
       );
     });
 
     const notifs = await getNotificationsForOrder(order.id);
     expect(notifs).toHaveLength(2);
-    expect((notifs[1]!.data as any).amount).toBe('100');
+    expect((notifs[1]!.data as Record<string, unknown>).amount).toBe('100');
     expect(notifs[1]!.title).toContain('Refund Processed');
   });
 
@@ -305,8 +432,15 @@ describe('Phase NOTIF-7C: Payment & Refund Notifications PostgreSQL Integration 
         await paymentService.applyPaymentStatusWithClient(
           tenantId,
           payment.id,
-          { status: 'PAID' },
+          { status: 'PAID', providerPaymentId: `prov-${payment.id}` },
           tx,
+          {
+            transition: {
+              kind: 'PROVIDER_VERIFICATION',
+              provider: 'MYFATOORAH',
+              providerPaymentId: `prov-${payment.id}`,
+            },
+          },
         );
 
         const notif = await tx.notification.findFirst({

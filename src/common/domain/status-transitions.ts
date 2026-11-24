@@ -27,10 +27,23 @@ export const paymentTransitions: Record<
   PARTIALLY_REFUNDED: ['REFUND_PENDING', 'REFUNDED'],
   REFUNDED: [],
 };
+export interface ValidateOrderTransitionOptions {
+  allowProcessingCancellation?: boolean;
+}
+
 export function validateOrderTransition(
   current: OrderStatus,
   next: OrderStatus,
+  options?: ValidateOrderTransitionOptions,
 ) {
+  if (
+    current === 'PROCESSING' &&
+    next === 'CANCELLED' &&
+    options?.allowProcessingCancellation === true
+  ) {
+    return;
+  }
+
   if (current !== next && !orderTransitions[current].includes(next))
     throw new AppError(
       `Cannot change order status from ${current} to ${next}`,
@@ -38,10 +51,22 @@ export function validateOrderTransition(
       'INVALID_ORDER_STATUS_TRANSITION',
     );
 }
+export interface ValidatePaymentTransitionOptions {
+  allowRefundPendingRollback?: boolean;
+}
+
 export function validatePaymentTransition(
   current: PaymentStatus,
   next: PaymentStatus,
+  options?: ValidatePaymentTransitionOptions,
 ) {
+  if (
+    current === 'REFUND_PENDING' &&
+    next === 'PAID' &&
+    options?.allowRefundPendingRollback === true
+  ) {
+    return;
+  }
   if (current === 'FAILED' && next === 'PENDING')
     throw new AppError(
       'Released reservations cannot be restarted',

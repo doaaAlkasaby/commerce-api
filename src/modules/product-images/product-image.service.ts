@@ -1,3 +1,5 @@
+import { ProductStatus } from '../../generated/prisma/client.js';
+
 import {
   AppError,
 } from '../../common/errors/app-error.js';
@@ -11,6 +13,7 @@ import {
 
 import {
   toProductImageResponse,
+  toPublicProductImageResponse,
 } from './product-image.mapper.js';
 
 import type {
@@ -72,7 +75,7 @@ export const createProductImageService = (
           tenantId,
         );
 
-      if (!product) {
+      if (!product || product.status !== ProductStatus.ACTIVE) {
         throw new AppError(
           'Product not found',
           404,
@@ -87,7 +90,7 @@ export const createProductImageService = (
         );
 
       return images.map(
-        toProductImageResponse,
+        toPublicProductImageResponse,
       );
     },
 
@@ -269,10 +272,17 @@ export const createProductImageService = (
         );
       }
 
-      await productImageRepository.delete(
+      const deleted = await productImageRepository.delete(
         tenantId,
         id,
       );
+      if (deleted.count === 0) {
+        throw new AppError(
+          'Product image not found',
+          404,
+          'PRODUCT_IMAGE_NOT_FOUND',
+        );
+      }
 
       await deleteUnreferencedStorageKey(
         existing.storageKey,

@@ -616,15 +616,15 @@ describe('Phase 2D.4 — Product Attributes, Variants & Default SKU API', () => 
         name: 'Color',
         sortOrder: 0,
         values: [
-          { id: whiteValId, value: 'White', sortOrder: 0 },
-          { id: navyValId, value: 'Navy', sortOrder: 1 },
+          { id: whiteValId, value: 'White', sortOrder: 0, imageUrl: null },
+          { id: navyValId, value: 'Navy', sortOrder: 1, imageUrl: null },
         ],
       },
       {
         id: sizeAttrId,
         name: 'Size',
         sortOrder: 1,
-        values: [{ id: mediumValId, value: 'M', sortOrder: 0 }],
+        values: [{ id: mediumValId, value: 'M', sortOrder: 0, imageUrl: null }],
       },
     ]);
   });

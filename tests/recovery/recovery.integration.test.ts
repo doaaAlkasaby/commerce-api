@@ -21,6 +21,10 @@ import { RecoveryRepository } from '../../src/modules/recovery/recovery.reposito
 import { CheckoutRepository } from '../../src/modules/checkout/checkout.repository.js';
 import { RecoveryService } from '../../src/modules/recovery/recovery.service.js';
 import { RecoveryWorker } from '../../src/modules/recovery/recovery.worker.js';
+import { NotificationPushWorker } from '../../src/modules/notifications/notification-push.worker.js';
+import type { NotificationPushRepository } from '../../src/modules/notifications/notification-push.repository.js';
+import type { FirebaseAdminService } from '../../src/common/services/firebase-admin.service.js';
+import { superviseWorkers } from '../../src/worker.js';
 import { workerConfigurationSchema } from '../../src/config/worker-options.js';
 import { PaymentVerificationService } from '../../src/modules/payments/payment-verification.service.js';
 import { OrderService } from '../../src/modules/orders/order.service.js';
@@ -126,16 +130,44 @@ async function inventory() {
 async function dueAgain(id: string) {
   await testPrisma.$executeRaw`UPDATE "RecoveryJob" SET "availableAt" = clock_timestamp() - interval '1 second' WHERE "id"=${id}`;
 }
+async function replacePaymentFixture(overrides: {
+  provider?: 'NONE' | 'MYFATOORAH';
+  method?: 'CARD' | 'CASH_ON_DELIVERY';
+  initiationState?: 'NOT_STARTED' | 'IN_PROGRESS' | 'INITIATED' | 'UNKNOWN';
+  providerPaymentId?: string | null;
+  staleHours?: number;
+}) {
+  const existing = await testPrisma.payment.findUniqueOrThrow({
+    where: { id: paymentId },
+  });
+  await testPrisma.payment.delete({ where: { id: paymentId } });
+  const created = await testPrisma.payment.create({
+    data: {
+      orderId: existing.orderId,
+      provider: overrides.provider ?? existing.provider,
+      method: overrides.method ?? existing.method,
+      status: existing.status,
+      amount: existing.amount,
+      currency: existing.currency,
+      initiationState: overrides.initiationState ?? existing.initiationState,
+      providerPaymentId:
+        overrides.providerPaymentId === undefined
+          ? existing.providerPaymentId
+          : overrides.providerPaymentId,
+    },
+  });
+  paymentId = created.id;
+  if (overrides.staleHours) {
+    await testPrisma.$executeRaw`UPDATE "Payment" SET "updatedAt"=(clock_timestamp() AT TIME ZONE 'UTC') - (${overrides.staleHours} * interval '1 hour') WHERE "id"=${paymentId}`;
+  }
+}
 async function expired(provider: 'NONE' | 'MYFATOORAH' = 'NONE') {
   await testPrisma.$executeRaw`UPDATE "Order" SET "reservationExpiresAt" = clock_timestamp() - interval '1 second' WHERE "id"=${orderId}`;
-  await testPrisma.payment.update({
-    where: { id: paymentId },
-    data: {
-      provider,
-      initiationState: 'NOT_STARTED',
-      providerPaymentId: null,
-      method: 'CARD',
-    },
+  await replacePaymentFixture({
+    provider,
+    initiationState: 'NOT_STARTED',
+    providerPaymentId: null,
+    method: 'CARD',
   });
 }
 async function webhook() {
@@ -383,14 +415,11 @@ describe('PostgreSQL recovery worker', () => {
     expect((await inventory()).reservedQuantity).toBe(1);
   });
   it('does not infer an expiry for legacy or COD orders', async () => {
-    await testPrisma.payment.update({
-      where: { id: paymentId },
-      data: {
-        provider: 'NONE',
-        method: 'CASH_ON_DELIVERY',
-        initiationState: 'NOT_STARTED',
-        providerPaymentId: null,
-      },
+    await replacePaymentFixture({
+      provider: 'NONE',
+      method: 'CASH_ON_DELIVERY',
+      initiationState: 'NOT_STARTED',
+      providerPaymentId: null,
     });
     expect(await repository.enqueue(10)).toBe(0);
     expect((await inventory()).reservedQuantity).toBe(1);
@@ -417,9 +446,9 @@ describe('PostgreSQL recovery worker', () => {
     expect((await stored()).status).toBe('PENDING');
   });
   it('preserves UNKNOWN without an invoice and flags manual intervention', async () => {
-    await testPrisma.payment.update({
-      where: { id: paymentId },
-      data: { initiationState: 'UNKNOWN', providerPaymentId: null },
+    await replacePaymentFixture({
+      initiationState: 'UNKNOWN',
+      providerPaymentId: null,
     });
     expect(await service.process(await claim())).toBe('MANUAL');
     expect((await stored()).initiationState).toBe('UNKNOWN');
@@ -526,9 +555,9 @@ describe('PostgreSQL recovery worker', () => {
   it.each(['rejected', 'timeout'])(
     'persists %s initiation outcome for manual recovery without a second invoice',
     async (kind) => {
-      await testPrisma.payment.update({
-        where: { id: paymentId },
-        data: { initiationState: 'NOT_STARTED', providerPaymentId: null },
+      await replacePaymentFixture({
+        initiationState: 'NOT_STARTED',
+        providerPaymentId: null,
       });
       if (kind === 'timeout')
         vi.mocked(fetch).mockRejectedValue(
@@ -763,21 +792,31 @@ describe('PostgreSQL recovery worker', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
   it('keeps fresh initiation claims pending instead of retrying invoice creation', async () => {
-    await testPrisma.payment.update({
-      where: { id: paymentId },
-      data: { initiationState: 'IN_PROGRESS', providerPaymentId: null },
+    await replacePaymentFixture({
+      initiationState: 'IN_PROGRESS',
+      providerPaymentId: null,
     });
     expect(await service.process(await claim())).toBe('RETRY');
     expect(fetch).not.toHaveBeenCalled();
   });
   it('moves stale non-idempotent creation to UNKNOWN/manual without another create', async () => {
-    await testPrisma.$executeRaw`UPDATE "Payment" SET "initiationState"='IN_PROGRESS',"providerPaymentId"=NULL,"updatedAt"=(clock_timestamp() AT TIME ZONE 'UTC')-interval '1 hour' WHERE "id"=${paymentId}`;
+    await replacePaymentFixture({
+      initiationState: 'IN_PROGRESS',
+      providerPaymentId: null,
+      staleHours: 1,
+    });
     expect(await service.process(await claim())).toBe('MANUAL');
     expect((await stored()).initiationState).toBe('UNKNOWN');
     expect(fetch).not.toHaveBeenCalled();
   });
   it('recovers stale local NONE initiation idempotently', async () => {
-    await testPrisma.$executeRaw`UPDATE "Payment" SET "provider"='NONE',"method"='CASH_ON_DELIVERY',"initiationState"='IN_PROGRESS',"providerPaymentId"=NULL,"updatedAt"=(clock_timestamp() AT TIME ZONE 'UTC')-interval '1 hour' WHERE "id"=${paymentId}`;
+    await replacePaymentFixture({
+      provider: 'NONE',
+      method: 'CASH_ON_DELIVERY',
+      initiationState: 'IN_PROGRESS',
+      providerPaymentId: null,
+      staleHours: 1,
+    });
     expect(await service.process(await claim())).toBe('LOCAL_RECOVERED');
     expect((await stored()).initiationState).toBe('INITIATED');
     expect((await inventory()).reservedQuantity).toBe(1);
@@ -841,17 +880,26 @@ describe('PostgreSQL recovery worker', () => {
     expect((await stored()).status).toBe('PENDING');
     expect((await inventory()).reservedQuantity).toBe(1);
   });
+  const sanitizedWorkerEnv = (overrides: Record<string, string>) => ({
+    ...process.env,
+    // Explicit empty strings prevent dotenv/config in the child from reloading .env Firebase credentials.
+    GOOGLE_APPLICATION_CREDENTIALS: '',
+    FIREBASE_PROJECT_ID: '',
+    FIREBASE_CLIENT_EMAIL: '',
+    FIREBASE_PRIVATE_KEY: '',
+    ...overrides,
+  });
+
   it('rejects unsafe worker configuration without opening an HTTP listener', async () => {
     const child = spawn(
       process.execPath,
       ['--import', 'tsx', 'src/worker.ts'],
       {
-        env: {
-          ...process.env,
+        env: sanitizedWorkerEnv({
           PAYMENT_PROVIDER: 'NONE',
           WORKER_CONCURRENCY: '2',
           DB_POOL_MAX: '1',
-        },
+        }),
         stdio: ['ignore', 'pipe', 'pipe'],
       },
     );
@@ -909,39 +957,214 @@ describe('PostgreSQL recovery worker', () => {
       await testPrisma.order.deleteMany({ where: { id: { in: extraIds } } });
     }
   });
-  it('supports standalone SIGTERM shutdown without MyFatoorah credentials', async () => {
-    await testPrisma.payment.update({
-      where: { id: paymentId },
-      data: {
-        provider: 'NONE',
-        initiationState: 'NOT_STARTED',
-        providerPaymentId: null,
-      },
+  it('supports standalone SIGTERM shutdown without MyFatoorah credentials or live Firebase initialization', async () => {
+    await replacePaymentFixture({
+      provider: 'NONE',
+      initiationState: 'NOT_STARTED',
+      providerPaymentId: null,
     });
     const child = spawn(
       process.execPath,
       ['--import', 'tsx', 'src/worker.ts'],
       {
-        env: {
-          ...process.env,
+        env: sanitizedWorkerEnv({
           PAYMENT_PROVIDER: 'NONE',
           WORKER_CONCURRENCY: '1',
           DB_POOL_MAX: '3',
-        },
+        }),
         stdio: ['ignore', 'pipe', 'pipe'],
       },
     );
     let output = '';
+    let signaledAt: number | null = null;
     child.stdout.on('data', (data: Buffer) => {
       output += data.toString();
-      if (output.includes('Recovery worker ready')) child.kill('SIGTERM');
+      if (signaledAt === null && output.includes('Background workers ready')) {
+        signaledAt = Date.now();
+        child.kill('SIGTERM');
+      }
     });
     try {
       const [code] = await once(child, 'exit');
+      const shutdownElapsedMs = signaledAt === null ? -1 : Date.now() - signaledAt;
+      expect(signaledAt).not.toBeNull();
       expect(code).toBe(0);
+      expect(shutdownElapsedMs).toBeLessThan(1500);
+      expect(output).toContain('Background workers ready');
+      expect(output).toContain('Recovery worker draining');
+      expect(output).toContain('NotificationPushWorker loop stopped');
       expect(output).toContain('Recovery worker stopped');
+      expect(output).toContain(
+        'Firebase credentials omitted. Push notification dispatch will run in Dry-Run mode.',
+      );
+      expect(output).not.toContain('Firebase Admin SDK initialized successfully');
     } finally {
       if (child.exitCode === null) child.kill('SIGKILL');
     }
+  });
+  it('supports standalone SIGINT graceful shutdown cleanly without live Firebase initialization', async () => {
+    const child = spawn(
+      process.execPath,
+      ['--import', 'tsx', 'src/worker.ts'],
+      {
+        env: sanitizedWorkerEnv({
+          PAYMENT_PROVIDER: 'NONE',
+          WORKER_CONCURRENCY: '1',
+          DB_POOL_MAX: '3',
+        }),
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
+    );
+    let output = '';
+    let signaledAt: number | null = null;
+    child.stdout.on('data', (data: Buffer) => {
+      output += data.toString();
+      if (signaledAt === null && output.includes('Background workers ready')) {
+        signaledAt = Date.now();
+        child.kill('SIGINT');
+      }
+    });
+    try {
+      const [code] = await once(child, 'exit');
+      const shutdownElapsedMs = signaledAt === null ? -1 : Date.now() - signaledAt;
+      expect(signaledAt).not.toBeNull();
+      expect(code).toBe(0);
+      expect(shutdownElapsedMs).toBeLessThan(1500);
+      expect(output).toContain('Recovery worker stopped');
+      expect(output).not.toContain('Firebase Admin SDK initialized successfully');
+    } finally {
+      if (child.exitCode === null) child.kill('SIGKILL');
+    }
+  });
+  it('wakes NotificationPushWorker immediately on AbortSignal without waiting for idle polling interval', async () => {
+    const stubRepo = {
+      claimJobs: vi.fn().mockResolvedValue([]),
+    } as unknown as NotificationPushRepository;
+    const stubFirebase = {} as unknown as FirebaseAdminService;
+    const worker = new NotificationPushWorker(stubRepo, stubFirebase);
+    const controller = new AbortController();
+
+    const running = worker.run(controller.signal);
+    await new Promise((res) => setTimeout(res, 50));
+    const abortedAt = Date.now();
+    controller.abort();
+    await running;
+
+    expect(Date.now() - abortedAt).toBeLessThan(500);
+  });
+  it('supervises workers fail-fast on crash or premature silent exit and preserves graceful exit code 0', async () => {
+    // 1. RecoveryWorker throws -> aborts NotificationPushWorker once and marks failed
+    const crashController = new AbortController();
+    const pushAborted = deferred<void>();
+    const unexpectedReasons: string[] = [];
+    const crashResult = await superviseWorkers(
+      [
+        {
+          name: 'RecoveryWorker',
+          crashCategory: 'RECOVERY_WORKER_CRASH',
+          run: async () => {
+            throw new Error('simulated recovery failure');
+          },
+        },
+        {
+          name: 'NotificationPushWorker',
+          crashCategory: 'PUSH_WORKER_CRASH',
+          run: async (signal) => {
+            await new Promise<void>((resolve) => {
+              if (signal.aborted) {
+                pushAborted.resolve();
+                resolve();
+                return;
+              }
+              signal.addEventListener(
+                'abort',
+                () => {
+                  pushAborted.resolve();
+                  resolve();
+                },
+                { once: true },
+              );
+            });
+          },
+        },
+      ],
+      crashController,
+      (reason) => {
+        unexpectedReasons.push(reason);
+        crashController.abort();
+      },
+    );
+    await pushAborted.promise;
+    expect(crashResult.failed).toBe(true);
+    expect(unexpectedReasons).toEqual(['RECOVERY_WORKER_CRASH']);
+
+    // 2. NotificationPushWorker exits prematurely without throwing -> treated as failure, no false-success
+    const prematureController = new AbortController();
+    const prematureReasons: string[] = [];
+    const prematureResult = await superviseWorkers(
+      [
+        {
+          name: 'RecoveryWorker',
+          crashCategory: 'RECOVERY_WORKER_CRASH',
+          run: async (signal) => {
+            await new Promise<void>((resolve) => {
+              if (signal.aborted) {
+                resolve();
+                return;
+              }
+              signal.addEventListener('abort', () => resolve(), { once: true });
+            });
+          },
+        },
+        {
+          name: 'NotificationPushWorker',
+          crashCategory: 'PUSH_WORKER_CRASH',
+          run: async () => {
+            // Unexpected silent exit while signal is not aborted
+          },
+        },
+      ],
+      prematureController,
+      (reason) => {
+        prematureReasons.push(reason);
+        prematureController.abort();
+      },
+    );
+    expect(prematureResult.failed).toBe(true);
+    expect(prematureReasons).toEqual(['PUSH_WORKER_CRASH_EXITED']);
+
+    // 3. Graceful abort -> failed=false, onUnexpectedExit never called
+    const gracefulController = new AbortController();
+    const gracefulReasons: string[] = [];
+    const gracefulRun = superviseWorkers(
+      [
+        {
+          name: 'RecoveryWorker',
+          crashCategory: 'RECOVERY_WORKER_CRASH',
+          run: async (signal) => {
+            await new Promise<void>((resolve) => {
+              signal.addEventListener('abort', () => resolve(), { once: true });
+            });
+          },
+        },
+        {
+          name: 'NotificationPushWorker',
+          crashCategory: 'PUSH_WORKER_CRASH',
+          run: async (signal) => {
+            await new Promise<void>((resolve) => {
+              signal.addEventListener('abort', () => resolve(), { once: true });
+            });
+          },
+        },
+      ],
+      gracefulController,
+      (reason) => {
+        gracefulReasons.push(reason);
+      },
+    );
+    gracefulController.abort();
+    const gracefulResult = await gracefulRun;
+    expect(gracefulResult.failed).toBe(false);
+    expect(gracefulReasons).toEqual([]);
   });
 });

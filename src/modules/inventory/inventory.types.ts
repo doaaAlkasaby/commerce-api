@@ -24,34 +24,26 @@ export interface AdjustmentInput {
   referenceId?: string;
 }
 
-export interface ReservationInput {
-  quantity: number;
-  referenceId: string;
-  reason?: string;
-}
-
-export interface ReleaseInput {
-  quantity: number;
-  referenceId: string;
-  reason?: string;
-}
-
-export interface SaleInput {
-  quantity: number;
-  referenceId: string;
-  reason?: string;
-}
-
 export interface InventoryListQuery {
   warehouseId?: string;
   page: number;
   limit: number;
   variantId?: string;
+  search?: string;
   lowStock?: number;
+}
+
+export interface InventoryWarehouseSummary {
+  id: string;
+  code: string;
+  name: string;
+  isActive: boolean;
+  isDefault: boolean;
 }
 
 export interface InventoryResponse {
   warehouseId: string;
+  warehouse: InventoryWarehouseSummary;
   id: string;
   variantId: string;
 
@@ -75,6 +67,7 @@ export interface InventoryResponse {
       name: string;
       slug: string;
       status: string;
+      thumbnailUrl: string | null;
     };
 
     attributes: Array<{

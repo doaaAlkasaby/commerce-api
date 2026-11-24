@@ -80,6 +80,9 @@ model User {
 
   tenantMemberships TenantMember[]
 
+  requestedPaymentRefunds PaymentRefund[] @relation("PaymentRefundRequestedBy")
+  resolvedPaymentRefundConflicts PaymentRefundConflictAudit[] @relation("PaymentRefundConflictResolvedBy")
+
 }
 
 model EmailVerificationToken {
@@ -621,6 +624,10 @@ model Order {
 
   checkoutRequests CheckoutRequest[]
 
+  paymentRefunds PaymentRefund[]
+  paymentRefundConflicts PaymentRefundConflictAudit[]
+  refundWebhookEvents MyFatoorahRefundWebhookEvent[]
+
   @@unique([tenantId, id])
   @@index([status, reservationExpiresAt])
   @@index([tenantId])
@@ -749,6 +756,9 @@ model Payment {
   providerPaymentId     String?
   providerTransactionId String?
 
+  providerAccountId   String?
+  providerEnvironment PaymentProviderEnvironment?
+
   failureCode    String?
   failureMessage String?
 
@@ -758,12 +768,20 @@ model Payment {
   updatedAt DateTime @updatedAt
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  providerAccount PaymentProviderAccount? @relation(fields: [providerAccountId, provider, providerEnvironment], references: [id, provider, environment], onDelete: Restrict, onUpdate: Restrict)
   reconciliationRequired Boolean @default(false)
   reconciliationReason String?
+  reconciliationFlaggedAt DateTime? @db.Timestamptz(3)
   myFatoorahInvoice MyFatoorahInvoice?
   myFatoorahEvents MyFatoorahWebhookEvent[]
+  refunds PaymentRefund[]
+  refundConflicts PaymentRefundConflictAudit[]
+  refundWebhookEvents MyFatoorahRefundWebhookEvent[]
 
+  @@unique([orderId, id])
+  @@unique([orderId, id, providerAccountId, providerEnvironment])
   @@index([provider, status, initiationState])
+  @@index([providerAccountId, providerEnvironment, providerPaymentId])
   @@index([orderId])
   @@index([status])
   @@index([provider])
@@ -1412,6 +1430,14 @@ model Tenant {
 
   notifications Notification[]
 
+  paymentRefunds PaymentRefund[]
+  ownedProviderAccounts PaymentProviderAccount[] @relation("PaymentProviderAccountOwner")
+  authorizedProviderAccounts PaymentProviderAccountTenant[]
+  paymentRefundAttempts PaymentRefundAttempt[]
+  paymentRefundRecoveryJobs PaymentRefundRecoveryJob[]
+  myFatoorahRefundWebhookEvents MyFatoorahRefundWebhookEvent[]
+  paymentRefundConflicts PaymentRefundConflictAudit[]
+
   @@index([status])
   @@index([status, isPubliclyListed])
   @@index([defaultCountryCode])
@@ -1502,8 +1528,13 @@ enum GatewayEventState {
 model MyFatoorahInvoice {
   paymentId String @id
   invoiceId String @unique
+  providerAccountId   String?
+  providerEnvironment PaymentProviderEnvironment?
   createdAt DateTime @default(now())
-  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  providerAccount PaymentProviderAccount? @relation(fields: [providerAccountId, providerEnvironment], references: [id, environment], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([providerAccountId, providerEnvironment, invoiceId])
 }
 
 model MyFatoorahWebhookEvent {
@@ -1554,6 +1585,413 @@ model RateLimitBucket {
   hits Int
   resetAt DateTime @db.Timestamptz(3)
   @@index([resetAt])
+}
+
+enum PaymentProviderEnvironment {
+  MOCK
+  SANDBOX
+  PRODUCTION
+}
+
+enum PaymentProviderAccountOwnership {
+  TENANT_DEDICATED
+  PLATFORM_SHARED
+}
+
+enum PaymentProviderAccountStatus {
+  INACTIVE
+  ACTIVE
+  ROTATING
+  SUSPENDED
+  RETIRED
+}
+
+model PaymentProviderAccount {
+  id String @id @default(uuid())
+
+  provider             PaymentProvider
+  environment          PaymentProviderEnvironment
+  accountKey           String
+  providerMerchantCode String?
+  ownershipMode        PaymentProviderAccountOwnership @default(TENANT_DEDICATED)
+  ownerTenantId        String?
+
+  countryCode String
+  currency    String
+  status      PaymentProviderAccountStatus @default(INACTIVE)
+
+  // Non-secret logical pointer (e.g. env var name or secret manager path). Never store raw tokens/secrets.
+  credentialRef       String?
+  credentialVersion   Int       @default(1)
+  credentialRotatedAt DateTime? @db.Timestamptz(3)
+  activatedAt         DateTime? @db.Timestamptz(3)
+  retiredAt           DateTime? @db.Timestamptz(3)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  ownerTenant          Tenant?                        @relation("PaymentProviderAccountOwner", fields: [ownerTenantId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  tenantAuthorizations PaymentProviderAccountTenant[]
+  payments             Payment[]
+  myFatoorahInvoices   MyFatoorahInvoice[]
+  refundAttempts       PaymentRefundAttempt[]
+  refundRecoveryJobs   PaymentRefundRecoveryJob[]
+  refundWebhookEvents  MyFatoorahRefundWebhookEvent[]
+  refundConflicts      PaymentRefundConflictAudit[]
+
+  @@unique([provider, environment, accountKey])
+  @@unique([id, environment])
+  @@unique([id, provider, environment])
+  @@index([provider, environment, status])
+  @@index([ownerTenantId])
+}
+
+model PaymentProviderAccountTenant {
+  tenantId          String
+  providerAccountId String
+  provider          PaymentProvider
+  environment       PaymentProviderEnvironment
+  isActive          Boolean                    @default(true)
+  authorizedAt      DateTime                   @default(now()) @db.Timestamptz(3)
+  revokedAt         DateTime?                  @db.Timestamptz(3)
+
+  tenant          Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  providerAccount PaymentProviderAccount @relation(fields: [providerAccountId, provider, environment], references: [id, provider, environment], onDelete: Restrict, onUpdate: Restrict)
+  paymentRefunds  PaymentRefund[]
+
+  @@id([tenantId, providerAccountId])
+  @@unique([tenantId, providerAccountId, provider, environment])
+  @@index([providerAccountId, isActive])
+  @@index([tenantId, provider, environment, isActive])
+}
+
+enum PaymentRefundStatus {
+  REQUESTED
+  SUBMITTED
+  PENDING
+  SUCCEEDED
+  FAILED
+  RECONCILIATION_REQUIRED
+}
+
+model PaymentRefund {
+  id String @id @default(uuid())
+
+  tenantId  String
+  paymentId String
+  orderId   String
+
+  provider            PaymentProvider
+  method              PaymentMethod
+  providerAccountId   String?
+  providerEnvironment PaymentProviderEnvironment?
+
+  amount   Decimal @db.Decimal(14, 4)
+  currency String
+
+  status PaymentRefundStatus @default(REQUESTED)
+
+  idempotencyKey     String
+  requestFingerprint String
+
+  providerRefundId        String?
+  providerRefundReference String?
+  providerRefundInvoiceId String?
+
+  reason            String
+  requestedByUserId String
+
+  providerMetadata Json?
+
+  failureCode          String?
+  failureMessage       String?
+  reconciliationReason String?
+
+  requestedAt DateTime  @default(now()) @db.Timestamptz(3)
+  submittedAt DateTime? @db.Timestamptz(3)
+  completedAt DateTime? @db.Timestamptz(3)
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @db.Timestamptz(3)
+
+  tenant                  Tenant                        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  order                   Order                         @relation(fields: [tenantId, orderId], references: [tenantId, id], onDelete: Restrict)
+  payment                 Payment                       @relation(fields: [orderId, paymentId], references: [orderId, id], onDelete: Restrict)
+  requestedBy             User                          @relation("PaymentRefundRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  authorizedTenantAccount PaymentProviderAccountTenant? @relation(fields: [tenantId, providerAccountId, provider, providerEnvironment], references: [tenantId, providerAccountId, provider, environment], onDelete: Restrict, onUpdate: Restrict)
+
+  attempts      PaymentRefundAttempt[]
+  recoveryJobs  PaymentRefundRecoveryJob[]
+  webhookEvents MyFatoorahRefundWebhookEvent[]
+  conflicts     PaymentRefundConflictAudit[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, orderId, paymentId, id])
+  @@unique([tenantId, paymentId, idempotencyKey])
+  @@index([tenantId, paymentId, status])
+  @@index([tenantId, orderId, createdAt])
+  @@index([providerAccountId, providerEnvironment, status])
+  @@index([providerRefundInvoiceId])
+  @@index([status, updatedAt])
+  @@index([requestedByUserId])
+}
+
+enum PaymentRefundAttemptOperation {
+  SUBMIT_REFUND
+  LOOKUP_STATUS
+  RECONCILE
+}
+
+enum PaymentRefundAttemptState {
+  PREPARED
+  DISPATCHING
+  SUCCEEDED
+  DEFINITIVELY_FAILED
+  AMBIGUOUS
+  ABANDONED
+}
+
+model PaymentRefundAttempt {
+  id String @id @default(uuid())
+
+  tenantId  String
+  paymentId String
+  orderId   String
+  refundId  String
+
+  provider            PaymentProvider
+  providerAccountId   String?
+  providerEnvironment PaymentProviderEnvironment?
+
+  attemptNumber Int
+  operation     PaymentRefundAttemptOperation
+  state         PaymentRefundAttemptState     @default(PREPARED)
+
+  correlationId      String
+  requestFingerprint String
+
+  dispatchOwner String?
+  fencingToken  String?
+  leaseUntil    DateTime? @db.Timestamptz(3)
+
+  dispatchedAt DateTime? @db.Timestamptz(3)
+  completedAt  DateTime? @db.Timestamptz(3)
+
+  providerHttpStatus        Int?
+  providerRefundId          String?
+  providerRefundReference   String?
+  providerRefundInvoiceId   String?
+  sanitizedResponseMetadata Json?
+
+  failureClassification String?
+  failureCode           String?
+  reconciliationReason  String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  tenant          Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  refund          PaymentRefund           @relation(fields: [tenantId, orderId, paymentId, refundId], references: [tenantId, orderId, paymentId, id], onDelete: Restrict, onUpdate: Restrict)
+  providerAccount PaymentProviderAccount? @relation(fields: [providerAccountId, provider, providerEnvironment], references: [id, provider, environment], onDelete: Restrict, onUpdate: Restrict)
+  conflicts       PaymentRefundConflictAudit[]
+
+  @@unique([refundId, attemptNumber])
+  @@index([tenantId, refundId, createdAt])
+  @@index([refundId, operation, state])
+  @@index([state, leaseUntil])
+  @@index([correlationId])
+}
+
+enum PaymentRefundRecoveryOperation {
+  RECONCILE_SUBMISSION
+  POLL_REFUND_STATUS
+  MANUAL_REVIEW
+}
+
+enum PaymentRefundRecoveryJobState {
+  READY
+  RUNNING
+  COMPLETED
+  MANUAL
+  CANCELLED
+}
+
+model PaymentRefundRecoveryJob {
+  id String @id @default(uuid())
+
+  tenantId String
+  refundId String
+
+  provider            PaymentProvider
+  providerAccountId   String?
+  providerEnvironment PaymentProviderEnvironment?
+
+  operation PaymentRefundRecoveryOperation @default(POLL_REFUND_STATUS)
+  state     PaymentRefundRecoveryJobState  @default(READY)
+
+  attempts       Int       @default(0)
+  nextRunAt      DateTime  @default(now()) @db.Timestamptz(3)
+  leaseOwner     String?
+  leaseUntil     DateTime? @db.Timestamptz(3)
+  fencingVersion Int       @default(0)
+
+  lastErrorCode        String?
+  lastErrorMessage     String?
+  reconciliationReason String?
+  completedAt          DateTime? @db.Timestamptz(3)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  tenant          Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  refund          PaymentRefund           @relation(fields: [tenantId, refundId], references: [tenantId, id], onDelete: Restrict, onUpdate: Restrict)
+  providerAccount PaymentProviderAccount? @relation(fields: [providerAccountId, provider, providerEnvironment], references: [id, provider, environment], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([state, nextRunAt])
+  @@index([state, leaseUntil])
+  @@index([tenantId, state])
+  @@index([refundId, createdAt])
+}
+
+enum WebhookSignatureStatus {
+  VALID
+  INVALID
+  MISSING
+  UNVERIFIED_ACCOUNT
+}
+
+enum RefundWebhookEventState {
+  RECEIVED
+  PROCESSED
+  DUPLICATE
+  QUARANTINED_UNKNOWN_REFUND
+  QUARANTINED_CONFLICT
+  REJECTED_SIGNATURE
+}
+
+model MyFatoorahRefundWebhookEvent {
+  id String @id @default(uuid())
+
+  provider            PaymentProvider             @default(MYFATOORAH)
+  providerAccountId   String?
+  providerEnvironment PaymentProviderEnvironment?
+
+  tenantId  String?
+  paymentId String?
+  orderId   String?
+  refundId  String?
+
+  eventCode          Int
+  eventName          String
+  eventReference     String
+  payloadFingerprint String
+
+  referencedInvoiceId     String?
+  providerRefundId        String?
+  providerRefundReference String?
+  providerRefundInvoiceId String?
+  providerStatus          String?
+
+  signatureStatus  WebhookSignatureStatus
+  state            RefundWebhookEventState @default(RECEIVED)
+  conflictReason   String?
+  sanitizedPayload Json?
+
+  receivedAt  DateTime  @default(now()) @db.Timestamptz(3)
+  processedAt DateTime? @db.Timestamptz(3)
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @db.Timestamptz(3)
+
+  tenant          Tenant?                 @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  order           Order?                  @relation(fields: [tenantId, orderId], references: [tenantId, id], onDelete: Restrict, onUpdate: Restrict)
+  payment         Payment?                @relation(fields: [orderId, paymentId], references: [orderId, id], onDelete: Restrict, onUpdate: Restrict)
+  refund          PaymentRefund?          @relation(fields: [tenantId, orderId, paymentId, refundId], references: [tenantId, orderId, paymentId, id], onDelete: Restrict, onUpdate: Restrict)
+  providerAccount PaymentProviderAccount? @relation(fields: [providerAccountId, provider, providerEnvironment], references: [id, provider, environment], onDelete: Restrict, onUpdate: Restrict)
+  conflicts       PaymentRefundConflictAudit[]
+
+  @@index([eventReference])
+  @@index([providerAccountId, providerEnvironment, eventReference])
+  @@index([providerRefundId])
+  @@index([tenantId, orderId, paymentId])
+  @@index([refundId, receivedAt])
+  @@index([state, receivedAt])
+  @@index([tenantId, state, receivedAt])
+}
+
+enum PaymentRefundConflictSource {
+  PROVIDER_SUBMISSION
+  PROVIDER_STATUS_LOOKUP
+  WEBHOOK
+  INTERNAL_RECONCILIATION
+}
+
+enum PaymentRefundConflictType {
+  TERMINAL_STATE_CONTRADICTION
+  PROVIDER_IDENTIFIER_CONFLICT
+  FINANCIAL_EVIDENCE_MISMATCH
+  ACCOUNT_ENVIRONMENT_MISMATCH
+  LEGACY_UNRESOLVED_ACCOUNT
+  UNKNOWN_EXTERNAL_REFUND
+  DUPLICATE_EXTERNAL_REFERENCE
+  AMBIGUOUS_PROVIDER_OUTCOME
+}
+
+enum PaymentRefundConflictResolutionState {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+model PaymentRefundConflictAudit {
+  id String @id @default(uuid())
+
+  tenantId       String?
+  paymentId      String?
+  orderId        String?
+  refundId       String?
+  attemptId      String?
+  webhookEventId String?
+
+  provider            PaymentProvider
+  providerAccountId   String?
+  providerEnvironment PaymentProviderEnvironment?
+
+  source          PaymentRefundConflictSource
+  conflictType    PaymentRefundConflictType
+  resolutionState PaymentRefundConflictResolutionState @default(OPEN)
+
+  expectedRefundStatus    PaymentRefundStatus?
+  observedExternalStatus  String?
+  expectedAmount          Decimal? @db.Decimal(14, 4)
+  observedAmount          Decimal? @db.Decimal(14, 4)
+  currency                String?
+  providerRefundId        String?
+  providerRefundReference String?
+
+  summary          String
+  sanitizedDetails Json?
+
+  detectedAt       DateTime  @default(now()) @db.Timestamptz(3)
+  resolvedAt       DateTime? @db.Timestamptz(3)
+  resolvedByUserId String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  tenant          Tenant?                       @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  order           Order?                        @relation(fields: [tenantId, orderId], references: [tenantId, id], onDelete: Restrict, onUpdate: Restrict)
+  payment         Payment?                      @relation(fields: [orderId, paymentId], references: [orderId, id], onDelete: Restrict, onUpdate: Restrict)
+  refund          PaymentRefund?                @relation(fields: [tenantId, orderId, paymentId, refundId], references: [tenantId, orderId, paymentId, id], onDelete: Restrict, onUpdate: Restrict)
+  attempt         PaymentRefundAttempt?         @relation(fields: [attemptId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  webhookEvent    MyFatoorahRefundWebhookEvent? @relation(fields: [webhookEventId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  providerAccount PaymentProviderAccount?       @relation(fields: [providerAccountId, provider, providerEnvironment], references: [id, provider, environment], onDelete: Restrict, onUpdate: Restrict)
+  resolvedBy      User?                         @relation("PaymentRefundConflictResolvedBy", fields: [resolvedByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([resolutionState, detectedAt])
+  @@index([tenantId, resolutionState, detectedAt])
+  @@index([tenantId, orderId, paymentId])
+  @@index([refundId, detectedAt])
+  @@index([providerAccountId, conflictType, detectedAt])
 }
 
 model PasswordChangeRequest {

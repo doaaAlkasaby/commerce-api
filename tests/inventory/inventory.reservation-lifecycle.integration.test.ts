@@ -165,7 +165,7 @@ suite('inventory reservation lifecycle against PostgreSQL', () => {
     const payment = await testPrisma.payment.create({
       data: {
         orderId: order.id,
-        provider: PaymentProvider.NONE,
+        provider: PaymentProvider.MYFATOORAH,
         method: PaymentMethod.CARD,
         status: PaymentStatus.PENDING,
         amount: 10 * quantity,
@@ -200,9 +200,19 @@ suite('inventory reservation lifecycle against PostgreSQL', () => {
 
   it('commits a successful payment as a sale and clears the reservation', async () => {
     const { payment } = await createReservedOrder();
-    await payments.updatePaymentStatus(tenantId, payment.id, {
-      status: PaymentStatus.PAID,
-    });
+    await payments.applyTrustedPaymentStatus(
+      tenantId,
+      payment.id,
+      {
+        status: PaymentStatus.PAID,
+        providerPaymentId: `inv-${payment.id}`,
+      },
+      {
+        kind: 'PROVIDER_VERIFICATION',
+        provider: PaymentProvider.MYFATOORAH,
+        providerPaymentId: `inv-${payment.id}`,
+      },
+    );
     const inventory = await testPrisma.inventory.findUniqueOrThrow({
       where: { id: inventoryId },
     });
@@ -316,9 +326,19 @@ suite('inventory reservation lifecycle against PostgreSQL', () => {
 
   it('rejects cancellation of a paid order without releasing sold inventory', async () => {
     const { payment } = await createReservedOrder();
-    await payments.updatePaymentStatus(tenantId, payment.id, {
-      status: PaymentStatus.PAID,
-    });
+    await payments.applyTrustedPaymentStatus(
+      tenantId,
+      payment.id,
+      {
+        status: PaymentStatus.PAID,
+        providerPaymentId: `inv-${payment.id}`,
+      },
+      {
+        kind: 'PROVIDER_VERIFICATION',
+        provider: PaymentProvider.MYFATOORAH,
+        providerPaymentId: `inv-${payment.id}`,
+      },
+    );
     await expect(
       orders.updateStatus(tenantId, orderId!, {
         status: OrderStatus.CANCELLED,

@@ -8,6 +8,15 @@ import { AppError } from '../../common/errors/app-error.js';
 type PrismaExecutor = PrismaClient | Prisma.TransactionClient;
 
 export const inventoryInclude = {
+  warehouse: {
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      isActive: true,
+      isDefault: true,
+    },
+  },
   variant: {
     include: {
       product: {
@@ -18,6 +27,15 @@ export const inventoryInclude = {
           slug: true,
           status: true,
           basePrice: true,
+          images: {
+            select: { url: true },
+            orderBy: [
+              { isPrimary: 'desc' as const },
+              { sortOrder: 'asc' as const },
+              { createdAt: 'asc' as const },
+            ],
+            take: 1,
+          },
         },
       },
 
@@ -199,15 +217,34 @@ export class InventoryRepository {
       page: number;
       limit: number;
       variantId?: string;
+      search?: string;
       lowStock?: number;
     },
   ) {
-    const { page, limit, variantId, lowStock, warehouseId } = params;
+    const { page, limit, variantId, search, lowStock, warehouseId } = params;
+    const trimmedSearch = search?.trim();
+
+    const variantFilter: Prisma.ProductVariantWhereInput = {
+      product: { tenantId },
+      ...(trimmedSearch
+        ? {
+            OR: [
+              { sku: { contains: trimmedSearch, mode: 'insensitive' } },
+              {
+                product: {
+                  tenantId,
+                  name: { contains: trimmedSearch, mode: 'insensitive' },
+                },
+              },
+            ],
+          }
+        : {}),
+    };
 
     const where: Prisma.InventoryWhereInput = {
       tenantId,
       ...(warehouseId ? { warehouseId } : {}),
-      variant: { product: { tenantId } },
+      variant: variantFilter,
     };
 
     if (variantId) {
@@ -218,17 +255,6 @@ export class InventoryRepository {
       where.quantity = {
         gte: 0,
       };
-
-      /*
-       * Prisma cannot express:
-       *
-       * quantity - reservedQuantity <= lowStock
-       *
-       * directly through the normal query builder.
-       *
-       * We therefore handle low-stock filtering
-       * separately below.
-       */
     }
 
     if (lowStock === undefined) {
@@ -254,17 +280,12 @@ export class InventoryRepository {
       };
     }
 
-    /*
-     * Low-stock requires a raw SQL query because
-     * available quantity is a calculated column.
-     *
-     * We first obtain matching inventory IDs.
-     */
     const ids = await this.findLowStockIds(
       tenantId,
       lowStock,
       variantId,
       warehouseId,
+      trimmedSearch,
     );
 
     const total = ids.length;
@@ -302,7 +323,9 @@ export class InventoryRepository {
     lowStock: number,
     variantId?: string,
     warehouseId?: string,
+    search?: string,
   ): Promise<string[]> {
+    const searchPattern = search ? `%${search}%` : null;
     if (variantId) {
       return this.prisma.$queryRaw<Array<{ id: string }>>`
         SELECT i."id"
@@ -311,6 +334,7 @@ export class InventoryRepository {
         JOIN "Product" p ON p."id" = pv."productId"
         WHERE i."variantId" = ${variantId}
           AND (${warehouseId ?? null}::text IS NULL OR i."warehouseId" = ${warehouseId ?? null})
+          AND (${searchPattern}::text IS NULL OR pv."sku" ILIKE ${searchPattern} OR p."name" ILIKE ${searchPattern})
           AND p."tenantId" = ${tenantId}
           AND (
             i."quantity" -
@@ -331,13 +355,14 @@ export class InventoryRepository {
       ) <= ${lowStock}
         AND p."tenantId" = ${tenantId}
         AND (${warehouseId ?? null}::text IS NULL OR i."warehouseId" = ${warehouseId ?? null})
+        AND (${searchPattern}::text IS NULL OR pv."sku" ILIKE ${searchPattern} OR p."name" ILIKE ${searchPattern})
       ORDER BY i."updatedAt" DESC
     `.then((rows) => rows.map((row) => row.id));
   }
 
   /*
    * --------------------------------------------------
-   * Atomic STOCK IN
+   * Atomic STOCK IN (with INT4 overflow guard)
    * --------------------------------------------------
    */
 
@@ -354,6 +379,7 @@ export class InventoryRepository {
         "updatedAt" = CURRENT_TIMESTAMP
       WHERE "id" = ${inventoryId}
         AND EXISTS (SELECT 1 FROM "ProductVariant" pv JOIN "Product" p ON p."id" = pv."productId" WHERE pv."id" = "Inventory"."variantId" AND p."tenantId" = ${tenantId})
+        AND ("quantity"::bigint + ${quantity}::bigint) <= 2147483647
     `;
   }
 
@@ -389,16 +415,7 @@ export class InventoryRepository {
 
   /*
    * --------------------------------------------------
-   * ADJUSTMENT
-   *
-   * Positive:
-   *   quantity increases
-   *
-   * Negative:
-   *   quantity decreases
-   *
-   * But quantity can never become less than
-   * reservedQuantity.
+   * ADJUSTMENT (with reserved floor & INT4 overflow guard)
    * --------------------------------------------------
    */
 
@@ -415,9 +432,8 @@ export class InventoryRepository {
         "updatedAt" = CURRENT_TIMESTAMP
       WHERE "id" = ${inventoryId}
         AND EXISTS (SELECT 1 FROM "ProductVariant" pv JOIN "Product" p ON p."id" = pv."productId" WHERE pv."id" = "Inventory"."variantId" AND p."tenantId" = ${tenantId})
-        AND (
-          "quantity" + ${quantity}
-        ) >= "reservedQuantity"
+        AND ("quantity"::bigint + ${quantity}::bigint) >= "reservedQuantity"::bigint
+        AND ("quantity"::bigint + ${quantity}::bigint) <= 2147483647
     `;
   }
 
@@ -556,6 +572,26 @@ export class InventoryRepository {
 
         reason: data.reason ?? null,
       },
+    });
+  }
+
+  async lockReference(inventoryId: string, referenceId: string): Promise<void> {
+    await this.prisma
+      .$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'inv-ref:' + inventoryId + ':' + referenceId}))`;
+  }
+
+  async findAnyTransactionByReference(
+    tenantId: string,
+    inventoryId: string,
+    referenceId: string,
+  ) {
+    return this.prisma.inventoryTransaction.findFirst({
+      where: {
+        inventoryId,
+        inventory: { variant: { product: { tenantId } } },
+        referenceId,
+      },
+      orderBy: { createdAt: 'asc' },
     });
   }
 

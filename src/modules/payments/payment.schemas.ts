@@ -70,11 +70,15 @@ export const paymentListQuerySchema = z.object({
     .optional(),
 });
 
-export const refundPaymentSchema = z.object({
-  amount: z
-    .string()
-    .regex(/^\d+(\.\d{1,4})?$/, 'Amount must be a valid monetary value')
-    .optional(),
-});
+export const refundPaymentSchema = z
+  .object({
+    amount: z
+      .string()
+      .regex(/^\d+(\.\d{1,4})?$/, 'Amount must be a valid monetary value')
+      .optional(),
+    idempotencyKey: z.string().trim().min(1).max(128).optional(),
+    reason: z.string().trim().min(1).max(500).optional(),
+  })
+  .strict();
 // Initiation accepts no client-supplied amounts, currency, status, or provider.
 export const initiatePaymentSchema = z.object({}).strict();

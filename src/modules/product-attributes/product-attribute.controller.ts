@@ -299,7 +299,7 @@ export class ProductAttributeController {
       }
 
       const previousStorageKey = previousValue.image?.storageKey;
-      if (previousStorageKey) {
+      if (previousStorageKey && previousStorageKey !== storedFile.storageKey) {
         await deleteUnreferencedStorageKey(previousStorageKey);
       }
 

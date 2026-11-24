@@ -1,0 +1,41 @@
+
+Public Test API Token Key:
+SK_KWT_vVZlnnAqu8jRByOWaRPNId4ShzEDNt256dvnjebuyzo52dXjAfRx2ixW5umjWSUx
+======================================================================================
+
+Running start isolated Sandbox API and initiate payment
+Timed 8s
+
+The isolated API is up on port `3199` against disposable DB `commerce_api_test_sandbox_7272d3acb0e74cf9bfebd3fd23c70d3a` (`firebaseLiveInitCount: 0`, temporary token file removed from disk). Waiting a few seconds for the single `SendPayment` initiation result so I can display the Sandbox checkout URL.
+
+Analyzed task-3274.log:L1-48
+
+### Interactive Manual Payment Checkpoint — Ready for Your Sandbox Test Payment
+
+Live `POST https://apitest.myfatoorah.com/v2/SendPayment` **succeeded** (`HTTP 200`, `837ms`). All pre-payment assertions passed:
+
+- **Disposable DB**: `commerce_api_test_sandbox_7272d3acb0e74cf9bfebd3fd23c70d3a` (**kept running**)
+- **Isolated API**: `127.0.0.1:3199` (PID `10816`, **kept running**, `firebaseLiveInitCount: 0`, temp token file deleted from disk, `tokenLeakCount: 0`)
+- **Order ID**: `269dd651-c3c5-43f0-8bd4-c955da1b0bf3`
+- **Payment ID**: `f8059939-3dc8-4c39-9ff5-fe84af06a66d`
+- **Provider Invoice ID**: `7409703` (`MyFatoorahInvoice` bound)
+- **Amount / Currency**: `1.500 KWD`
+- **State Before Payment**: `Payment.status = REQUIRES_ACTION`, `initiationState = INITIATED`, `Order.paymentStatus = REQUIRES_ACTION`, `Inventory.quantity = 10`, `reservedQuantity = 1`, `SALE` transactions = `0` (`RESERVATION` = `1`)
+
+---
+
+### Official MyFatoorah **SANDBOX TEST-PAYMENT PAGE** (Do NOT Use a Real Card)
+
+- **Sandbox Hosted Checkout URL**: https://demo.MyFatoorah.com/KWT/ie/01072740970341-d3352d6e
+- **Official Test Cards Documentation**: https://docs.myfatoorah.com/ *(see the **Test Cards** guide — e.g., Kuwait Sandbox KNET or Visa/Mastercard test cards; **never enter a real card**)*
+
+---
+
+### What to Do Now
+
+1. Open the **Sandbox Test-Payment URL** above in your browser.
+2. Complete the `1.500 KWD` test payment using an official MyFatoorah **Sandbox test card**.
+3. Wait until MyFatoorah redirects your browser back to `https://demo.myfatoorah.com` (this redirect is UX-only and is never treated as payment proof).
+4. Reply **"paid"** (or **"cancelled"** / **"failed"** if you stopped or declined the attempt).
+
+**Paused** — the isolated API and disposable database will stay running until you reply. Once you confirm, I will immediately run authoritative `POST /api/v1/payments/f8059939-3dc8-4c39-9ff5-fe84af06a66d/verify` (`GetPaymentStatus`), idempotency & cross-tenant/cross-user isolation checks, full cleanup, and deliver the final Step 2B-2B report.

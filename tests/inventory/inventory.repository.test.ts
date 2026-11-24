@@ -91,7 +91,10 @@ describe('Inventory repository and transactional service', () => {
     });
   });
   it('stocks out only unreserved quantity', async () => {
-    await service.reserve(tenant.id, inventoryId, {
+    expect(await repository.reserve(tenant.id, inventoryId, 6)).toBe(1);
+    await repository.createTransaction(tenant.id, {
+      inventoryId,
+      type: 'RESERVATION',
       quantity: 6,
       referenceId: referenceId('stock-out-reservation'),
     });
@@ -105,7 +108,10 @@ describe('Inventory repository and transactional service', () => {
     expect((await history()).total).toBe(2);
   });
   it('rejects adjustments below reserved stock and records valid adjustments', async () => {
-    await service.reserve(tenant.id, inventoryId, {
+    expect(await repository.reserve(tenant.id, inventoryId, 6)).toBe(1);
+    await repository.createTransaction(tenant.id, {
+      inventoryId,
+      type: 'RESERVATION',
       quantity: 6,
       referenceId: referenceId('adjustment-reservation'),
     });
@@ -118,12 +124,15 @@ describe('Inventory repository and transactional service', () => {
     expect(inventory).toMatchObject({ quantity: 8, reservedQuantity: 6 });
     expect((await history()).total).toBe(2);
   });
-  it('reserves available stock once per reference', async () => {
-    const input = { quantity: 4, referenceId: referenceId('reservation') };
-    expect(await service.reserve(tenant.id, inventoryId, input)).toMatchObject({
-      reservedQuantity: 4,
+  it('reserves available stock atomically via repository primitives', async () => {
+    expect(await repository.reserve(tenant.id, inventoryId, 4)).toBe(1);
+    await repository.createTransaction(tenant.id, {
+      inventoryId,
+      type: 'RESERVATION',
+      quantity: 4,
+      referenceId: referenceId('reservation'),
     });
-    expect(await service.reserve(tenant.id, inventoryId, input)).toMatchObject({
+    expect(await repository.findById(tenant.id, inventoryId)).toMatchObject({
       reservedQuantity: 4,
     });
     expect((await history()).total).toBe(1);
@@ -136,29 +145,23 @@ describe('Inventory repository and transactional service', () => {
     });
     expect((await history()).total).toBe(0);
   });
-  it('releases reserved stock and rejects excessive releases', async () => {
-    await service.reserve(tenant.id, inventoryId, {
-      quantity: 4,
-      referenceId: referenceId('release-reservation'),
-    });
+  it('releases reserved stock and rejects excessive releases via repository primitives', async () => {
+    expect(await repository.reserve(tenant.id, inventoryId, 4)).toBe(1);
     expect(await repository.release(tenant.id, inventoryId, 5)).toBe(0);
-    const inventory = await service.release(tenant.id, inventoryId, {
-      quantity: 3,
-      referenceId: referenceId('release'),
+    expect(await repository.release(tenant.id, inventoryId, 3)).toBe(1);
+    expect(await repository.findById(tenant.id, inventoryId)).toMatchObject({
+      quantity: 10,
+      reservedQuantity: 1,
     });
-    expect(inventory).toMatchObject({ quantity: 10, reservedQuantity: 1 });
   });
-  it('completes sales from reserved stock and rejects excess sales', async () => {
-    await service.reserve(tenant.id, inventoryId, {
-      quantity: 4,
-      referenceId: referenceId('sale-reservation'),
-    });
+  it('completes sales from reserved stock and rejects excess sales via repository primitives', async () => {
+    expect(await repository.reserve(tenant.id, inventoryId, 4)).toBe(1);
     expect(await repository.sale(tenant.id, inventoryId, 5)).toBe(0);
-    const inventory = await service.sale(tenant.id, inventoryId, {
-      quantity: 3,
-      referenceId: referenceId('sale'),
+    expect(await repository.sale(tenant.id, inventoryId, 3)).toBe(1);
+    expect(await repository.findById(tenant.id, inventoryId)).toMatchObject({
+      quantity: 7,
+      reservedQuantity: 1,
     });
-    expect(inventory).toMatchObject({ quantity: 7, reservedQuantity: 1 });
   });
   it('returns transactions newest first', async () => {
     await service.stockIn(tenant.id, inventoryId, {

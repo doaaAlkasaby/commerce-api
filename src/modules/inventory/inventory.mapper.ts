@@ -12,6 +12,13 @@ export const mapInventory = (
 ): InventoryResponse => {
   return {
     warehouseId: inventory.warehouseId,
+    warehouse: {
+      id: inventory.warehouse.id,
+      code: inventory.warehouse.code,
+      name: inventory.warehouse.name,
+      isActive: inventory.warehouse.isActive,
+      isDefault: inventory.warehouse.isDefault,
+    },
     id: inventory.id,
 
     variantId: inventory.variantId,
@@ -48,6 +55,8 @@ export const mapInventory = (
         slug: inventory.variant.product.slug,
 
         status: inventory.variant.product.status,
+
+        thumbnailUrl: inventory.variant.product.images[0]?.url ?? null,
       },
 
       attributes: inventory.variant.values.map((item) => ({

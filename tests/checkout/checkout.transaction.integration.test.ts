@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { ensureFixtureMembership } from '../helpers/warehouse.js';
 import { createShippingProfileFixture } from '../helpers/warehouse.js';
 import { createCartFixture } from '../helpers/warehouse.js';
@@ -270,6 +271,7 @@ suite('checkout transaction against PostgreSQL', () => {
       where: { id: shippingProfileId },
       data: { currency: 'EGP' },
     });
+    await testPrisma.paymentRefund.deleteMany({ where: { tenantId } });
     await testPrisma.checkoutRequest.deleteMany({ where: { userId } });
     await testPrisma.couponUsage.deleteMany({ where: { userId } });
     await testPrisma.payment.deleteMany({ where: { order: { tenantId } } });
@@ -289,6 +291,7 @@ suite('checkout transaction against PostgreSQL', () => {
   });
 
   afterAll(async () => {
+    await testPrisma.paymentRefund.deleteMany({ where: { tenantId } });
     await testPrisma.checkoutRequest.deleteMany({ where: { userId } });
     await testPrisma.couponUsage.deleteMany({ where: { userId } });
     await testPrisma.payment.deleteMany({ where: { order: { tenantId } } });
@@ -2342,8 +2345,13 @@ suite('checkout transaction against PostgreSQL', () => {
       });
       expect((await initiate(result.payment!.id)).status).toBe('PAID');
       await initiate(result.payment!.id);
-      await service.updatePaymentStatus(tenantId, result.payment!.id, {
-        status: 'PAID',
+      await expect(
+        service.updatePaymentStatus(tenantId, result.payment!.id, {
+          status: 'PAID',
+        }),
+      ).rejects.toMatchObject({
+        statusCode: 409,
+        code: 'PAYMENT_PROVIDER_VERIFICATION_REQUIRED',
       });
       expect(calls).toHaveLength(1);
       await expectReservation(8, 0, 1, 0);
@@ -2503,15 +2511,35 @@ suite('checkout transaction against PostgreSQL', () => {
 
     it('reconciles an uncertain initiation through trusted confirmation without another provider call', async () => {
       const result = await createCheckout();
-      await testPrisma.payment.update({
+      const origPayment = await testPrisma.payment.findUniqueOrThrow({
         where: { id: result.payment!.id },
-        data: { initiationState: 'IN_PROGRESS' },
       });
-      await service.updatePaymentStatus(tenantId, result.payment!.id, {
-        status: 'PAID',
-        providerPaymentId: 'verified-outcome',
+      await testPrisma.payment.delete({ where: { id: origPayment.id } });
+      const mfPayment = await testPrisma.payment.create({
+        data: {
+          orderId: origPayment.orderId,
+          provider: PaymentProvider.MYFATOORAH,
+          method: origPayment.method,
+          status: origPayment.status,
+          amount: origPayment.amount,
+          currency: origPayment.currency,
+          initiationState: 'IN_PROGRESS',
+        },
       });
-      expect((await initiate(result.payment!.id)).status).toBe('PAID');
+      await service.applyTrustedPaymentStatus(
+        tenantId,
+        mfPayment.id,
+        {
+          status: 'PAID',
+          providerPaymentId: 'verified-outcome',
+        },
+        {
+          kind: 'PROVIDER_VERIFICATION',
+          provider: PaymentProvider.MYFATOORAH,
+          providerPaymentId: 'verified-outcome',
+        },
+      );
+      expect((await initiate(mfPayment.id)).status).toBe('PAID');
       expect(calls).toHaveLength(0);
       await expectReservation(8, 0, 1, 0);
     });
@@ -2613,14 +2641,74 @@ suite('checkout transaction against PostgreSQL', () => {
           billingSameAsShipping: true,
           couponCode: `${fixture}-coupon`.toUpperCase(),
           paymentMethod: PaymentMethod.CARD,
-          paymentProvider: PaymentProvider.NONE,
+          paymentProvider: PaymentProvider.MYFATOORAH,
           shippingMethodCode: `${fixture}-standard`,
         },
         { tenantId, userId, idempotencyKey: key },
       );
     });
-    const pay = (status: PaymentStatus) =>
-      payments.updatePaymentStatus(tenantId, result.payment!.id, { status });
+    const isRefundStatus = (status: PaymentStatus): boolean =>
+      status === PaymentStatus.REFUND_PENDING ||
+      status === PaymentStatus.PARTIALLY_REFUNDED ||
+      status === PaymentStatus.REFUNDED;
+    const pay = async (status: PaymentStatus) => {
+      if (isRefundStatus(status)) {
+        const ledgerRow = await testPrisma.paymentRefund.create({
+          data: {
+            tenantId,
+            paymentId: result.payment!.id,
+            orderId: result.order.id,
+            provider: PaymentProvider.MYFATOORAH,
+            method: PaymentMethod.CARD,
+            amount:
+              status === PaymentStatus.REFUNDED
+                ? result.order.totalAmount
+                : '1',
+            currency: result.order.currency,
+            status:
+              status === PaymentStatus.REFUND_PENDING
+                ? 'REQUESTED'
+                : 'SUCCEEDED',
+            idempotencyKey: `matrix-${result.payment!.id}-${status}-${randomUUID()}`,
+            requestFingerprint: `fp-${randomUUID()}`,
+            ...(status === PaymentStatus.REFUND_PENDING
+              ? {}
+              : {
+                  providerRefundId: `ref-${status}-${randomUUID()}`,
+                  submittedAt: new Date(),
+                  completedAt: new Date(),
+                }),
+            reason: `Matrix transition fixture to ${status}`,
+            requestedByUserId: userId,
+          },
+        });
+        return payments.applyTrustedPaymentStatus(
+          tenantId,
+          result.payment!.id,
+          {
+            status,
+            refundId: ledgerRow.id,
+            ...(status === PaymentStatus.PARTIALLY_REFUNDED
+              ? {
+                  refundAmount: '1',
+                  providerTransactionId: `ref-partial-${result.payment!.id}`,
+                }
+              : {}),
+          },
+          { kind: 'PAYMENT_REFUND', refundId: ledgerRow.id },
+        );
+      }
+      return payments.applyTrustedPaymentStatus(
+        tenantId,
+        result.payment!.id,
+        { status },
+        {
+          kind: 'PROVIDER_VERIFICATION',
+          provider: PaymentProvider.MYFATOORAH,
+          providerPaymentId: `verified-${result.payment!.id}`,
+        },
+      );
+    };
     const order = (status: OrderStatus) =>
       orders.updateStatus(tenantId, result.order.id, { status });
     const state = async () =>
@@ -2701,6 +2789,85 @@ suite('checkout transaction against PostgreSQL', () => {
         }
       },
     );
+
+    it('rejects untrusted refund statuses, unverified provider refund transitions, and invalid partial refund amounts without mutating state', async () => {
+      await pay('PAID');
+      const notifCountBefore = await testPrisma.notification.count({
+        where: { tenantId, data: { path: ['orderId'], equals: result.order.id } },
+      });
+
+      // Untrusted merchant status updates cannot fabricate refund transitions
+      for (const refundStatus of [
+        PaymentStatus.REFUND_PENDING,
+        PaymentStatus.PARTIALLY_REFUNDED,
+        PaymentStatus.REFUNDED,
+      ]) {
+        await expect(
+          payments.updatePaymentStatusByMerchant(tenantId, result.payment!.id, {
+            status: refundStatus,
+            refundAmount: '1',
+          }),
+        ).rejects.toMatchObject({
+          statusCode: 409,
+          code: 'PAYMENT_REFUND_VERIFICATION_REQUIRED',
+        });
+
+        // PROVIDER_VERIFICATION cannot emit refund statuses without a refund workflow
+        await expect(
+          payments.applyTrustedPaymentStatus(
+            tenantId,
+            result.payment!.id,
+            { status: refundStatus, refundAmount: '1' },
+            {
+              kind: 'PROVIDER_VERIFICATION',
+              provider: PaymentProvider.MYFATOORAH,
+              providerPaymentId: `verified-${result.payment!.id}`,
+            },
+          ),
+        ).rejects.toMatchObject({
+          statusCode: 409,
+          code: 'PAYMENT_REFUND_VERIFICATION_REQUIRED',
+        });
+      }
+
+      // Trusted PAYMENT_REFUND to PARTIALLY_REFUNDED requires a valid positive amount strictly less than payment.amount
+      for (const invalidAmount of [
+        undefined,
+        '',
+        '   ',
+        '0',
+        '-1',
+        result.order.totalAmount.toString(),
+        '999999',
+        '1.1234',
+      ]) {
+        await expect(
+          payments.applyTrustedPaymentStatus(
+            tenantId,
+            result.payment!.id,
+            {
+              status: PaymentStatus.PARTIALLY_REFUNDED,
+              ...(invalidAmount === undefined
+                ? {}
+                : { refundAmount: invalidAmount }),
+            },
+            { kind: 'PAYMENT_REFUND' },
+          ),
+        ).rejects.toMatchObject({ statusCode: 400 });
+      }
+
+      const afterState = await state();
+      expect(afterState.paymentStatus).toBe(PaymentStatus.PAID);
+      expect(afterState.payments[0]!.status).toBe(PaymentStatus.PAID);
+      expect(
+        await testPrisma.notification.count({
+          where: {
+            tenantId,
+            data: { path: ['orderId'], equals: result.order.id },
+          },
+        }),
+      ).toBe(notifCountBefore);
+    });
 
     it('keeps successful payment after duplicate success and stale failure', async () => {
       await pay('PAID');
@@ -2855,28 +3022,41 @@ suite('checkout transaction against PostgreSQL', () => {
       ).rejects.toMatchObject({ statusCode: 409 });
       await expectConsistent();
     });
-    it('runs inventory side effects even through repository transaction-client status updates', async () => {
+    it('runs inventory side effects even through repository transaction-client status updates and fails closed on manual PAID', async () => {
+      await expect(
+        testPrisma.$transaction((tx) =>
+          new PaymentRepository().updateStatusWithClient(
+            tenantId,
+            result.payment!.id,
+            { status: 'PAID' },
+            tx,
+          ),
+        ),
+      ).rejects.toMatchObject({
+        statusCode: 409,
+        code: 'PAYMENT_PROVIDER_VERIFICATION_REQUIRED',
+      });
+      await expect(
+        new PaymentRepository().updateStatus(tenantId, result.payment!.id, {
+          status: 'PAID',
+        }),
+      ).rejects.toMatchObject({
+        statusCode: 409,
+        code: 'PAYMENT_PROVIDER_VERIFICATION_REQUIRED',
+      });
+      expect(await ledger('SALE')).toBe(0);
       await testPrisma.$transaction((tx) =>
         new PaymentRepository().updateStatusWithClient(
           tenantId,
           result.payment!.id,
-          { status: 'PAID' },
+          { status: 'FAILED' },
           tx,
         ),
       );
       await new PaymentRepository().updateStatus(tenantId, result.payment!.id, {
-        status: 'PAID',
+        status: 'FAILED',
       });
-      expect(
-        (
-          await new OrderRepository(testPrisma).updateStatus(
-            tenantId,
-            result.order.id,
-            'CONFIRMED',
-          )
-        ).status,
-      ).toBe('CONFIRMED');
-      expect(await ledger('SALE')).toBe(1);
+      expect(await ledger('RELEASE')).toBe(1);
       await expectConsistent();
     });
     it('rolls back cancellation when reservation release fails', async () => {
@@ -2986,7 +3166,7 @@ suite('checkout transaction against PostgreSQL', () => {
           billingSameAsShipping: true,
           couponCode: `${fixture}-coupon`.toUpperCase(),
           paymentMethod: PaymentMethod.CARD,
-          paymentProvider: PaymentProvider.NONE,
+          paymentProvider: PaymentProvider.MYFATOORAH,
           shippingMethodCode: `${fixture}-standard`,
         },
         { tenantId, userId, idempotencyKey: key },
@@ -3068,6 +3248,15 @@ suite('checkout transaction against PostgreSQL', () => {
               .set('Authorization', `Bearer ${token}`)
               .set('X-Tenant-Slug', fixture)
               .send({ status: 'PAID' })
+          ).status,
+        ).toBe(409);
+        expect(
+          (
+            await request(app)
+              .patch(`/payments/${result.payment!.id}/status`)
+              .set('Authorization', `Bearer ${token}`)
+              .set('X-Tenant-Slug', fixture)
+              .send({ status: 'FAILED' })
           ).status,
         ).toBe(200);
         await expectConsistent();

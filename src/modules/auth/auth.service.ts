@@ -254,15 +254,12 @@ export const createAuthService = (
       idempotencyKey?: string,
     ): Promise<{ success: boolean; message: string; data: null }> => {
       const validKey = idempotencyKey?.trim();
-      const secret =
-        env.SECURITY_FINGERPRINT_SECRET ??
-        'default_secure_fingerprint_secret_min_32_chars_long_for_security';
 
       const requestFingerprint = validKey
         ? crypto
-            .createHmac('sha256', secret)
+            .createHmac('sha256', env.SECURITY_FINGERPRINT_SECRET)
             .update(
-              `v1:password_change:${userId}:${currentPassword.normalize('NFC')}:${newPassword.normalize('NFC')}`,
+              `v1:password_change:${userId.length}:${userId}:${currentPassword.length}:${currentPassword}:${newPassword.length}:${newPassword}`,
             )
             .digest('hex')
         : null;
@@ -323,11 +320,15 @@ export const createAuthService = (
           data: { revokedAt: new Date() },
         });
 
+        const sanitizedOpId = validKey
+          ? crypto.createHash('sha256').update(validKey).digest('hex').substring(0, 16)
+          : randomUUID();
+
         await securityNotificationService.createSecurityNotification({
           eventType: 'PASSWORD_CHANGED',
           userId,
           tx,
-          operationId: validKey || randomUUID(),
+          operationId: sanitizedOpId,
         });
 
         const responseBody = {
@@ -337,13 +338,26 @@ export const createAuthService = (
         };
 
         if (validKey && requestFingerprint) {
-          await tx.passwordChangeRequest.create({
-            data: {
+          await tx.passwordChangeRequest.upsert({
+            where: {
+              userId_idempotencyKey: {
+                userId,
+                idempotencyKey: validKey,
+              },
+            },
+            create: {
               userId,
               idempotencyKey: validKey,
               requestFingerprint,
               responseStatus: 200,
               responseBody,
+              expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            },
+            update: {
+              requestFingerprint,
+              responseStatus: 200,
+              responseBody,
+              createdAt: new Date(),
               expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
             },
           });

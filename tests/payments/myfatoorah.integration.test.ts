@@ -34,13 +34,10 @@ import {
 
 vi.mock('../../src/config/env.js', async (original) => {
   const actual = await original<typeof import('../../src/config/env.js')>();
-  const devDbUrl = 'postgresql://commerce_user:commerce_password@localhost:5432/commerce_api_dev?schema=public';
   return {
     ...actual,
     env: {
       ...actual.env,
-      DATABASE_URL: devDbUrl,
-      TEST_DATABASE_URL: devDbUrl,
       PAYMENT_PROVIDER: 'MYFATOORAH',
       MYFATOORAH_ENV: 'sandbox',
       MYFATOORAH_API_VERSION: 'v2',
@@ -870,10 +867,19 @@ describe('MyFatoorah Kuwait V2 integration against PostgreSQL', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
   it('keeps NONE payments functional when the remote provider is configured', async () => {
-    await testPrisma.payment.update({
-      where: { id: paymentId },
-      data: { provider: 'NONE', method: 'CASH_ON_DELIVERY' },
-    });
+    await testPrisma.payment.delete({ where: { id: paymentId } });
+    paymentId = (
+      await testPrisma.payment.create({
+        data: {
+          orderId,
+          amount: '10.25',
+          currency: 'KWD',
+          provider: 'NONE',
+          method: 'CASH_ON_DELIVERY',
+          initiationState: 'NOT_STARTED',
+        },
+      })
+    ).id;
     expect(await initiate()).toMatchObject({
       provider: 'NONE',
       status: 'PENDING',
@@ -1068,6 +1074,68 @@ describe('MyFatoorah Kuwait V2 integration against PostgreSQL', () => {
       initiationState: 'INITIATED',
       metadata: { checkoutUrl: url },
     });
+    expect((await stock()).reservedQuantity).toBe(1);
+
+    // Duplicate initiation after early-pending-webhook completion replays without another SendPayment HTTP call
+    const callsBeforeReplay = vi.mocked(fetch).mock.calls.length;
+    const replay = await initiate();
+    expect(replay).toMatchObject({
+      status: 'REQUIRES_ACTION',
+      initiationState: 'INITIATED',
+      providerPaymentId: invoiceId,
+      metadata: { checkoutUrl: url },
+    });
+    expect(vi.mocked(fetch).mock.calls.length).toBe(callsBeforeReplay);
+
+    // Early-pending-webhook exception must never authorize PAID or AUTHORIZED via PROVIDER_INITIATION
+    for (const forbiddenStatus of ['PAID', 'AUTHORIZED'] as const) {
+      await expect(
+        testPrisma.$transaction((tx) =>
+          service.applyPaymentStatusWithClient(
+            tenantId,
+            paymentId,
+            { status: forbiddenStatus, providerPaymentId: invoiceId },
+            tx,
+            { transition: { kind: 'PROVIDER_INITIATION' } },
+          ),
+        ),
+      ).rejects.toMatchObject({ code: 'PAYMENT_INITIATION_NOT_IN_PROGRESS' });
+    }
+
+    // Authoritative PAID webhook afterward finalizes inventory SALE exactly once
+    state = 'paid';
+    const paidPayload = event('SUCCESS', 'PAID');
+    await verification.processWebhook(paidPayload, signature(paidPayload));
+    expect((await stored()).status).toBe('PAID');
+    expect((await stock()).reservedQuantity).toBe(0);
+    expect((await stock()).quantity).toBe(9);
+    expect(
+      await testPrisma.inventoryTransaction.count({
+        where: { inventoryId, type: 'SALE', referenceId: orderId },
+      }),
+    ).toBe(1);
+  });
+  it('rejects a conflicting provider invoice ID during an early pending webhook race without overwriting persisted mapping', async () => {
+    state = 'attempt-failed';
+    vi.mocked(fetch).mockImplementationOnce(async () => {
+      const payload = event('FAILED');
+      await verification.processWebhook(payload, signature(payload));
+      return Response.json({
+        IsSuccess: true,
+        Data: {
+          InvoiceId: 999999,
+          InvoiceURL: url,
+          CustomerReference: paymentId,
+        },
+      });
+    });
+    await expect(initiate()).rejects.toMatchObject({
+      code: 'MYFATOORAH_REFERENCE_CONFLICT',
+    });
+    const afterConflict = await stored();
+    expect(afterConflict.providerPaymentId).toBe(invoiceId);
+    expect(afterConflict.initiationState).toBe('INITIATED');
+    expect(afterConflict.status).toBe('PENDING');
     expect((await stock()).reservedQuantity).toBe(1);
   });
   it('checkout selects the configured provider without HTTP and replays the same committed order', async () => {

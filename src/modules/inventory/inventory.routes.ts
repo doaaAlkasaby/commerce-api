@@ -28,9 +28,6 @@ import {
   stockInSchema,
   stockOutSchema,
   adjustmentSchema,
-  reservationSchema,
-  releaseSchema,
-  saleSchema,
 } from './inventory.schemas.js';
 
 const router =
@@ -209,78 +206,6 @@ router.post(
     'body',
   ),
   inventoryController.adjustment.bind(
-    inventoryController,
-  ),
-);
-
-/*
- * ==================================================
- * RESERVE
- * ==================================================
- */
-
-router.post(
-  '/:id/reserve',
-  authenticate,
-  tenantMemberMiddleware,
-  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
-  validate(
-    inventoryIdParamsSchema,
-    'params',
-  ),
-  validate(
-    reservationSchema,
-    'body',
-  ),
-  inventoryController.reserve.bind(
-    inventoryController,
-  ),
-);
-
-/*
- * ==================================================
- * RELEASE
- * ==================================================
- */
-
-router.post(
-  '/:id/release',
-  authenticate,
-  tenantMemberMiddleware,
-  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
-  validate(
-    inventoryIdParamsSchema,
-    'params',
-  ),
-  validate(
-    releaseSchema,
-    'body',
-  ),
-  inventoryController.release.bind(
-    inventoryController,
-  ),
-);
-
-/*
- * ==================================================
- * SALE
- * ==================================================
- */
-
-router.post(
-  '/:id/sale',
-  authenticate,
-  tenantMemberMiddleware,
-  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
-  validate(
-    inventoryIdParamsSchema,
-    'params',
-  ),
-  validate(
-    saleSchema,
-    'body',
-  ),
-  inventoryController.sale.bind(
     inventoryController,
   ),
 );

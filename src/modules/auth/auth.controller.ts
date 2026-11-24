@@ -205,8 +205,34 @@ changePassword: async (
     );
   }
 
-  const idempotencyKey =
-    req.header('Idempotency-Key') ?? req.body.idempotencyKey;
+  const headerKey = req.header('Idempotency-Key');
+  const bodyKey = (req.body as any)?.idempotencyKey;
+
+  if (
+    headerKey !== undefined &&
+    bodyKey !== undefined &&
+    headerKey.trim() !== bodyKey.trim()
+  ) {
+    throw new AppError(
+      'Header and body idempotency keys conflict',
+      400,
+      'IDEMPOTENCY_KEY_CONFLICT',
+    );
+  }
+
+  const rawKey = (headerKey ?? bodyKey)?.trim();
+  let idempotencyKey: string | undefined;
+
+  if (rawKey !== undefined) {
+    if (!/^[\x21-\x7e]{1,255}$/.test(rawKey)) {
+      throw new AppError(
+        'Idempotency-Key must contain 1–255 visible ASCII characters without spaces',
+        400,
+        'INVALID_IDEMPOTENCY_KEY',
+      );
+    }
+    idempotencyKey = rawKey;
+  }
 
   await authService.changePassword(
     userId,

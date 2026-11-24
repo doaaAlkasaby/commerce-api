@@ -1,10 +1,17 @@
 import type {
   Order,
   OrderItem,
+  OrderStatusHistory,
   Payment,
+  Prisma,
 } from '../../generated/prisma/client.js';
 
 import type {
+  CodCollectionStatus,
+  CodReceivedCondition,
+  OrderCodCollectionSummary,
+  OrderCodReturnSummary,
+  OrderCodSummary,
   OrderItemResponse,
   OrderPaymentResponse,
   OrderResponse,
@@ -14,6 +21,212 @@ import type {
 type OrderWithRelations = Order & {
   items: OrderItem[];
   payments: Payment[];
+  statusHistory?: OrderStatusHistory[];
+};
+
+export interface MapOrderOptions {
+  audience?: 'merchant' | 'customer';
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const asNonEmptyString = (value: unknown): string | null =>
+  typeof value === 'string' && value.trim().length > 0 ? value : null;
+
+const asOptionalString = (value: unknown): string | null =>
+  typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+
+const asReceivedCondition = (value: unknown): CodReceivedCondition | null =>
+  value === 'RESELLABLE' || value === 'DAMAGED' ? value : null;
+
+export const parseCodMetadata = (
+  metadata: Prisma.JsonValue | null | undefined,
+): {
+  codCollection: OrderCodCollectionSummary | null;
+  codReturn: OrderCodReturnSummary | null;
+} => {
+  if (!isRecord(metadata)) {
+    return { codCollection: null, codReturn: null };
+  }
+
+  let codCollection: OrderCodCollectionSummary | null = null;
+  const rawCollection = metadata.codCollection;
+  if (isRecord(rawCollection)) {
+    const referenceId = asNonEmptyString(rawCollection.referenceId);
+    const collectedAmount = asNonEmptyString(rawCollection.collectedAmount);
+    const currency = asNonEmptyString(rawCollection.currency);
+    const collectedByUserId = asNonEmptyString(rawCollection.collectedByUserId);
+    const collectedAt = asNonEmptyString(rawCollection.collectedAt);
+
+    if (
+      referenceId &&
+      collectedAmount &&
+      currency &&
+      collectedByUserId &&
+      collectedAt
+    ) {
+      codCollection = {
+        referenceId,
+        collectedAmount,
+        currency,
+        collectedByUserId,
+        collectedAt,
+        note: asOptionalString(rawCollection.note),
+      };
+    }
+  }
+
+  let codReturn: OrderCodReturnSummary | null = null;
+  const rawReturn = metadata.codReturn;
+  if (isRecord(rawReturn)) {
+    const state =
+      rawReturn.state === 'REFUSED_WITH_COURIER' ||
+      rawReturn.state === 'RETURNED_TO_WAREHOUSE'
+        ? rawReturn.state
+        : null;
+    const refusalReferenceId = asNonEmptyString(rawReturn.refusalReferenceId);
+    const refusedByUserId = asNonEmptyString(rawReturn.refusedByUserId);
+    const refusedAt = asNonEmptyString(rawReturn.refusedAt);
+    const reason = asNonEmptyString(rawReturn.reason);
+
+    if (state && refusalReferenceId && refusedByUserId && refusedAt && reason) {
+      codReturn = {
+        state,
+        refusalReferenceId,
+        refusedByUserId,
+        refusedAt,
+        reason,
+        courierReference: asOptionalString(rawReturn.courierReference),
+        returnReferenceId: asNonEmptyString(rawReturn.returnReferenceId),
+        returnedByUserId: asNonEmptyString(rawReturn.returnedByUserId),
+        returnedAt: asNonEmptyString(rawReturn.returnedAt),
+        warehouseId: asNonEmptyString(rawReturn.warehouseId),
+        receivedCondition: asReceivedCondition(rawReturn.receivedCondition),
+        returnNote: asOptionalString(rawReturn.returnNote),
+      };
+    }
+  }
+
+  return { codCollection, codReturn };
+};
+
+const findDeliveredTransitionAt = (
+  statusHistory?: OrderStatusHistory[],
+): Date | null => {
+  if (!statusHistory || statusHistory.length === 0) {
+    return null;
+  }
+
+  let deliveredTransition: OrderStatusHistory | null = null;
+  for (const entry of statusHistory) {
+    if (entry.toStatus === 'DELIVERED' && entry.fromStatus !== 'DELIVERED') {
+      deliveredTransition = entry;
+    }
+  }
+  if (deliveredTransition) {
+    return deliveredTransition.createdAt;
+  }
+
+  for (const entry of statusHistory) {
+    if (entry.toStatus === 'DELIVERED') {
+      deliveredTransition = entry;
+    }
+  }
+  return deliveredTransition?.createdAt ?? null;
+};
+
+const buildCodSummary = (
+  order: OrderWithRelations,
+  audience: 'merchant' | 'customer',
+): OrderCodSummary => {
+  const solePayment = order.payments.length === 1 ? order.payments[0]! : null;
+  const isCod =
+    solePayment !== null &&
+    solePayment.method === 'CASH_ON_DELIVERY' &&
+    solePayment.provider === 'NONE';
+
+  const { codCollection, codReturn } = solePayment
+    ? parseCodMetadata(solePayment.metadata)
+    : { codCollection: null, codReturn: null };
+
+  const deliveredDate = findDeliveredTransitionAt(order.statusHistory);
+  const deliveredAt = deliveredDate ? deliveredDate.toISOString() : null;
+
+  let collectionStatus: CodCollectionStatus = 'NOT_APPLICABLE';
+  if (isCod) {
+    if (order.paymentStatus === 'PAID') {
+      collectionStatus = 'COLLECTED';
+    } else if (codReturn?.state === 'RETURNED_TO_WAREHOUSE') {
+      collectionStatus = 'RETURNED_TO_WAREHOUSE';
+    } else if (
+      order.status === 'CANCELLED' ||
+      order.paymentStatus === 'CANCELLED' ||
+      order.paymentStatus === 'FAILED'
+    ) {
+      collectionStatus = 'CANCELLED';
+    } else if (codReturn?.state === 'REFUSED_WITH_COURIER') {
+      collectionStatus = 'REFUSED_WITH_COURIER';
+    } else if (
+      order.status === 'DELIVERED' &&
+      order.paymentStatus === 'PENDING'
+    ) {
+      collectionStatus = 'AWAITING_COLLECTION';
+    } else {
+      collectionStatus = 'AWAITING_DELIVERY';
+    }
+  }
+
+  const isMerchant = audience === 'merchant';
+  const unpaidDeliveredAgeHours =
+    isMerchant &&
+    isCod &&
+    order.status === 'DELIVERED' &&
+    order.paymentStatus === 'PENDING' &&
+    deliveredDate !== null
+      ? Math.max(
+          0,
+          Number(
+            ((Date.now() - deliveredDate.getTime()) / 3_600_000).toFixed(2),
+          ),
+        )
+      : null;
+
+  const canConfirmPayment =
+    isMerchant &&
+    isCod &&
+    order.status === 'DELIVERED' &&
+    order.paymentStatus === 'PENDING' &&
+    solePayment.status === 'PENDING' &&
+    codReturn === null;
+
+  const canMarkRefused =
+    isMerchant &&
+    isCod &&
+    order.status === 'SHIPPED' &&
+    order.paymentStatus === 'PENDING' &&
+    solePayment.status === 'PENDING' &&
+    codReturn === null;
+
+  const canConfirmReturn =
+    isMerchant &&
+    isCod &&
+    order.status === 'SHIPPED' &&
+    order.paymentStatus === 'PENDING' &&
+    solePayment.status === 'PENDING' &&
+    codReturn?.state === 'REFUSED_WITH_COURIER';
+
+  return {
+    isCod,
+    collectionStatus,
+    canConfirmPayment,
+    canMarkRefused,
+    canConfirmReturn,
+    deliveredAt,
+    unpaidDeliveredAgeHours,
+    collection: isMerchant ? codCollection : null,
+    returnInfo: isMerchant ? codReturn : null,
+  };
 };
 
 const mapOrderItem = (item: OrderItem): OrderItemResponse => ({
@@ -73,63 +286,73 @@ const mapPayment = (payment: Payment): OrderPaymentResponse => ({
   updatedAt: payment.updatedAt.toISOString(),
 });
 
-export const mapOrder = (order: OrderWithRelations): OrderResponse => ({
-  warehouseId: order.warehouseId,
-  fulfillmentSnapshot: order.fulfillmentSnapshot,
-  id: order.id,
+export const mapOrder = (
+  order: OrderWithRelations,
+  options?: MapOrderOptions,
+): OrderResponse => {
+  const audience = options?.audience ?? 'merchant';
 
-  orderNumber: order.orderNumber,
+  return {
+    warehouseId: order.warehouseId,
+    fulfillmentSnapshot: order.fulfillmentSnapshot,
+    id: order.id,
 
-  userId: order.userId,
+    orderNumber: order.orderNumber,
 
-  status: order.status,
+    userId: order.userId,
 
-  paymentStatus: order.paymentStatus,
+    status: order.status,
 
-  currency: order.currency,
+    paymentStatus: order.paymentStatus,
+    paymentMethod: order.payments[0]?.method ?? null,
+    codSummary: buildCodSummary(order, audience),
 
-  subtotal: order.subtotal.toString(),
+    currency: order.currency,
 
-  discountAmount: order.discountAmount.toString(),
+    subtotal: order.subtotal.toString(),
 
-  shippingAmount: order.shippingAmount.toString(),
+    discountAmount: order.discountAmount.toString(),
 
-  taxAmount: order.taxAmount.toString(),
+    shippingAmount: order.shippingAmount.toString(),
 
-  totalAmount: order.totalAmount.toString(),
+    taxAmount: order.taxAmount.toString(),
 
-  couponSnapshot: order.couponSnapshot,
-  shippingProfileSnapshot: order.shippingProfileSnapshot,
-  taxProfileSnapshot: order.taxProfileSnapshot,
-  pricesIncludeTax: order.pricesIncludeTax,
-  shippingMethodId: order.shippingMethodId,
-  shippingMethodCode: order.shippingMethodCode,
-  shippingMethodName: order.shippingMethodName,
-  shippingRuleId: order.shippingRuleId,
-  shippingDistanceKm: order.shippingDistanceKm?.toString() ?? null,
-  shippingAddress: order.shippingAddress,
+    totalAmount: order.totalAmount.toString(),
 
-  billingAddress: order.billingAddress,
+    couponSnapshot: order.couponSnapshot,
+    shippingProfileSnapshot: order.shippingProfileSnapshot,
+    taxProfileSnapshot: order.taxProfileSnapshot,
+    pricesIncludeTax: order.pricesIncludeTax,
+    shippingMethodId: order.shippingMethodId,
+    shippingMethodCode: order.shippingMethodCode,
+    shippingMethodName: order.shippingMethodName,
+    shippingRuleId: order.shippingRuleId,
+    shippingDistanceKm: order.shippingDistanceKm?.toString() ?? null,
+    shippingAddress: order.shippingAddress,
 
-  items: order.items.map(mapOrderItem),
+    billingAddress: order.billingAddress,
 
-  payments: order.payments.map(mapPayment),
+    items: order.items.map(mapOrderItem),
 
-  itemCount: order.items.reduce((total, item) => total + item.quantity, 0),
+    payments: order.payments.map(mapPayment),
 
-  createdAt: order.createdAt.toISOString(),
+    itemCount: order.items.reduce((total, item) => total + item.quantity, 0),
 
-  updatedAt: order.updatedAt.toISOString(),
-});
+    createdAt: order.createdAt.toISOString(),
+
+    updatedAt: order.updatedAt.toISOString(),
+  };
+};
 
 export const mapOrders = (
   orders: OrderWithRelations[],
   page: number,
   limit: number,
   totalItems: number,
+  options?: MapOrderOptions,
 ): PaginatedOrdersResponse => {
   return {
-    items: orders.map(mapOrder),
+    items: orders.map((order) => mapOrder(order, options)),
 
     pagination: {
       page,

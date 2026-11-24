@@ -4,22 +4,30 @@ import type {
   PaymentStatus,
 } from '../../generated/prisma/client.js';
 
+export const orderIncludeRelations = {
+  items: {
+    orderBy: {
+      createdAt: 'asc' as const,
+    },
+  },
+
+  payments: {
+    orderBy: {
+      createdAt: 'asc' as const,
+    },
+  },
+
+  statusHistory: {
+    orderBy: {
+      createdAt: 'asc' as const,
+    },
+  },
+};
+
 export class OrderRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  private readonly includeRelations = {
-    items: {
-      orderBy: {
-        createdAt: 'asc' as const,
-      },
-    },
-
-    payments: {
-      orderBy: {
-        createdAt: 'asc' as const,
-      },
-    },
-  };
+  private readonly includeRelations = orderIncludeRelations;
 
   async findById(tenantId: string, orderId: string) {
     return this.prisma.order.findUnique({

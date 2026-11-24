@@ -5,7 +5,11 @@ import {
   validatePaymentTransition,
   isFinanciallyCommitted,
 } from '../../common/domain/status-transitions.js';
-import { PaymentStatus, Prisma } from '../../generated/prisma/client.js';
+import {
+  PaymentRefundStatus,
+  PaymentStatus,
+  Prisma,
+} from '../../generated/prisma/client.js';
 
 import { prisma } from '../../config/database.js';
 
@@ -17,12 +21,24 @@ import { paymentNotificationService } from '../notifications/payment-notificatio
 import type { PaymentEventType } from '../notifications/payment-notification.service.js';
 
 import { PaymentProviderRegistry } from './providers/payment-provider.registry.js';
+import {
+  computeRefundAccountingDecimals,
+  deriveAggregatePaymentStatusFromLedger,
+} from './payment-refund.accounting.js';
 
 import type {
+  ApplyPaymentStatusOptions,
   CreatePaymentInput,
   PaymentFilterInput,
+  TrustedPaymentTransition,
   UpdatePaymentStatusInput,
 } from './payment.types.js';
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const asNonEmptyString = (value: unknown): string | null =>
+  typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
 
 export class PaymentService {
   constructor(
@@ -334,6 +350,7 @@ export class PaymentService {
             },
           },
           tx,
+          { transition: { kind: 'PROVIDER_INITIATION' } },
         );
         return this.repository.setInitiationState(
           tx,
@@ -452,6 +469,21 @@ export class PaymentService {
     });
   }
 
+  async updatePaymentStatusByMerchant(
+    tenantId: string,
+    paymentId: string,
+    input: UpdatePaymentStatusInput,
+  ) {
+    return prisma.$transaction((tx) =>
+      this.applyPaymentStatusWithClient(tenantId, paymentId, input, tx),
+    );
+  }
+
+  /**
+   * Fail-closed by default: direct calls without a trusted internal transition
+   * are treated as manual merchant mutations and cannot mark payments PAID or
+   * AUTHORIZED or tamper with COD metadata.
+   */
   async updatePaymentStatus(
     tenantId: string,
     paymentId: string,
@@ -462,11 +494,27 @@ export class PaymentService {
     );
   }
 
+  async applyTrustedPaymentStatus(
+    tenantId: string,
+    paymentId: string,
+    input: UpdatePaymentStatusInput,
+    transition: TrustedPaymentTransition,
+    options?: Omit<ApplyPaymentStatusOptions, 'transition'>,
+  ) {
+    return prisma.$transaction((tx) =>
+      this.applyPaymentStatusWithClient(tenantId, paymentId, input, tx, {
+        ...options,
+        transition,
+      }),
+    );
+  }
+
   async applyPaymentStatusWithClient(
     tenantId: string,
     paymentId: string,
     input: UpdatePaymentStatusInput,
     tx: Prisma.TransactionClient,
+    options?: ApplyPaymentStatusOptions,
   ) {
     const paymentIdentity = await tx.payment.findFirst({
       where: { id: paymentId, order: { tenantId } },
@@ -510,10 +558,33 @@ export class PaymentService {
       throw new AppError('Order not found', 404, 'ORDER_NOT_FOUND');
     }
 
+    this.assertTransitionAuthorized(payment, order, input, options);
+    this.validateRefundAmountInput(payment, input);
+    let ledgerVerifiedRollbackToPaid = false;
+    if (options?.transition?.kind === 'PAYMENT_REFUND') {
+      ledgerVerifiedRollbackToPaid =
+        await this.verifyRefundLedgerTransitionProof(
+          tx,
+          tenantId,
+          payment,
+          order,
+          input,
+          options.transition,
+        );
+    }
+
     // Already cancelled negative notifications are harmless, never resurrect state.
     if (payment.status === 'CANCELLED' && input.status === 'FAILED')
       return payment;
-    validatePaymentTransition(payment.status, input.status);
+    const isTrustedRefundRollbackToPaid =
+      ledgerVerifiedRollbackToPaid &&
+      payment.status === PaymentStatus.REFUND_PENDING &&
+      input.status === PaymentStatus.PAID;
+    validatePaymentTransition(payment.status, input.status, {
+      allowRefundPendingRollback:
+        options?.allowRefundPendingRollback === true &&
+        isTrustedRefundRollbackToPaid,
+    });
     if (
       order.status === 'CANCELLED' &&
       ['PAID', 'AUTHORIZED', 'PENDING', 'REQUIRES_ACTION'].includes(
@@ -567,9 +638,18 @@ export class PaymentService {
           'ORDER_INVENTORY_RESERVATION_RELEASED',
         );
     }
+    const isAllowedCodFulfillmentCancellation =
+      options?.transition?.kind === 'ORDER_LIFECYCLE' &&
+      options?.allowCodFulfillmentCancellation === true &&
+      input.status === PaymentStatus.CANCELLED &&
+      payment.method === 'CASH_ON_DELIVERY' &&
+      payment.provider === 'NONE' &&
+      ['PROCESSING', 'SHIPPED'].includes(order.status);
+
     if (
       ['FAILED', 'CANCELLED'].includes(input.status) &&
-      !['PENDING', 'CONFIRMED', 'CANCELLED'].includes(order.status)
+      !['PENDING', 'CONFIRMED', 'CANCELLED'].includes(order.status) &&
+      !isAllowedCodFulfillmentCancellation
     )
       throw new AppError(
         'Fulfillment is underway; payment outcome requires reconciliation',
@@ -590,10 +670,12 @@ export class PaymentService {
       where: { id: paymentId, order: { tenantId } },
       data: {
         status: input.status,
-        ...(input.providerPaymentId === undefined
+        ...(input.providerPaymentId === undefined ||
+        options?.preserveProviderTransactionId === true
           ? {}
           : { providerPaymentId: input.providerPaymentId }),
-        ...(input.providerTransactionId === undefined
+        ...(input.providerTransactionId === undefined ||
+        options?.preserveProviderTransactionId === true
           ? {}
           : { providerTransactionId: input.providerTransactionId }),
         ...(input.failureCode === undefined
@@ -640,17 +722,23 @@ export class PaymentService {
       data: { paymentStatus },
     });
 
-    if (paymentStatus === PaymentStatus.PAID) {
-      await inventoryService.commitOrderSale(tenantId, payment.orderId, tx);
-    } else if (
-      paymentStatus === PaymentStatus.FAILED ||
-      paymentStatus === PaymentStatus.CANCELLED
-    ) {
-      await inventoryService.releaseOrderReservation(
-        tenantId,
-        payment.orderId,
-        tx,
-      );
+    const skipInventory =
+      options?.skipInventorySideEffects === true ||
+      isTrustedRefundRollbackToPaid;
+
+    if (!skipInventory) {
+      if (paymentStatus === PaymentStatus.PAID) {
+        await inventoryService.commitOrderSale(tenantId, payment.orderId, tx);
+      } else if (
+        paymentStatus === PaymentStatus.FAILED ||
+        paymentStatus === PaymentStatus.CANCELLED
+      ) {
+        await inventoryService.releaseOrderReservation(
+          tenantId,
+          payment.orderId,
+          tx,
+        );
+      }
     }
 
     const paymentEventTypeMap: Record<PaymentStatus, PaymentEventType | null> = {
@@ -665,13 +753,18 @@ export class PaymentService {
       REFUNDED: 'PAYMENT_REFUNDED',
     };
 
+    const skipNotification =
+      options?.skipPaymentNotification === true ||
+      isTrustedRefundRollbackToPaid;
+
     const targetPaymentEventType = paymentEventTypeMap[input.status];
-    if (targetPaymentEventType) {
+    if (targetPaymentEventType && !skipNotification) {
       await paymentNotificationService.createPaymentNotification({
         eventType: targetPaymentEventType,
         paymentId: updatedPayment.id,
         expectedTenantId: tenantId,
         tx,
+        ...(input.refundId ? { refundId: input.refundId } : {}),
         ...(input.refundAmount ? { refundAmount: input.refundAmount } : {}),
         ...(updatedPayment.providerTransactionId
           ? { providerTransactionId: updatedPayment.providerTransactionId }
@@ -698,77 +791,440 @@ export class PaymentService {
       );
     }
     if (payment.status === PaymentStatus.FAILED)
-      return this.updatePaymentStatus(tenantId, payment.id, {
-        status: PaymentStatus.CANCELLED,
-      });
+      return this.applyTrustedPaymentStatus(
+        tenantId,
+        payment.id,
+        {
+          status: PaymentStatus.CANCELLED,
+        },
+        { kind: 'PAYMENT_CANCEL' },
+      );
 
     if (!payment.providerPaymentId) {
-      return this.updatePaymentStatus(tenantId, payment.id, {
-        status: PaymentStatus.CANCELLED,
-      });
+      return this.applyTrustedPaymentStatus(
+        tenantId,
+        payment.id,
+        {
+          status: PaymentStatus.CANCELLED,
+        },
+        { kind: 'PAYMENT_CANCEL' },
+      );
     }
 
     const provider = this.providerRegistry.getProvider(payment.provider);
 
     const result = await provider.cancelPayment(payment.providerPaymentId);
 
-    return this.updatePaymentStatus(tenantId, payment.id, {
-      status: result.status,
+    return this.applyTrustedPaymentStatus(
+      tenantId,
+      payment.id,
+      {
+        status: result.status,
+      },
+      { kind: 'PAYMENT_CANCEL' },
+    );
+  }
+
+  async refundPayment(
+    tenantId: string,
+    paymentId: string,
+    amount?: string,
+    options?: {
+      idempotencyKey?: string;
+      reason?: string;
+      requestedByUserId?: string;
+    },
+  ) {
+    const { PaymentRefundService } = await import(
+      './payment-refund.service.js'
+    );
+    const refundService = new PaymentRefundService(
+      undefined,
+      this,
+      this.providerRegistry,
+    );
+    return refundService.refundPayment(tenantId, paymentId, {
+      ...(amount === undefined ? {} : { amount }),
+      ...(options?.idempotencyKey === undefined
+        ? {}
+        : { idempotencyKey: options.idempotencyKey }),
+      ...(options?.reason === undefined ? {} : { reason: options.reason }),
+      requestedByUserId: options?.requestedByUserId ?? '',
     });
   }
 
-  async refundPayment(tenantId: string, paymentId: string, amount?: string) {
-    const payment = await this.repository.findById(tenantId, paymentId);
+  private assertTransitionAuthorized(
+    payment: {
+      method: string;
+      provider: string;
+      status: PaymentStatus;
+      initiationState: string;
+      providerPaymentId: string | null;
+      amount: Prisma.Decimal;
+      currency: string;
+    },
+    order: {
+      status: string;
+      totalAmount: Prisma.Decimal;
+      currency: string;
+    },
+    input: UpdatePaymentStatusInput,
+    options?: ApplyPaymentStatusOptions,
+  ): void {
+    const transition = options?.transition;
 
-    if (!payment) {
-      throw new AppError('Payment not found', 404, 'PAYMENT_NOT_FOUND');
+    if (!transition) {
+      if (
+        input.status === PaymentStatus.PAID ||
+        input.status === PaymentStatus.AUTHORIZED
+      ) {
+        if (payment.method === 'CASH_ON_DELIVERY') {
+          throw new AppError(
+            'COD payment confirmation requires the dedicated delivered order confirmation workflow',
+            409,
+            'COD_PAYMENT_CONFIRMATION_REQUIRED',
+          );
+        }
+        throw new AppError(
+          'Payment confirmation requires authoritative provider verification',
+          409,
+          'PAYMENT_PROVIDER_VERIFICATION_REQUIRED',
+        );
+      }
+
+      if (
+        payment.method === 'CASH_ON_DELIVERY' &&
+        input.metadata !== undefined
+      ) {
+        throw new AppError(
+          'COD payment metadata cannot be modified directly',
+          409,
+          'COD_METADATA_IMMUTABLE',
+        );
+      }
+
+      if (
+        isPlainObject(input.metadata) &&
+        ('codCollection' in input.metadata || 'codReturn' in input.metadata)
+      ) {
+        throw new AppError(
+          'Protected COD payment metadata cannot be set directly',
+          409,
+          'COD_METADATA_IMMUTABLE',
+        );
+      }
+
+      if (
+        input.status === PaymentStatus.REFUND_PENDING ||
+        input.status === PaymentStatus.PARTIALLY_REFUNDED ||
+        input.status === PaymentStatus.REFUNDED
+      ) {
+        throw new AppError(
+          'Refund status transitions require a verified refund workflow',
+          409,
+          'PAYMENT_REFUND_VERIFICATION_REQUIRED',
+        );
+      }
+
+      return;
+    }
+
+    switch (transition.kind) {
+      case 'COD_CONFIRMATION': {
+        if (
+          payment.method !== 'CASH_ON_DELIVERY' ||
+          payment.provider !== 'NONE' ||
+          order.status !== 'DELIVERED' ||
+          input.status !== PaymentStatus.PAID
+        ) {
+          throw new AppError(
+            'COD confirmation requires a DELIVERED Cash on Delivery order transitioning to PAID',
+            409,
+            'COD_PAYMENT_CONFIRMATION_REQUIRED',
+          );
+        }
+
+        const codCollection = isPlainObject(input.metadata)
+          ? input.metadata.codCollection
+          : null;
+        if (!isPlainObject(codCollection)) {
+          throw new AppError(
+            'COD confirmation requires validated collection audit metadata',
+            409,
+            'COD_PAYMENT_CONFIRMATION_INVALID',
+          );
+        }
+
+        const metaRef = asNonEmptyString(codCollection.referenceId);
+        const metaActor = asNonEmptyString(codCollection.collectedByUserId);
+        const metaCollectedAt = asNonEmptyString(codCollection.collectedAt);
+        const metaCurrency = asNonEmptyString(codCollection.currency);
+        const metaAmount = asNonEmptyString(codCollection.collectedAmount);
+
+        if (
+          !metaRef ||
+          metaRef !== transition.referenceId.trim() ||
+          !metaActor ||
+          metaActor !== transition.actorUserId.trim() ||
+          !metaCollectedAt ||
+          !metaCurrency ||
+          metaCurrency !== order.currency ||
+          !metaAmount
+        ) {
+          throw new AppError(
+            'COD confirmation audit metadata does not match the order',
+            409,
+            'COD_PAYMENT_CONFIRMATION_INVALID',
+          );
+        }
+
+        let collectedDecimal: Prisma.Decimal;
+        try {
+          collectedDecimal = new Prisma.Decimal(metaAmount);
+        } catch {
+          throw new AppError(
+            'COD confirmation amount metadata is invalid',
+            409,
+            'COD_PAYMENT_CONFIRMATION_INVALID',
+          );
+        }
+
+        if (
+          !collectedDecimal.equals(order.totalAmount) ||
+          !collectedDecimal.equals(payment.amount)
+        ) {
+          throw new AppError(
+            'COD confirmation amount does not match order total',
+            409,
+            'PAYMENT_AMOUNT_MISMATCH',
+          );
+        }
+        return;
+      }
+
+      case 'PROVIDER_VERIFICATION': {
+        if (
+          input.status === PaymentStatus.REFUND_PENDING ||
+          input.status === PaymentStatus.PARTIALLY_REFUNDED ||
+          input.status === PaymentStatus.REFUNDED
+        ) {
+          throw new AppError(
+            'Refund status transitions require a verified refund workflow',
+            409,
+            'PAYMENT_REFUND_VERIFICATION_REQUIRED',
+          );
+        }
+        const verifiedInvoiceId = transition.providerPaymentId.trim();
+        if (
+          payment.method === 'CASH_ON_DELIVERY' ||
+          payment.provider === 'NONE' ||
+          transition.provider !== payment.provider ||
+          verifiedInvoiceId.length === 0 ||
+          (payment.providerPaymentId &&
+            payment.providerPaymentId !== verifiedInvoiceId) ||
+          (input.providerPaymentId !== undefined &&
+            input.providerPaymentId !== null &&
+            input.providerPaymentId !== verifiedInvoiceId)
+        ) {
+          throw new AppError(
+            'Payment confirmation requires authoritative provider verification',
+            409,
+            'PAYMENT_PROVIDER_VERIFICATION_REQUIRED',
+          );
+        }
+        return;
+      }
+
+      case 'PROVIDER_INITIATION': {
+        const persistedInvoiceId = asNonEmptyString(payment.providerPaymentId);
+        const incomingInvoiceId = asNonEmptyString(input.providerPaymentId);
+        const isEarlyPendingWebhookCompletion =
+          payment.initiationState === 'INITIATED' &&
+          payment.provider === 'MYFATOORAH' &&
+          persistedInvoiceId !== null &&
+          incomingInvoiceId !== null &&
+          persistedInvoiceId === incomingInvoiceId &&
+          (payment.status === PaymentStatus.PENDING ||
+            payment.status === PaymentStatus.REQUIRES_ACTION) &&
+          input.status === PaymentStatus.REQUIRES_ACTION;
+
+        if (
+          payment.initiationState !== 'IN_PROGRESS' &&
+          !isEarlyPendingWebhookCompletion
+        ) {
+          throw new AppError(
+            'Provider initiation update requires an active in-progress initiation',
+            409,
+            'PAYMENT_INITIATION_NOT_IN_PROGRESS',
+          );
+        }
+        if (
+          payment.method === 'CASH_ON_DELIVERY' &&
+          (input.status === PaymentStatus.PAID ||
+            input.status === PaymentStatus.AUTHORIZED)
+        ) {
+          throw new AppError(
+            'COD payment confirmation requires the dedicated delivered order confirmation workflow',
+            409,
+            'COD_PAYMENT_CONFIRMATION_REQUIRED',
+          );
+        }
+        return;
+      }
+
+      case 'ORDER_LIFECYCLE':
+      case 'PAYMENT_CANCEL': {
+        if (input.status !== PaymentStatus.CANCELLED) {
+          throw new AppError(
+            'Cancellation transition may only set payment status to CANCELLED',
+            409,
+            'INVALID_PAYMENT_STATUS_TRANSITION',
+          );
+        }
+        return;
+      }
+
+      case 'PAYMENT_REFUND': {
+        if (
+          payment.method === 'CASH_ON_DELIVERY' ||
+          payment.provider === 'NONE'
+        ) {
+          throw new AppError(
+            'COD refunds require a dedicated auditable refund workflow',
+            409,
+            'COD_REFUND_WORKFLOW_REQUIRED',
+          );
+        }
+        const isAllowedRollbackToPaid =
+          input.status === PaymentStatus.PAID &&
+          payment.status === PaymentStatus.REFUND_PENDING &&
+          transition.allowRollbackToPaid === true;
+        if (
+          !isAllowedRollbackToPaid &&
+          ![
+            PaymentStatus.REFUND_PENDING,
+            PaymentStatus.PARTIALLY_REFUNDED,
+            PaymentStatus.REFUNDED,
+          ].some((allowed) => allowed === input.status)
+        ) {
+          throw new AppError(
+            'Refund transition may only set refund payment statuses',
+            409,
+            'INVALID_PAYMENT_STATUS_TRANSITION',
+          );
+        }
+        return;
+      }
+    }
+  }
+
+  private async verifyRefundLedgerTransitionProof(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    payment: {
+      id: string;
+      status: PaymentStatus;
+      amount: Prisma.Decimal;
+      currency: string;
+      provider: 'NONE' | 'STRIPE' | 'PAYMOB' | 'MYFATOORAH';
+      method: 'CASH_ON_DELIVERY' | 'CARD' | 'DIGITAL_WALLET' | 'BANK_TRANSFER';
+    },
+    order: { id: string },
+    input: UpdatePaymentStatusInput,
+    transition: Extract<TrustedPaymentTransition, { kind: 'PAYMENT_REFUND' }>,
+  ): Promise<boolean> {
+    const referencedRefundId = asNonEmptyString(
+      transition.refundId ?? input.refundId,
+    );
+    if (!referencedRefundId) {
+      throw new AppError(
+        'Refund payment transition requires a persisted refund ledger record',
+        409,
+        'PAYMENT_REFUND_VERIFICATION_REQUIRED',
+      );
+    }
+
+    const refunds = await tx.paymentRefund.findMany({
+      where: {
+        tenantId,
+        orderId: order.id,
+        paymentId: payment.id,
+      },
+    });
+
+    const referencedRow = refunds.find((row) => row.id === referencedRefundId);
+    if (!referencedRow) {
+      throw new AppError(
+        'Referenced refund record does not exist for this payment and tenant',
+        409,
+        'PAYMENT_REFUND_VERIFICATION_REQUIRED',
+      );
+    }
+
+    const accounting = computeRefundAccountingDecimals(payment, refunds);
+    const derivedAggregateStatus =
+      deriveAggregatePaymentStatusFromLedger(accounting);
+
+    if (derivedAggregateStatus !== input.status) {
+      throw new AppError(
+        `Requested payment status ${input.status} contradicts refund ledger status ${derivedAggregateStatus}`,
+        409,
+        'PAYMENT_REFUND_LEDGER_MISMATCH',
+      );
+    }
+
+    return (
+      derivedAggregateStatus === PaymentStatus.PAID &&
+      transition.allowRollbackToPaid === true &&
+      referencedRow.status === PaymentRefundStatus.FAILED
+    );
+  }
+
+  private validateRefundAmountInput(
+    payment: { amount: Prisma.Decimal; currency: string },
+    input: UpdatePaymentStatusInput,
+  ): void {
+    if (input.status === PaymentStatus.PARTIALLY_REFUNDED) {
+      const rawAmount = asNonEmptyString(input.refundAmount);
+      if (!rawAmount) {
+        throw new AppError(
+          'Refund amount is required for partial refund transitions',
+          400,
+          'INVALID_REFUND_AMOUNT',
+        );
+      }
+      const refundDecimal = validateAmount(rawAmount, payment.currency);
+      if (refundDecimal.lte(0) || refundDecimal.gte(payment.amount)) {
+        throw new AppError(
+          'Partial refund amount must be greater than zero and less than the payment amount',
+          400,
+          'INVALID_REFUND_AMOUNT',
+        );
+      }
+      return;
     }
 
     if (
-      payment.status !== PaymentStatus.PAID &&
-      payment.status !== PaymentStatus.PARTIALLY_REFUNDED
+      input.status === PaymentStatus.REFUNDED &&
+      input.refundAmount !== undefined
     ) {
-      throw new AppError(
-        'Only paid payments can be refunded',
-        400,
-        'PAYMENT_NOT_REFUNDABLE',
-      );
+      const rawAmount = asNonEmptyString(input.refundAmount);
+      if (!rawAmount) {
+        throw new AppError(
+          'Invalid refund amount',
+          400,
+          'INVALID_REFUND_AMOUNT',
+        );
+      }
+      const refundDecimal = validateAmount(rawAmount, payment.currency);
+      if (refundDecimal.lte(0) || refundDecimal.gt(payment.amount)) {
+        throw new AppError(
+          'Invalid refund amount',
+          400,
+          'INVALID_REFUND_AMOUNT',
+        );
+      }
     }
-
-    const refundAmount = amount ?? payment.amount.toString();
-
-    const refundDecimal = new Prisma.Decimal(refundAmount);
-
-    const paymentDecimal = new Prisma.Decimal(payment.amount);
-
-    if (refundDecimal.lte(0) || refundDecimal.gt(paymentDecimal)) {
-      throw new AppError('Invalid refund amount', 400, 'INVALID_REFUND_AMOUNT');
-    }
-
-    if (!payment.providerPaymentId) {
-      throw new AppError(
-        'Payment does not have a provider payment ID',
-        400,
-        'MISSING_PROVIDER_PAYMENT_ID',
-      );
-    }
-
-    const provider = this.providerRegistry.getProvider(payment.provider);
-
-    const result = await provider.refundPayment(
-      payment.providerPaymentId,
-      refundAmount,
-    );
-
-    return this.updatePaymentStatus(tenantId, payment.id, {
-      status: result.status,
-      refundAmount,
-      ...(result.providerTransactionId === undefined
-        ? {}
-        : {
-            providerTransactionId: result.providerTransactionId,
-          }),
-    });
   }
 
   private async calculateOrderPaymentStatus(

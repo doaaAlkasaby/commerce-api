@@ -63,6 +63,8 @@ export class MyFatoorahProvider implements PaymentProviderAdapter {
   readonly provider = PaymentProvider.MYFATOORAH;
   // SendPayment has no documented idempotency guarantee. Never retry UNKNOWN creates.
   readonly supportsIdempotentInitiation = false;
+  // Live/sandbox MyFatoorah MakeRefund remains disabled until Step 2C.
+  readonly supportsRefunds = false;
   constructor(
     private readonly settings: MyFatoorahSettings,
     private readonly http: typeof fetch = (...args) => fetch(...args),
