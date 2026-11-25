@@ -143,6 +143,81 @@ function field(json: Prisma.JsonValue, key: string) {
     : null;
 }
 
+type WarehouseDestination = Pick<
+  SourcingOrder,
+  'tenantId' | 'fulfillmentMethod' | 'pickupLocation' | 'deliveryAddress'
+>;
+function warehouseServes(
+  order: WarehouseDestination,
+  warehouse: {
+    countryCode: string;
+    region: string | null;
+    coverage: { tenantId: string; countryCode: string }[];
+    country: { isActive: boolean };
+  },
+) {
+  if (!warehouse.country.isActive) return false;
+  const pickup = order.fulfillmentMethod === 'STORE_PICKUP';
+  const destination = pickup ? order.pickupLocation : order.deliveryAddress;
+  const country = field(destination, 'countryCode');
+  const region = field(destination, 'regionCode');
+  return pickup
+    ? warehouse.countryCode === country &&
+        (!region || warehouse.region?.trim().toUpperCase() === region)
+    : warehouse.coverage.some(
+        (covered) =>
+          covered.tenantId === order.tenantId &&
+          covered.countryCode === country,
+      );
+}
+
+function warehouseLocked(order: SourcingOrder) {
+  return order.items.some(({ sourcingEntries }) => sourcingEntries.length > 0);
+}
+
+export async function sourcingWarehouses(scope: Scope, id: string) {
+  const order = await load(prisma, scope, id);
+  const financial = financialSummary(order);
+  const blockedReason = !['PENDING_SOURCING', 'SOURCING'].includes(order.state)
+    ? 'SPECIAL_SOURCING_STATE_CONFLICT'
+    : warehouseLocked(order)
+      ? 'SPECIAL_WAREHOUSE_FIXED'
+      : !financial.initialSourcingPrerequisiteSatisfied
+        ? 'SPECIAL_SOURCING_FINANCIAL_BLOCK'
+        : null;
+  const candidates = await prisma.warehouse.findMany({
+    where: {
+      tenantId: order.tenantId,
+      isActive: true,
+      country: { isActive: true },
+    },
+    select: {
+      id: true,
+      name: true,
+      code: true,
+      countryCode: true,
+      region: true,
+      coverage: { select: { countryCode: true, tenantId: true } },
+      country: { select: { isActive: true } },
+    },
+    orderBy: [{ code: 'asc' }, { id: 'asc' }],
+  });
+  return {
+    assignedWarehouse: order.warehouse,
+    eligibleWarehouses: candidates
+      .filter((row) => warehouseServes(order, row))
+      .map(({ id, name, code, countryCode, region }) => ({
+        id,
+        name,
+        code,
+        countryCode,
+        region,
+      })),
+    canReassign: blockedReason === null,
+    blockedReason,
+  };
+}
+
 export async function validateFulfillmentWarehouse(
   tx: Tx,
   order: Pick<
@@ -163,19 +238,7 @@ export async function validateFulfillmentWarehouse(
     where: { id },
     include: { coverage: true, country: { select: { isActive: true } } },
   });
-  const pickup = order.fulfillmentMethod === 'STORE_PICKUP';
-  const destination = pickup ? order.pickupLocation : order.deliveryAddress;
-  const country = field(destination, 'countryCode');
-  const region = field(destination, 'regionCode');
-  const eligible = pickup
-    ? found.countryCode === country &&
-      (!region || found.region?.trim().toUpperCase() === region)
-    : found.coverage.some(
-        (covered) =>
-          covered.tenantId === order.tenantId &&
-          covered.countryCode === country,
-      );
-  if (!found.country.isActive || !eligible)
+  if (!warehouseServes(order, found))
     reject(
       'SPECIAL_WAREHOUSE_INCOMPATIBLE',
       'The warehouse does not serve this fulfillment destination',
@@ -321,10 +384,7 @@ export async function sourceOrder(
         'SPECIAL_WAREHOUSE_REQUIRED',
         'Assign a fulfillment warehouse first',
       );
-    if (
-      order.warehouseId !== warehouseId &&
-      order.items.some(({ sourcingEntries }) => sourcingEntries.length)
-    ) {
+    if (order.warehouseId !== warehouseId && warehouseLocked(order)) {
       reject(
         'SPECIAL_WAREHOUSE_FIXED',
         'The warehouse is fixed once stock or sourcing has been recorded',

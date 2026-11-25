@@ -371,3 +371,7 @@ export const analyticsRangeSchema = z.strictObject({
 export const demandAnalyticsSchema = analyticsRangeSchema.extend(
   paginationQuerySchema.shape,
 );
+
+export const operationLookupSchema = z.strictObject({
+  domain: z.enum(['SOURCING', 'FULFILLMENT', 'RESOLUTION', 'REFUND']),
+});

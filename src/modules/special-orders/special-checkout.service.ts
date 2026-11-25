@@ -1,3 +1,4 @@
+import { readSpecialCheckoutConfiguration } from './special-order-configuration.js';
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { AppError } from '../../common/errors/app-error.js';
@@ -89,11 +90,6 @@ const pickupSchema = z.object({
   regionCode: z.string().max(100).nullish(),
   instructions: z.string().max(1000).nullish(),
 });
-const configurationSchema = z.object({
-  cashEnabled: z.boolean().default(true),
-  pickupLocations: z.array(z.unknown()).max(100).default([]),
-});
-
 function conflict(
   message = 'Review an updated Special Checkout preview before confirming',
 ): never {
@@ -114,11 +110,7 @@ const scopeFor = ({ tenantId, userId }: Actor) => ({
 });
 
 async function configuration(tx: Tx, tenantId: string) {
-  const row = await tx.appSetting.findUnique({
-    where: { tenantId_key: { tenantId, key: 'special_checkout' } },
-    select: { value: true },
-  });
-  const config = configurationSchema.parse(row?.value ?? {});
+  const config = await readSpecialCheckoutConfiguration(tx, tenantId);
   const pickupLocations = config.pickupLocations.flatMap((location) => {
     const parsed = pickupSchema.safeParse(location);
     if (!parsed.success) return [];

@@ -1,3 +1,8 @@
+import {
+  quotationPaymentCapabilities,
+  quotationTaxCategories,
+} from './special-order-configuration.js';
+import { reconcileOperation, sourcingHistory } from './special-order-audit.js';
 import * as analytics from './special-order-analytics.service.js';
 import { sensitiveRateLimiter } from '../../config/rate-limit.js';
 import { Router, type Request, type Response } from 'express';
@@ -34,6 +39,7 @@ import {
   editRequestSchema,
   idempotencyKeySchema,
   merchantListSchema,
+  operationLookupSchema,
   rejectRequestSchema,
   requestIdSchema,
   requestListSchema,
@@ -74,6 +80,72 @@ const customerScope = (req: Request) => ({
   customerId: req.user!.userId,
 });
 const merchantScope = (req: Request) => ({ tenantId: req.tenant!.tenantId });
+
+router.get(
+  '/quotation/payment-capabilities',
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
+  async (req, res) =>
+    sendSuccess(res, await quotationPaymentCapabilities(actor(req).tenantId)),
+);
+router.get(
+  '/quotation/tax-categories',
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
+  validate(requestListSchema, 'query'),
+  async (req, res) => {
+    const { page, limit } = requestListSchema.parse(req.query);
+    return sendSuccess(
+      res,
+      await quotationTaxCategories(actor(req).tenantId, page, limit),
+    );
+  },
+);
+router.get(
+  '/orders/:id/sourcing/history',
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
+  validate(requestIdSchema, 'params'),
+  validate(requestListSchema, 'query'),
+  async (req, res) => {
+    const { page, limit } = requestListSchema.parse(req.query);
+    return sendSuccess(
+      res,
+      await sourcingHistory(
+        merchantScope(req),
+        requestIdSchema.parse(req.params).id,
+        page,
+        limit,
+      ),
+    );
+  },
+);
+router.get(
+  '/orders/:id/sourcing/warehouses',
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
+  validate(requestIdSchema, 'params'),
+  async (req, res) =>
+    sendSuccess(
+      res,
+      await sourcing.sourcingWarehouses(
+        merchantScope(req),
+        requestIdSchema.parse(req.params).id,
+      ),
+    ),
+);
+router.get(
+  '/orders/:id/operations/lookup',
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
+  validate(requestIdSchema, 'params'),
+  validate(operationLookupSchema, 'query'),
+  async (req, res) =>
+    sendSuccess(
+      res,
+      await reconcileOperation(
+        merchantScope(req),
+        requestIdSchema.parse(req.params).id,
+        operationLookupSchema.parse(req.query).domain,
+        idempotencyKeySchema.parse(req.header('Idempotency-Key')),
+      ),
+    ),
+);
 
 router.get(
   '/analytics/overview',

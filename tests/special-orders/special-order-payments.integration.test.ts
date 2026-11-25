@@ -275,6 +275,87 @@ async function initial(id: string) {
 }
 
 describe('Special Order payment lifecycle', () => {
+  it('publishes merchant quotation capabilities with cash, provider and tax gating', async () => {
+    const path = '/quotation/payment-capabilities';
+    await call(path, customerId).expect(403);
+    const read = () =>
+      call(path, merchantId)
+        .expect(200)
+        .then((result) => result.body.data);
+    expect(await read()).toMatchObject({
+      market: { countryCode: 'KW', currency: 'KWD' },
+      checkoutRevalidationRequired: true,
+      providerEnvironment: 'MOCK',
+      terms: [
+        { method: 'CASH_ON_FULFILLMENT', canOffer: true, reason: null },
+        { method: 'FULL_ADVANCE_ONLINE', canOffer: true, reason: null },
+        {
+          method: 'DEPOSIT_REMAINING_CASH',
+          canOffer: true,
+          deposit: {
+            fixed: { fractionDigits: 3 },
+            percentage: { base: 'PRODUCTS_INCLUDING_TAX', maximum: '100' },
+          },
+        },
+        { method: 'DEPOSIT_REMAINING_ONLINE', canOffer: true },
+      ],
+    });
+    const original = await db.appSetting.findUniqueOrThrow({
+      where: { tenantId_key: { tenantId, key: 'special_checkout' } },
+    });
+    const priorProvider = env.PAYMENT_PROVIDER;
+    try {
+      await db.appSetting.update({
+        where: { id: original.id },
+        data: { value: { cashEnabled: false } },
+      });
+      expect((await read()).terms[2]).toMatchObject({
+        canOffer: false,
+        reason: 'SPECIAL_CHECKOUT_CASH_DISABLED',
+      });
+      env.PAYMENT_PROVIDER = 'NONE';
+      expect((await read()).terms[1]).toMatchObject({
+        canOffer: false,
+        reason: 'SPECIAL_PAYMENT_PROVIDER_UNAVAILABLE',
+      });
+    } finally {
+      env.PAYMENT_PROVIDER = priorProvider;
+      await db.appSetting.update({
+        where: { id: original.id },
+        data: { value: original.value as object },
+      });
+    }
+    const inactive = await db.taxCategory.create({
+      data: {
+        tenantId,
+        code: 'INACTIVE_TEST',
+        name: 'Inactive test',
+        isActive: false,
+      },
+    });
+    const tax = (
+      await call(
+        '/quotation/tax-categories?page=1&limit=20',
+        merchantId,
+      ).expect(200)
+    ).body.data;
+    expect(tax).toMatchObject({
+      allowsInherited: true,
+      items: expect.arrayContaining([
+        expect.objectContaining({
+          code: 'NONE',
+          selectable: true,
+          treatment: 'ZERO_RATED',
+        }),
+        expect.objectContaining({
+          id: inactive.id,
+          selectable: false,
+          reason: 'TAX_CATEGORY_NOT_CONFIGURED',
+        }),
+      ]),
+    });
+  });
+
   it('keeps cash outstanding with the initial sourcing gate open and no fake settlement', async () => {
     const order = await checkout({ method: 'CASH_ON_FULFILLMENT' });
     expect(order.paymentSummary).toMatchObject({
@@ -721,6 +802,24 @@ describe('Special Order payment lifecycle', () => {
     });
     const order = await checkout({ method: 'CASH_ON_FULFILLMENT' }, catalog);
     const second = await checkout({ method: 'CASH_ON_FULFILLMENT' }, catalog);
+    const warehouseContract = (
+      await call(`/orders/${order.id}/sourcing/warehouses`, merchantId).expect(
+        200,
+      )
+    ).body.data;
+    expect(warehouseContract).toMatchObject({
+      assignedWarehouse: null,
+      canReassign: true,
+    });
+    expect(
+      warehouseContract.eligibleWarehouses.map(({ id }: { id: string }) => id),
+    ).toEqual(expect.arrayContaining([location.id, alternate.id]));
+    expect(
+      warehouseContract.eligibleWarehouses.map(({ id }: { id: string }) => id),
+    ).not.toContain(incompatible.id);
+    expect(
+      warehouseContract.eligibleWarehouses.map(({ id }: { id: string }) => id),
+    ).not.toContain(foreignLocation.id);
     await source(
       order.id,
       { action: 'START', warehouseId: location.id },
@@ -773,6 +872,58 @@ describe('Special Order payment lifecycle', () => {
       source(selected.id, receipt, key).expect(200),
     ]);
     await source(selected.id, { ...receipt, quantity: 2 }, key).expect(409);
+    const locked = (
+      await call(
+        `/orders/${selected.id}/sourcing/warehouses`,
+        merchantId,
+      ).expect(200)
+    ).body.data;
+    expect(locked).toMatchObject({
+      assignedWarehouse: { id: location.id },
+      canReassign: false,
+      blockedReason: 'SPECIAL_WAREHOUSE_FIXED',
+    });
+    const lookup = `/orders/${selected.id}/operations/lookup?domain=SOURCING`;
+    const operation = (
+      await call(lookup, merchantId).set('Idempotency-Key', key).expect(200)
+    ).body.data;
+    expect(operation).toMatchObject({
+      status: 'RECORDED',
+      operation: { action: 'RECEIVE' },
+    });
+    expect(
+      (
+        await call(lookup, merchantId)
+          .set('Idempotency-Key', randomUUID())
+          .expect(200)
+      ).body.data.status,
+    ).toBe('NOT_FOUND');
+    await call(lookup, customerId).set('Idempotency-Key', key).expect(403);
+    const history = (
+      await call(
+        `/orders/${selected.id}/sourcing/history?page=1&limit=1`,
+        merchantId,
+      ).expect(200)
+    ).body.data;
+    expect(history).toMatchObject({
+      pagination: { total: 2 },
+      items: [
+        {
+          id: operation.operation.id,
+          action: 'RECEIVE',
+          kind: 'OPERATION',
+          createdAt: expect.any(String),
+          actor: { id: merchantId, displayName: 'Test Customer' },
+          entries: [
+            {
+              itemId,
+              quantity: 1,
+              inventory: { id: inventory.id, warehouseId: location.id },
+            },
+          ],
+        },
+      ],
+    });
     const row = await db.inventory.findUniqueOrThrow({
       where: { id: inventory.id },
     });
@@ -1966,12 +2117,55 @@ describe('Special Order payment lifecycle', () => {
       reason: 'Customer cancelled before sourcing',
     }).expect(200);
     const due = (await resolution(order.id)).refunds[0];
+    expect(due.execution).toEqual({
+      canExecute: true,
+      reason: null,
+      method: 'ONLINE',
+      requiredEvidence: 'VERIFIED_PROVIDER_RESULT',
+    });
+    const payment = (
+      await call(`/orders/${order.id}/payment`, resolutionMerchantId).expect(
+        200,
+      )
+    ).body.data;
+    expect(payment.obligations[0].attempts[0].settlements[0]).toMatchObject({
+      id: due.settlementId,
+      refundableCapacity: {
+        currency: 'KWD',
+        originalVerifiedAmount: '23.260',
+        outstandingAllocatedAmount: '23.260',
+        settledRefundAmount: '0.000',
+        unallocatedRefundableCapacity: '0.000',
+      },
+    });
+    const refundKey = randomUUID();
     MockMyFatoorahProvider.enqueueRefundBehavior(`mock-inv-${attempt.id}`, {
       throwError: new Error('Unknown refund result'),
     });
-    await refund(order.id, { refundId: due.id, reason: 'Refund prepaid order' })
+    await refund(
+      order.id,
+      { refundId: due.id, reason: 'Refund prepaid order' },
+      refundKey,
+    )
       .expect(200)
       .expect(({ body }) => expect(body.data.state).toBe('UNKNOWN'));
+    expect(
+      (
+        await call(
+          `/orders/${order.id}/operations/lookup?domain=REFUND`,
+          resolutionMerchantId,
+        )
+          .set('Idempotency-Key', refundKey)
+          .expect(200)
+      ).body.data,
+    ).toMatchObject({
+      status: 'UNKNOWN',
+      refund: { id: due.id, state: 'UNKNOWN' },
+    });
+    expect((await resolution(order.id)).refunds[0].execution).toMatchObject({
+      canExecute: false,
+      reason: 'SPECIAL_REFUND_UNKNOWN',
+    });
     await refund(order.id, {
       refundId: due.id,
       reason: 'Retry unknown refund',
@@ -2028,6 +2222,22 @@ describe('Special Order payment lifecycle', () => {
     };
     const key = randomUUID();
     await merchantResolution(order.id, correct, key).expect(200);
+    const audit = (
+      await call(
+        `/orders/${order.id}/sourcing/history?limit=1`,
+        resolutionMerchantId,
+      ).expect(200)
+    ).body.data;
+    expect(audit.items[0]).toMatchObject({
+      kind: 'CORRECTION',
+      correction: 'REVERSE_RECEIPT',
+      reason: 'Duplicate physical receipt',
+      evidence: 'Verified warehouse count',
+      quantity: 1,
+      entry: { id: entry.id },
+      actor: { id: resolutionMerchantId },
+    });
+
     await merchantResolution(order.id, correct, key).expect(200);
     expect(
       await db.specialOrder.findUnique({ where: { id: order.id } }),

@@ -15,6 +15,7 @@ import {
   allocateRefunds,
   lockResolutionOrder,
   publicRefund,
+  refundCapabilities,
   resolutionConflict,
   resolutionEvent,
   type ResolutionTx,
@@ -111,8 +112,19 @@ export function presentResolutions(
 
 export async function getResolutions(scope: Scope, id: string) {
   const order = await load(prisma, scope, id);
+  const merchant = scope.customerId === undefined;
+  const base = presentResolutions(order, merchant);
+  const capabilities = merchant
+    ? await refundCapabilities(scope.tenantId, id)
+    : null;
   return {
-    ...presentResolutions(order, scope.customerId === undefined),
+    ...base,
+    ...(capabilities && {
+      refunds: base.refunds.map((refund) => ({
+        ...refund,
+        execution: capabilities.get(refund.id),
+      })),
+    }),
     paymentSummary: financialSummary(order),
     ...(scope.customerId === undefined && {
       sourcingEntries: order.items

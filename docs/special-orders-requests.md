@@ -744,3 +744,183 @@ obsolete attachments where the lifecycle permits. Recovery copies and
 backups follow their own retention policies. Upload checks enforce the
 supported signatures and size and count bounds. The application does not
 provide antivirus scanning or a backup-specific purge workflow.
+
+## Merchant capability and audit contracts
+
+All routes below are relative to `/api/v1/special-orders`. Use the selected
+tenant's `X-Tenant-Slug` and bearer token. Active tenant owners, admins, and
+managers can read these contracts, including when customer submissions are
+disabled. Responses use the existing success envelope. The examples show
+its `data` payload or an excerpt from that payload.
+
+### Quotation payment and tax configuration
+
+`GET /quotation/payment-capabilities` reads the tenant default market,
+`special_checkout.cashEnabled`, and the existing authorized provider
+binding. It returns `market: { countryCode, currency }`,
+`providerEnvironment` (`MOCK`, `SANDBOX`, or null),
+`checkoutRevalidationRequired: true`, and four `terms` in the established
+method order. Each term has `method`, `canOffer`, `reason` and `deposit`.
+A null reason means the term can be offered in the quotation market.
+Checkout rechecks destination, accepted quantities, currency, and executable
+provider amounts after customer selection.
+
+| Reason | Meaning |
+| --- | --- |
+| `SPECIAL_QUOTATION_MARKET_REQUIRED` | The tenant needs a supported default currency and country. |
+| `SPECIAL_CHECKOUT_CASH_DISABLED` | The tenant disabled cash and the term requires cash at fulfillment. |
+| `SPECIAL_PAYMENT_PROVIDER_UNAVAILABLE` | The quotation market has no compatible, authorized provider binding in the configured environment. |
+
+A cash or full advance term has `deposit: null`. The deposit object gives
+a fixed decimal's currency, fraction and integer digit limits, and exclusive
+minimum. The percentage option has a positive minimum, at most two fraction
+digits, and an inclusive maximum of 100. The base is the selected products
+total including tax. Shipping and sourcing fees go to the remaining balance.
+Checkout requires a calculated deposit at most equal to the products total
+and strictly below the final order total. Adapter-specific limits apply to
+the actual payment amounts at checkout.
+
+Example term in the KWD mock fixture:
+
+```json
+{
+  "method": "DEPOSIT_REMAINING_CASH",
+  "canOffer": true,
+  "reason": null,
+  "deposit": {
+    "fixed": {"currency":"KWD","fractionDigits":3,"maxIntegerDigits":10,"exclusiveMinimum":"0"},
+    "percentage": {"exclusiveMinimum":"0","maximum":"100","fractionDigits":2,"base":"PRODUCTS_INCLUDING_TAX"},
+    "shippingAllocation":"REMAINING_BALANCE",
+    "sourcingFeeAllocation":"REMAINING_BALANCE"
+  }
+}
+```
+
+`GET /quotation/tax-categories?page=1&limit=20` returns
+`{market, allowsInherited, items, pagination}`. Each item has
+`id`, `code`, `name`, `treatment`, `isActive`, `selectable`, and
+`reason`. Use `name` for display. There is one stored category name per
+category. A selectable category resolves with the tax engine at the tenant
+default country and current time, the same basis as draft saving. Inactive
+or missing configurations use existing tax reason codes including
+`TAX_CATEGORY_NOT_CONFIGURED`, `TAX_PROFILE_NOT_CONFIGURED`, and
+`TAX_RULE_NOT_CONFIGURED`. Ambiguous profiles and mismatched tax currency
+return `TAX_PROFILE_AMBIGUOUS` or `TAX_CURRENCY_MISMATCH` as the row reason.
+Omit explicit category IDs to use catalog or profile inheritance. Historical
+quote tax snapshots are unchanged. Tested row excerpts:
+
+```json
+{"code":"NONE","name":"No tax","treatment":"ZERO_RATED","isActive":true,"selectable":true,"reason":null}
+```
+
+### Warehouse choices and sourcing history
+
+`GET /orders/:id/sourcing/warehouses` returns
+`{assignedWarehouse, eligibleWarehouses, canReassign, blockedReason}`.
+The assignment is null or `{id,name,code}`. Choices also include
+`countryCode` and `region`. The read shares the mutation's destination
+predicate. Delivery requires the warehouse's destination country coverage.
+Pickup requires a matching country and its specified region when present.
+Only active warehouses in active countries owned by the selected tenant
+appear. The blocked reason is null, `SPECIAL_SOURCING_STATE_CONFLICT`,
+`SPECIAL_WAREHOUSE_FIXED`, or `SPECIAL_SOURCING_FINANCIAL_BLOCK`.
+Choices describe destination compatibility. When `canReassign` is false,
+use the assigned warehouse for display and leave the mutation disabled.
+Creation of any sourcing entry fixes the warehouse, including after a
+compensating correction. The locked fixture returns this excerpt:
+
+```json
+{"canReassign":false,"blockedReason":"SPECIAL_WAREHOUSE_FIXED"}
+```
+
+`GET /orders/:id/sourcing/history?page=1&limit=20` uses the normal pagination
+envelope and sorts latest first by creation time, ID, and record kind.
+`OPERATION` rows contain `id`, `action`, `createdAt`, `actor` and
+`entries`. Each entry has `id`, `itemId`, `quantity` and `inventory`
+(null or `{id,warehouseId}`). Quantities here are original quantities.
+`CORRECTION` rows contain `id`, `createdAt`, `actor`, `reason`,
+`evidence`, `correction`, `quantity` and `entry` with the original
+entry, operation, item and inventory identifiers. Actor fields are
+`{id,displayName}` with a nullable name. Match `entry.id` to the original
+entry to link corrections. Read current quantities from sourcing progress.
+Historical operations without inventory entries, including empty START
+operations, carry no historical warehouse reference in persisted evidence.
+The read does not substitute the currently assigned warehouse for that
+missing evidence. The correction fixture returns this excerpt:
+
+```json
+{
+  "kind":"CORRECTION",
+  "correction":"REVERSE_RECEIPT",
+  "reason":"Duplicate physical receipt",
+  "evidence":"Verified warehouse count",
+  "quantity":1
+}
+```
+
+### Verified settlement and refund capabilities
+
+Merchant `GET /orders/:id/payment` now includes `id` on online settlements
+and `refundableCapacity` on cash and online settlements. Match the settlement
+ID to the refund allocation's `settlementId`. Capacity values are decimal
+strings formatted in the original settlement currency. The original amount
+is shown separately from the settled refund amount and outstanding allocated
+amount. Due, unsupported, in-progress, and unknown allocations all reserve
+capacity. Unallocated capacity is original amount minus all allocations for
+an attributable settlement, or zero for non-attributable evidence.
+
+A tested KWD settlement excerpt after allocating the full verified payment:
+
+```json
+{
+  "refundableCapacity": {
+    "currency":"KWD",
+    "originalVerifiedAmount":"23.260",
+    "settledRefundAmount":"0.000",
+    "outstandingAllocatedAmount":"23.260",
+    "unallocatedRefundableCapacity":"0.000"
+  }
+}
+```
+
+Merchant `GET /orders/:id/resolution` adds `execution` to each refund.
+Its fields are `canExecute`, `reason`, `method` (`CASH` or `ONLINE`),
+and `requiredEvidence`. Executable cash requires
+`CASH_REPAYMENT_REFERENCE`. Executable mock online uses
+`VERIFIED_PROVIDER_RESULT`. Sandbox and unverified production online
+refunds remain unavailable. Capability reads do not contact the provider.
+The refund endpoint rechecks under the order lock.
+
+| Blocking reason | Meaning |
+| --- | --- |
+| `SPECIAL_REFUND_SETTLED`, `SPECIAL_REFUND_IN_PROGRESS`, `SPECIAL_REFUND_UNKNOWN` | Existing outcome blocks execution. |
+| `SPECIAL_REFUND_PROVIDER_UNSUPPORTED` | The current adapter or environment cannot execute this refund. |
+| `SPECIAL_REFUND_CREDENTIAL_CHANGED`, `SPECIAL_REFUND_INVOICE_MISSING` | Original provider binding is unsuitable. |
+| `SPECIAL_REFUND_MULTIPLE_COLLECTIONS` | The invoice lacks exactly one verified collection, so invoice-level execution cannot target this allocation safely. |
+
+Example before a mock online refund is attempted:
+
+```json
+{"canExecute":true,"reason":null,"method":"ONLINE","requiredEvidence":"VERIFIED_PROVIDER_RESULT"}
+```
+
+### Read-only operation reconciliation
+
+`GET /orders/:id/operations/lookup?domain=SOURCING` accepts the original
+`Idempotency-Key` header. Domains are `SOURCING`, `FULFILLMENT`,
+`RESOLUTION`, and `REFUND`. The response is
+`{domain,status,operation,refund}`. An operation is null or
+`{id,action}`. A refund is null or `{id,state,updatedAt}`, reflecting the
+allocation's current state. It can reflect a later attempt.
+
+`RECORDED` means a persisted record exists. For a refund, inspect
+`refund.state` to distinguish settled, due, and unsupported execution.
+`IN_PROGRESS` or `UNKNOWN` reflects unresolved refund evidence.
+`NOT_FOUND` means only that no matching record is visible at read time.
+An in-flight transaction may still commit, and the lookup cannot prove the
+absence of any external financial effect. The lookup neither replays an
+action nor returns request payloads. Example for an unused sourcing key:
+
+```json
+{"domain":"SOURCING","status":"NOT_FOUND","operation":null,"refund":null}
+```

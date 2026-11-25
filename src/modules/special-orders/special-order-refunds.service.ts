@@ -8,6 +8,7 @@ import type { Prisma } from '../../generated/prisma/client.js';
 import { PaymentProviderRegistry } from '../payments/providers/payment-provider.registry.js';
 import {
   financialRelations,
+  unallocatedRefundCapacity,
   type FinancialOrder,
 } from './special-order-financial-summary.js';
 import { notify, type Actor, type Scope } from './special-order.service.js';
@@ -98,10 +99,7 @@ export async function allocateRefunds(
       where: { settlementId: payment.id },
     });
     if (prior.some((refund) => refund.sourceKey === sourceKey)) continue;
-    const capacity = prior.reduce(
-      (left, refund) => left.minus(refund.amount.toFixed()),
-      parseDecimal(payment.amount.toFixed()),
-    );
+    const capacity = unallocatedRefundCapacity(payment.amount.toFixed(), prior);
     const amount = available && available.lt(capacity) ? available : capacity;
     if (!amount.gt(0)) continue;
     await tx.specialOrderRefund.create({
@@ -131,8 +129,71 @@ export async function allocateCancelledCollections(
 }
 
 const refundInclude = {
-  settlement: { include: { attempt: { include: { providerAccount: true } } } },
+  settlement: {
+    include: {
+      attempt: {
+        include: {
+          providerAccount: true,
+          _count: { select: { settlements: true } },
+        },
+      },
+    },
+  },
 } satisfies Prisma.SpecialOrderRefundInclude;
+
+type ExecutionRefund = Prisma.SpecialOrderRefundGetPayload<{
+  include: typeof refundInclude;
+}>;
+
+function refundExecution(refund: ExecutionRefund) {
+  const attempt = refund.settlement.attempt;
+  const method = attempt ? 'ONLINE' : 'CASH';
+  const blocked = (reason: string) => ({
+    canExecute: false,
+    reason,
+    method,
+    requiredEvidence: null,
+  });
+  if (!['DUE', 'UNSUPPORTED'].includes(refund.state))
+    return blocked(`SPECIAL_REFUND_${refund.state}`);
+  if (!attempt)
+    return {
+      canExecute: true,
+      reason: null,
+      method,
+      requiredEvidence: 'CASH_REPAYMENT_REFERENCE',
+    };
+  if (
+    attempt.providerEnvironment !== 'MOCK' ||
+    env.PAYMENT_PROVIDER !== 'MOCK' ||
+    env.NODE_ENV === 'production' ||
+    process.env.NODE_ENV === 'production'
+  )
+    return blocked('SPECIAL_REFUND_PROVIDER_UNSUPPORTED');
+  if (attempt.credentialVersion !== attempt.providerAccount.credentialVersion)
+    return blocked('SPECIAL_REFUND_CREDENTIAL_CHANGED');
+  if (!attempt.invoiceId) return blocked('SPECIAL_REFUND_INVOICE_MISSING');
+  if (attempt._count.settlements !== 1)
+    return blocked('SPECIAL_REFUND_MULTIPLE_COLLECTIONS');
+  const adapter = new PaymentProviderRegistry().getProvider(attempt.provider);
+  if (!adapter.supportsRefunds || !adapter.executeRefund)
+    return blocked('SPECIAL_REFUND_PROVIDER_UNSUPPORTED');
+  return {
+    canExecute: true,
+    reason: null,
+    method,
+    requiredEvidence: 'VERIFIED_PROVIDER_RESULT',
+  };
+}
+
+export async function refundCapabilities(tenantId: string, orderId: string) {
+  const refunds = await prisma.specialOrderRefund.findMany({
+    where: { tenantId, orderId },
+    include: refundInclude,
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+  });
+  return new Map(refunds.map((refund) => [refund.id, refundExecution(refund)]));
+}
 
 export async function executeSpecialRefund(
   actor: Actor,
@@ -203,20 +264,7 @@ export async function executeSpecialRefund(
         'SPECIAL_ONLINE_REFUND_EVIDENCE',
         'Online refunds require provider evidence',
       );
-    if (
-      env.PAYMENT_PROVIDER !== 'MOCK' ||
-      attempt.providerEnvironment !== 'MOCK' ||
-      attempt.credentialVersion !== attempt.providerAccount.credentialVersion ||
-      !attempt.invoiceId ||
-      // This adapter refunds by invoice, so it cannot target an individual
-      // collection where one invoice has several successful settlements.
-      (await tx.specialOrderPaymentSettlement.count({
-        where: {
-          tenantId: actor.tenantId,
-          attemptId: attempt.id,
-        },
-      })) !== 1
-    ) {
+    if (!refundExecution(refund).canExecute) {
       const result = await tx.specialOrderRefund.update({
         where: { id: refund.id },
         data: { state: 'UNSUPPORTED' },

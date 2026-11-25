@@ -336,6 +336,8 @@ export async function buildRequest(route: Route): Promise<Item> {
     endpoint === 'POST /special-orders/my/:id/checkout/preview';
   const specialInitiate =
     endpoint === 'POST /special-orders/my/orders/:id/payment/attempts';
+  const lookup =
+    endpoint === 'GET /special-orders/orders/:id/operations/lookup';
   const idempotent =
     endpoint === 'POST /checkout' ||
     endpoint === 'POST /special-orders/my' ||
@@ -533,7 +535,7 @@ export async function buildRequest(route: Route): Promise<Item> {
     request.url.query = [{ key: 'token', value: '{{mockCheckoutToken}}' }];
     request.url.raw += '?token={{mockCheckoutToken}}';
   }
-  if (idempotent)
+  if (idempotent || lookup)
     request.header.push({
       key: 'Idempotency-Key',
       value: '{{idempotencyKey}}',
@@ -572,6 +574,7 @@ pm.request.body.update({mode:'raw',raw:JSON.stringify(quoteBody)});`
 }
 ${mockCheckout || mockScenario ? `if (!pm.variables.get('mockCheckoutToken')) pm.execution.skipRequest();` : ''}
 ${a.auth || route.path === '/ops/metrics' ? `if (!pm.variables.get('${token}')) pm.execution.skipRequest();` : ''}
+${lookup ? `if (!pm.variables.get('idempotencyKey')) throw new Error('Set the original operation key');` : ''}
 ${idempotent ? `if (!pm.variables.get('idempotencyKey')) throw new Error('Set a new idempotencyKey once for this purchase; keep it for retries');` : ''}
 `;
   let post = `pm.test('Expected successful status', () => pm.expect(pm.response.code).to.be.oneOf(${JSON.stringify(success)}));`;

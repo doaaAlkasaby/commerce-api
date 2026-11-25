@@ -8516,6 +8516,7 @@
                   "",
                   "",
                   "if (!pm.variables.get('customerAccessToken')) pm.execution.skipRequest();",
+                  "",
                   "if (!pm.variables.get('idempotencyKey')) throw new Error('Set a new idempotencyKey once for this purchase; keep it for retries');"
                 ]
               }
@@ -13738,6 +13739,358 @@
       "description": "Submit with an Idempotency-Key, then review as a merchant. Save a draft and publish using its captured quotation ID and version. An update to an existing draft includes its draft ID and version. Customers can read the current quotation and calculate or accept any valid selection. Set quotationItemId or edit the items array to choose other products. For quoted or accepted cancellation and resubmission, include the observed quotation ID, version, and request status. Fetch checkout options, then preview and confirm using the captured acceptance, shipping method, preview token, and a fresh idempotency key. Use STORE_PICKUP with a configured pickupLocationId for pickup. For online payment, read payment options, initiate an eligible obligation with a new idempotency key, and verify the returned attempt after checkout. Merchants can read sourcing and send START, RESERVE, RECEIVE, SECURE or READY with distinct idempotency keys. READY unlocks an eligible online balance. Record merchant fulfillment using DISPATCH or AVAILABLE_FOR_PICKUP, then DELIVER or PICK_UP. Use COMPLETE after handover and payment. The resolution endpoints record cancellation, returns, inspections, and corrections. Read the merchant resolution before executing an approved refund. Merchant analytics accept inclusive UTC dates from and to. Demand additionally supports page and limit.",
       "item": [
         {
+          "name": "GET /special-orders/quotation/payment-capabilities",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/special-orders/quotation/payment-capabilities",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "{{apiPrefix}}",
+                "special-orders",
+                "quotation",
+                "payment-capabilities"
+              ]
+            },
+            "header": [
+              {
+                "key": "X-Tenant-Slug",
+                "value": "{{tenantSlug}}"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ownerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "GET /special-orders/quotation/payment-capabilities: async (req, res) =>\n    sendSuccess(res, await quotationPaymentCapabilities(acto.\n\nAuthentication: Bearer ownerAccessToken. Tenant header: X-Tenant-Slug: {{tenantSlug}}. Active tenant membership required.  Tenant roles: OWNER/ADMIN/MANAGER.  \n\nHeaders: X-Tenant-Slug. Path parameters: none. Success status: 200.\n\nBody: none. \n\nQuery: none documented by route validation.\n\nImportant module business errors: IDEMPOTENCY_KEY_CONFLICT, INVALID_ATTACHMENT, INVALID_SPECIAL_QUOTATION_SELECTION, INVALID_SPECIAL_REQUEST_CATALOG_REFERENCE, INVALID_SPECIAL_REQUEST_ITEM, SHIPPING_ADDRESS_NOT_FOUND, SPECIAL_ANALYTICS_RANGE_INVALID, SPECIAL_CHECKOUT_CONFLICT, SPECIAL_CHECKOUT_TAX_CONFLICT, SPECIAL_ORDERS_DISABLED, SPECIAL_ORDER_NOT_FOUND, SPECIAL_PAYMENT_NOT_FOUND, SPECIAL_PAYMENT_UNAVAILABLE, SPECIAL_PICKUP_NOT_FOUND, SPECIAL_QUOTATION_CONFLICT, SPECIAL_QUOTATION_EMPTY, SPECIAL_QUOTATION_EXPIRED, SPECIAL_QUOTATION_MARKET_REQUIRED, SPECIAL_QUOTATION_NOT_FOUND, SPECIAL_REFUND_NOT_FOUND, SPECIAL_REQUEST_ATTACHMENT_LIMIT, SPECIAL_REQUEST_NOT_FOUND, SPECIAL_REQUEST_PHONE_REQUIRED, SPECIAL_REQUEST_STATE_CONFLICT, SPECIAL_SHIPPING_UNAVAILABLE, VALIDATION_ERROR. Shared failures include AUTHENTICATION_REQUIRED/INVALID_ACCESS_TOKEN (protected requests), UNAUTHORIZED/TENANT_NOT_FOUND (tenant context), FORBIDDEN (roles), and VALIDATION_ERROR. Business errors retain {success:false,message,code,data:null}.\n\nSide effects: read-only. \n\nSubmit with an Idempotency-Key, then review as a merchant. Save a draft and publish using its captured quotation ID and version. An update to an existing draft includes its draft ID and version. Customers can read the current quotation and calculate or accept any valid selection. Set quotationItemId or edit the items array to choose other products. For quoted or accepted cancellation and resubmission, include the observed quotation ID, version, and request status. Fetch checkout options, then preview and confirm using the captured acceptance, shipping method, preview token, and a fresh idempotency key. Use STORE_PICKUP with a configured pickupLocationId for pickup. For online payment, read payment options, initiate an eligible obligation with a new idempotency key, and verify the returned attempt after checkout. Merchants can read sourcing and send START, RESERVE, RECEIVE, SECURE or READY with distinct idempotency keys. READY unlocks an eligible online balance. Record merchant fulfillment using DISPATCH or AVAILABLE_FOR_PICKUP, then DELIVER or PICK_UP. Use COMPLETE after handover and payment. The resolution endpoints record cancellation, returns, inspections, and corrections. Read the merchant resolution before executing an approved refund. Merchant analytics accept inclusive UTC dates from and to. Demand additionally supports page and limit.\n\nSource: src/modules/special-orders/special-order.routes.ts. Schema references: inline/controller validation; see source."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (false && pm.variables.get('allowMutations') !== 'true') pm.execution.skipRequest();",
+                  "if (false && pm.variables.get('allowPaymentMutations') !== 'true') pm.execution.skipRequest();",
+                  "if (false && pm.variables.get('allowProviderWebhook') !== 'true') pm.execution.skipRequest();",
+                  "",
+                  "",
+                  "",
+                  "if (!pm.variables.get('ownerAccessToken')) pm.execution.skipRequest();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected successful status', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('Success envelope', () => { const body=pm.response.json(); pm.expect(body.success).to.eql(true); pm.expect(body).to.have.property('message'); pm.expect(body).to.have.property('data'); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /special-orders/quotation/tax-categories",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/special-orders/quotation/tax-categories?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "{{apiPrefix}}",
+                "special-orders",
+                "quotation",
+                "tax-categories"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": false,
+                  "description": "{\"default\":1,\"type\":\"integer\",\"minimum\":1,\"maximum\":21474836}"
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": false,
+                  "description": "{\"default\":20,\"type\":\"integer\",\"minimum\":1,\"maximum\":100}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "X-Tenant-Slug",
+                "value": "{{tenantSlug}}"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ownerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "GET /special-orders/quotation/tax-categories: async (req, res) => {\n    const { page, limit } = requestListSchema.\n\nAuthentication: Bearer ownerAccessToken. Tenant header: X-Tenant-Slug: {{tenantSlug}}. Active tenant membership required.  Tenant roles: OWNER/ADMIN/MANAGER.  \n\nHeaders: X-Tenant-Slug. Path parameters: none. Success status: 200.\n\nBody: none. \n\nQuery: {\n  \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n  \"type\": \"object\",\n  \"properties\": {\n    \"page\": {\n      \"default\": 1,\n      \"type\": \"integer\",\n      \"minimum\": 1,\n      \"maximum\": 21474836\n    },\n    \"limit\": {\n      \"default\": 20,\n      \"type\": \"integer\",\n      \"minimum\": 1,\n      \"maximum\": 100\n    }\n  }\n}.\n\nImportant module business errors: IDEMPOTENCY_KEY_CONFLICT, INVALID_ATTACHMENT, INVALID_SPECIAL_QUOTATION_SELECTION, INVALID_SPECIAL_REQUEST_CATALOG_REFERENCE, INVALID_SPECIAL_REQUEST_ITEM, SHIPPING_ADDRESS_NOT_FOUND, SPECIAL_ANALYTICS_RANGE_INVALID, SPECIAL_CHECKOUT_CONFLICT, SPECIAL_CHECKOUT_TAX_CONFLICT, SPECIAL_ORDERS_DISABLED, SPECIAL_ORDER_NOT_FOUND, SPECIAL_PAYMENT_NOT_FOUND, SPECIAL_PAYMENT_UNAVAILABLE, SPECIAL_PICKUP_NOT_FOUND, SPECIAL_QUOTATION_CONFLICT, SPECIAL_QUOTATION_EMPTY, SPECIAL_QUOTATION_EXPIRED, SPECIAL_QUOTATION_MARKET_REQUIRED, SPECIAL_QUOTATION_NOT_FOUND, SPECIAL_REFUND_NOT_FOUND, SPECIAL_REQUEST_ATTACHMENT_LIMIT, SPECIAL_REQUEST_NOT_FOUND, SPECIAL_REQUEST_PHONE_REQUIRED, SPECIAL_REQUEST_STATE_CONFLICT, SPECIAL_SHIPPING_UNAVAILABLE, VALIDATION_ERROR. Shared failures include AUTHENTICATION_REQUIRED/INVALID_ACCESS_TOKEN (protected requests), UNAUTHORIZED/TENANT_NOT_FOUND (tenant context), FORBIDDEN (roles), and VALIDATION_ERROR. Business errors retain {success:false,message,code,data:null}.\n\nSide effects: read-only. \n\nSubmit with an Idempotency-Key, then review as a merchant. Save a draft and publish using its captured quotation ID and version. An update to an existing draft includes its draft ID and version. Customers can read the current quotation and calculate or accept any valid selection. Set quotationItemId or edit the items array to choose other products. For quoted or accepted cancellation and resubmission, include the observed quotation ID, version, and request status. Fetch checkout options, then preview and confirm using the captured acceptance, shipping method, preview token, and a fresh idempotency key. Use STORE_PICKUP with a configured pickupLocationId for pickup. For online payment, read payment options, initiate an eligible obligation with a new idempotency key, and verify the returned attempt after checkout. Merchants can read sourcing and send START, RESERVE, RECEIVE, SECURE or READY with distinct idempotency keys. READY unlocks an eligible online balance. Record merchant fulfillment using DISPATCH or AVAILABLE_FOR_PICKUP, then DELIVER or PICK_UP. Use COMPLETE after handover and payment. The resolution endpoints record cancellation, returns, inspections, and corrections. Read the merchant resolution before executing an approved refund. Merchant analytics accept inclusive UTC dates from and to. Demand additionally supports page and limit.\n\nSource: src/modules/special-orders/special-order.routes.ts. Schema references: query: src/modules/special-orders/special-order.schemas.ts#requestListSchema."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (false && pm.variables.get('allowMutations') !== 'true') pm.execution.skipRequest();",
+                  "if (false && pm.variables.get('allowPaymentMutations') !== 'true') pm.execution.skipRequest();",
+                  "if (false && pm.variables.get('allowProviderWebhook') !== 'true') pm.execution.skipRequest();",
+                  "",
+                  "",
+                  "",
+                  "if (!pm.variables.get('ownerAccessToken')) pm.execution.skipRequest();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected successful status', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('Success envelope', () => { const body=pm.response.json(); pm.expect(body.success).to.eql(true); pm.expect(body).to.have.property('message'); pm.expect(body).to.have.property('data'); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /special-orders/orders/:id/sourcing/history",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/special-orders/orders/{{specialOrderId}}/sourcing/history?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "{{apiPrefix}}",
+                "special-orders",
+                "orders",
+                "{{specialOrderId}}",
+                "sourcing",
+                "history"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": false,
+                  "description": "{\"default\":1,\"type\":\"integer\",\"minimum\":1,\"maximum\":21474836}"
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": false,
+                  "description": "{\"default\":20,\"type\":\"integer\",\"minimum\":1,\"maximum\":100}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "X-Tenant-Slug",
+                "value": "{{tenantSlug}}"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ownerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "GET /special-orders/orders/:id/sourcing/history: async (req, res) => {\n    const { page, limit } = requestListSchema.\n\nAuthentication: Bearer ownerAccessToken. Tenant header: X-Tenant-Slug: {{tenantSlug}}. Active tenant membership required.  Tenant roles: OWNER/ADMIN/MANAGER.  \n\nHeaders: X-Tenant-Slug. Path parameters: id={{specialOrderId}}. Success status: 200.\n\nBody: none. \n\nQuery: {\n  \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n  \"type\": \"object\",\n  \"properties\": {\n    \"page\": {\n      \"default\": 1,\n      \"type\": \"integer\",\n      \"minimum\": 1,\n      \"maximum\": 21474836\n    },\n    \"limit\": {\n      \"default\": 20,\n      \"type\": \"integer\",\n      \"minimum\": 1,\n      \"maximum\": 100\n    }\n  }\n}.\n\nImportant module business errors: IDEMPOTENCY_KEY_CONFLICT, INVALID_ATTACHMENT, INVALID_SPECIAL_QUOTATION_SELECTION, INVALID_SPECIAL_REQUEST_CATALOG_REFERENCE, INVALID_SPECIAL_REQUEST_ITEM, SHIPPING_ADDRESS_NOT_FOUND, SPECIAL_ANALYTICS_RANGE_INVALID, SPECIAL_CHECKOUT_CONFLICT, SPECIAL_CHECKOUT_TAX_CONFLICT, SPECIAL_ORDERS_DISABLED, SPECIAL_ORDER_NOT_FOUND, SPECIAL_PAYMENT_NOT_FOUND, SPECIAL_PAYMENT_UNAVAILABLE, SPECIAL_PICKUP_NOT_FOUND, SPECIAL_QUOTATION_CONFLICT, SPECIAL_QUOTATION_EMPTY, SPECIAL_QUOTATION_EXPIRED, SPECIAL_QUOTATION_MARKET_REQUIRED, SPECIAL_QUOTATION_NOT_FOUND, SPECIAL_REFUND_NOT_FOUND, SPECIAL_REQUEST_ATTACHMENT_LIMIT, SPECIAL_REQUEST_NOT_FOUND, SPECIAL_REQUEST_PHONE_REQUIRED, SPECIAL_REQUEST_STATE_CONFLICT, SPECIAL_SHIPPING_UNAVAILABLE, VALIDATION_ERROR. Shared failures include AUTHENTICATION_REQUIRED/INVALID_ACCESS_TOKEN (protected requests), UNAUTHORIZED/TENANT_NOT_FOUND (tenant context), FORBIDDEN (roles), and VALIDATION_ERROR. Business errors retain {success:false,message,code,data:null}.\n\nSide effects: read-only. \n\nSubmit with an Idempotency-Key, then review as a merchant. Save a draft and publish using its captured quotation ID and version. An update to an existing draft includes its draft ID and version. Customers can read the current quotation and calculate or accept any valid selection. Set quotationItemId or edit the items array to choose other products. For quoted or accepted cancellation and resubmission, include the observed quotation ID, version, and request status. Fetch checkout options, then preview and confirm using the captured acceptance, shipping method, preview token, and a fresh idempotency key. Use STORE_PICKUP with a configured pickupLocationId for pickup. For online payment, read payment options, initiate an eligible obligation with a new idempotency key, and verify the returned attempt after checkout. Merchants can read sourcing and send START, RESERVE, RECEIVE, SECURE or READY with distinct idempotency keys. READY unlocks an eligible online balance. Record merchant fulfillment using DISPATCH or AVAILABLE_FOR_PICKUP, then DELIVER or PICK_UP. Use COMPLETE after handover and payment. The resolution endpoints record cancellation, returns, inspections, and corrections. Read the merchant resolution before executing an approved refund. Merchant analytics accept inclusive UTC dates from and to. Demand additionally supports page and limit.\n\nSource: src/modules/special-orders/special-order.routes.ts. Schema references: params: src/modules/special-orders/special-order.schemas.ts#requestIdSchema; query: src/modules/special-orders/special-order.schemas.ts#requestListSchema."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (false && pm.variables.get('allowMutations') !== 'true') pm.execution.skipRequest();",
+                  "if (false && pm.variables.get('allowPaymentMutations') !== 'true') pm.execution.skipRequest();",
+                  "if (false && pm.variables.get('allowProviderWebhook') !== 'true') pm.execution.skipRequest();",
+                  "",
+                  "",
+                  "",
+                  "if (!pm.variables.get('ownerAccessToken')) pm.execution.skipRequest();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected successful status', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('Success envelope', () => { const body=pm.response.json(); pm.expect(body.success).to.eql(true); pm.expect(body).to.have.property('message'); pm.expect(body).to.have.property('data'); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /special-orders/orders/:id/sourcing/warehouses",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/special-orders/orders/{{specialOrderId}}/sourcing/warehouses",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "{{apiPrefix}}",
+                "special-orders",
+                "orders",
+                "{{specialOrderId}}",
+                "sourcing",
+                "warehouses"
+              ]
+            },
+            "header": [
+              {
+                "key": "X-Tenant-Slug",
+                "value": "{{tenantSlug}}"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ownerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "GET /special-orders/orders/:id/sourcing/warehouses: async (req, res) =>\n    sendSuccess(\n      res,\n      await sourcing.\n\nAuthentication: Bearer ownerAccessToken. Tenant header: X-Tenant-Slug: {{tenantSlug}}. Active tenant membership required.  Tenant roles: OWNER/ADMIN/MANAGER.  \n\nHeaders: X-Tenant-Slug. Path parameters: id={{specialOrderId}}. Success status: 200.\n\nBody: none. \n\nQuery: none documented by route validation.\n\nImportant module business errors: IDEMPOTENCY_KEY_CONFLICT, INVALID_ATTACHMENT, INVALID_SPECIAL_QUOTATION_SELECTION, INVALID_SPECIAL_REQUEST_CATALOG_REFERENCE, INVALID_SPECIAL_REQUEST_ITEM, SHIPPING_ADDRESS_NOT_FOUND, SPECIAL_ANALYTICS_RANGE_INVALID, SPECIAL_CHECKOUT_CONFLICT, SPECIAL_CHECKOUT_TAX_CONFLICT, SPECIAL_ORDERS_DISABLED, SPECIAL_ORDER_NOT_FOUND, SPECIAL_PAYMENT_NOT_FOUND, SPECIAL_PAYMENT_UNAVAILABLE, SPECIAL_PICKUP_NOT_FOUND, SPECIAL_QUOTATION_CONFLICT, SPECIAL_QUOTATION_EMPTY, SPECIAL_QUOTATION_EXPIRED, SPECIAL_QUOTATION_MARKET_REQUIRED, SPECIAL_QUOTATION_NOT_FOUND, SPECIAL_REFUND_NOT_FOUND, SPECIAL_REQUEST_ATTACHMENT_LIMIT, SPECIAL_REQUEST_NOT_FOUND, SPECIAL_REQUEST_PHONE_REQUIRED, SPECIAL_REQUEST_STATE_CONFLICT, SPECIAL_SHIPPING_UNAVAILABLE, VALIDATION_ERROR. Shared failures include AUTHENTICATION_REQUIRED/INVALID_ACCESS_TOKEN (protected requests), UNAUTHORIZED/TENANT_NOT_FOUND (tenant context), FORBIDDEN (roles), and VALIDATION_ERROR. Business errors retain {success:false,message,code,data:null}.\n\nSide effects: read-only. \n\nSubmit with an Idempotency-Key, then review as a merchant. Save a draft and publish using its captured quotation ID and version. An update to an existing draft includes its draft ID and version. Customers can read the current quotation and calculate or accept any valid selection. Set quotationItemId or edit the items array to choose other products. For quoted or accepted cancellation and resubmission, include the observed quotation ID, version, and request status. Fetch checkout options, then preview and confirm using the captured acceptance, shipping method, preview token, and a fresh idempotency key. Use STORE_PICKUP with a configured pickupLocationId for pickup. For online payment, read payment options, initiate an eligible obligation with a new idempotency key, and verify the returned attempt after checkout. Merchants can read sourcing and send START, RESERVE, RECEIVE, SECURE or READY with distinct idempotency keys. READY unlocks an eligible online balance. Record merchant fulfillment using DISPATCH or AVAILABLE_FOR_PICKUP, then DELIVER or PICK_UP. Use COMPLETE after handover and payment. The resolution endpoints record cancellation, returns, inspections, and corrections. Read the merchant resolution before executing an approved refund. Merchant analytics accept inclusive UTC dates from and to. Demand additionally supports page and limit.\n\nSource: src/modules/special-orders/special-order.routes.ts. Schema references: params: src/modules/special-orders/special-order.schemas.ts#requestIdSchema."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (false && pm.variables.get('allowMutations') !== 'true') pm.execution.skipRequest();",
+                  "if (false && pm.variables.get('allowPaymentMutations') !== 'true') pm.execution.skipRequest();",
+                  "if (false && pm.variables.get('allowProviderWebhook') !== 'true') pm.execution.skipRequest();",
+                  "",
+                  "",
+                  "",
+                  "if (!pm.variables.get('ownerAccessToken')) pm.execution.skipRequest();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected successful status', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('Success envelope', () => { const body=pm.response.json(); pm.expect(body.success).to.eql(true); pm.expect(body).to.have.property('message'); pm.expect(body).to.have.property('data'); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /special-orders/orders/:id/operations/lookup",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/special-orders/orders/{{specialOrderId}}/operations/lookup?domain=SOURCING",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "{{apiPrefix}}",
+                "special-orders",
+                "orders",
+                "{{specialOrderId}}",
+                "operations",
+                "lookup"
+              ],
+              "query": [
+                {
+                  "key": "domain",
+                  "value": "SOURCING",
+                  "disabled": false,
+                  "description": "{\"type\":\"string\",\"enum\":[\"SOURCING\",\"FULFILLMENT\",\"RESOLUTION\",\"REFUND\"]}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "X-Tenant-Slug",
+                "value": "{{tenantSlug}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ownerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "GET /special-orders/orders/:id/operations/lookup: async (req, res) =>\n    sendSuccess(\n      res,\n      await reconcileOperation(\n.\n\nAuthentication: Bearer ownerAccessToken. Tenant header: X-Tenant-Slug: {{tenantSlug}}. Active tenant membership required.  Tenant roles: OWNER/ADMIN/MANAGER.  \n\nHeaders: X-Tenant-Slug, Idempotency-Key. Path parameters: id={{specialOrderId}}. Success status: 200.\n\nBody: none. \n\nQuery: {\n  \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n  \"type\": \"object\",\n  \"properties\": {\n    \"domain\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"SOURCING\",\n        \"FULFILLMENT\",\n        \"RESOLUTION\",\n        \"REFUND\"\n      ]\n    }\n  },\n  \"required\": [\n    \"domain\"\n  ],\n  \"additionalProperties\": false\n}.\n\nImportant module business errors: IDEMPOTENCY_KEY_CONFLICT, INVALID_ATTACHMENT, INVALID_SPECIAL_QUOTATION_SELECTION, INVALID_SPECIAL_REQUEST_CATALOG_REFERENCE, INVALID_SPECIAL_REQUEST_ITEM, SHIPPING_ADDRESS_NOT_FOUND, SPECIAL_ANALYTICS_RANGE_INVALID, SPECIAL_CHECKOUT_CONFLICT, SPECIAL_CHECKOUT_TAX_CONFLICT, SPECIAL_ORDERS_DISABLED, SPECIAL_ORDER_NOT_FOUND, SPECIAL_PAYMENT_NOT_FOUND, SPECIAL_PAYMENT_UNAVAILABLE, SPECIAL_PICKUP_NOT_FOUND, SPECIAL_QUOTATION_CONFLICT, SPECIAL_QUOTATION_EMPTY, SPECIAL_QUOTATION_EXPIRED, SPECIAL_QUOTATION_MARKET_REQUIRED, SPECIAL_QUOTATION_NOT_FOUND, SPECIAL_REFUND_NOT_FOUND, SPECIAL_REQUEST_ATTACHMENT_LIMIT, SPECIAL_REQUEST_NOT_FOUND, SPECIAL_REQUEST_PHONE_REQUIRED, SPECIAL_REQUEST_STATE_CONFLICT, SPECIAL_SHIPPING_UNAVAILABLE, VALIDATION_ERROR. Shared failures include AUTHENTICATION_REQUIRED/INVALID_ACCESS_TOKEN (protected requests), UNAUTHORIZED/TENANT_NOT_FOUND (tenant context), FORBIDDEN (roles), and VALIDATION_ERROR. Business errors retain {success:false,message,code,data:null}.\n\nSide effects: read-only. \n\nSubmit with an Idempotency-Key, then review as a merchant. Save a draft and publish using its captured quotation ID and version. An update to an existing draft includes its draft ID and version. Customers can read the current quotation and calculate or accept any valid selection. Set quotationItemId or edit the items array to choose other products. For quoted or accepted cancellation and resubmission, include the observed quotation ID, version, and request status. Fetch checkout options, then preview and confirm using the captured acceptance, shipping method, preview token, and a fresh idempotency key. Use STORE_PICKUP with a configured pickupLocationId for pickup. For online payment, read payment options, initiate an eligible obligation with a new idempotency key, and verify the returned attempt after checkout. Merchants can read sourcing and send START, RESERVE, RECEIVE, SECURE or READY with distinct idempotency keys. READY unlocks an eligible online balance. Record merchant fulfillment using DISPATCH or AVAILABLE_FOR_PICKUP, then DELIVER or PICK_UP. Use COMPLETE after handover and payment. The resolution endpoints record cancellation, returns, inspections, and corrections. Read the merchant resolution before executing an approved refund. Merchant analytics accept inclusive UTC dates from and to. Demand additionally supports page and limit.\n\nSource: src/modules/special-orders/special-order.routes.ts. Schema references: params: src/modules/special-orders/special-order.schemas.ts#requestIdSchema; query: src/modules/special-orders/special-order.schemas.ts#operationLookupSchema."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (false && pm.variables.get('allowMutations') !== 'true') pm.execution.skipRequest();",
+                  "if (false && pm.variables.get('allowPaymentMutations') !== 'true') pm.execution.skipRequest();",
+                  "if (false && pm.variables.get('allowProviderWebhook') !== 'true') pm.execution.skipRequest();",
+                  "",
+                  "",
+                  "",
+                  "if (!pm.variables.get('ownerAccessToken')) pm.execution.skipRequest();",
+                  "if (!pm.variables.get('idempotencyKey')) throw new Error('Set the original operation key');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected successful status', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('Success envelope', () => { const body=pm.response.json(); pm.expect(body.success).to.eql(true); pm.expect(body).to.have.property('message'); pm.expect(body).to.have.property('data'); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
           "name": "GET /special-orders/analytics/overview",
           "request": {
             "method": "GET",
@@ -14101,6 +14454,7 @@
                   "",
                   "",
                   "if (!pm.variables.get('customerAccessToken')) pm.execution.skipRequest();",
+                  "",
                   "if (!pm.variables.get('idempotencyKey')) throw new Error('Set a new idempotencyKey once for this purchase; keep it for retries');"
                 ]
               }
@@ -14244,6 +14598,7 @@
                   "",
                   "",
                   "if (!pm.variables.get('ownerAccessToken')) pm.execution.skipRequest();",
+                  "",
                   "if (!pm.variables.get('idempotencyKey')) throw new Error('Set a new idempotencyKey once for this purchase; keep it for retries');"
                 ]
               }
@@ -14324,6 +14679,7 @@
                   "",
                   "",
                   "if (!pm.variables.get('ownerAccessToken')) pm.execution.skipRequest();",
+                  "",
                   "if (!pm.variables.get('idempotencyKey')) throw new Error('Set a new idempotencyKey once for this purchase; keep it for retries');"
                 ]
               }
@@ -14466,6 +14822,7 @@
                   "",
                   "",
                   "if (!pm.variables.get('ownerAccessToken')) pm.execution.skipRequest();",
+                  "",
                   "if (!pm.variables.get('idempotencyKey')) throw new Error('Set a new idempotencyKey once for this purchase; keep it for retries');"
                 ]
               }
@@ -14608,6 +14965,7 @@
                   "",
                   "",
                   "if (!pm.variables.get('ownerAccessToken')) pm.execution.skipRequest();",
+                  "",
                   "if (!pm.variables.get('idempotencyKey')) throw new Error('Set a new idempotencyKey once for this purchase; keep it for retries');"
                 ]
               }
@@ -14818,6 +15176,7 @@
                   "",
                   "",
                   "if (!pm.variables.get('customerAccessToken')) pm.execution.skipRequest();",
+                  "",
                   "if (!pm.variables.get('idempotencyKey')) throw new Error('Set a new idempotencyKey once for this purchase; keep it for retries');"
                 ]
               }
@@ -15659,6 +16018,7 @@
                   "",
                   "",
                   "if (!pm.variables.get('customerAccessToken')) pm.execution.skipRequest();",
+                  "",
                   "if (!pm.variables.get('idempotencyKey')) throw new Error('Set a new idempotencyKey once for this purchase; keep it for retries');"
                 ]
               }
@@ -15734,6 +16094,7 @@
                   "",
                   "",
                   "if (!pm.variables.get('customerAccessToken')) pm.execution.skipRequest();",
+                  "",
                   "if (!pm.variables.get('idempotencyKey')) throw new Error('Set a new idempotencyKey once for this purchase; keep it for retries');"
                 ]
               }

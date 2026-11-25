@@ -3820,6 +3820,130 @@
   },
   {
     "method": "GET",
+    "path": "/{{apiPrefix}}/special-orders/quotation/payment-capabilities",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {},
+    "requestName": "GET /special-orders/quotation/payment-capabilities"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/special-orders/quotation/tax-categories",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "query": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestListSchema",
+        "expression": "requestListSchema"
+      }
+    },
+    "requestName": "GET /special-orders/quotation/tax-categories"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/special-orders/orders/:id/sourcing/history",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      },
+      "query": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestListSchema",
+        "expression": "requestListSchema"
+      }
+    },
+    "requestName": "GET /special-orders/orders/:id/sourcing/history"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/special-orders/orders/:id/sourcing/warehouses",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      }
+    },
+    "requestName": "GET /special-orders/orders/:id/sourcing/warehouses"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/special-orders/orders/:id/operations/lookup",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      },
+      "query": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "operationLookupSchema",
+        "expression": "operationLookupSchema"
+      }
+    },
+    "requestName": "GET /special-orders/orders/:id/operations/lookup"
+  },
+  {
+    "method": "GET",
     "path": "/{{apiPrefix}}/special-orders/analytics/overview",
     "source": "src/modules/special-orders/special-order.routes.ts",
     "access": {

@@ -193,6 +193,52 @@ export function financialSummary(order: FinancialOrder) {
   };
 }
 
+export function unallocatedRefundCapacity(
+  original: string,
+  allocations: { amount: { toFixed(): string } }[],
+) {
+  return allocations.reduce(
+    (remaining, refund) => remaining.minus(refund.amount.toFixed()),
+    parseDecimal(original),
+  );
+}
+
+function settlementCapacity(
+  order: FinancialOrder,
+  settlement: {
+    id: string;
+    amount: Prisma.Decimal;
+    currency: string;
+    attributable: boolean;
+  },
+) {
+  const allocations = order.refunds.filter(
+    (refund) => refund.settlementId === settlement.id,
+  );
+  const settled = allocations.filter((refund) => refund.state === 'SETTLED');
+  const outstanding = allocations.filter(
+    (refund) => refund.state !== 'SETTLED',
+  );
+  const format = (value: Prisma.Decimal) =>
+    value.toFixed(currencyPrecision(settlement.currency));
+  const original = settlement.amount.toFixed();
+  return {
+    currency: settlement.currency,
+    originalVerifiedAmount: format(settlement.amount),
+    settledRefundAmount: format(
+      unallocatedRefundCapacity('0', settled).negated(),
+    ),
+    outstandingAllocatedAmount: format(
+      unallocatedRefundCapacity('0', outstanding).negated(),
+    ),
+    unallocatedRefundableCapacity: format(
+      settlement.attributable
+        ? unallocatedRefundCapacity(original, allocations)
+        : parseDecimal('0'),
+    ),
+  };
+}
+
 export function presentObligations(order: FinancialOrder, merchant: boolean) {
   const format = (amount: Prisma.Decimal) =>
     amount.toFixed(currencyPrecision(order.currency));
@@ -218,29 +264,28 @@ export function presentObligations(order: FinancialOrder, merchant: boolean) {
     expiresAt: obligation.expiresAt,
     payable: obligationCanPay(order, obligation),
     ...(merchant && {
-      cashSettlement: obligation.cashSettlement,
+      cashSettlement: obligation.cashSettlement && {
+        ...obligation.cashSettlement,
+        refundableCapacity: settlementCapacity(
+          order,
+          obligation.cashSettlement,
+        ),
+      },
       attempts: obligation.attempts.map((attempt) => ({
         ...presentAttempt(attempt),
         invoiceId: attempt.invoiceId,
         providerAccountId: attempt.providerAccountId,
         providerEnvironment: attempt.providerEnvironment,
-        settlements: attempt.settlements.map(
-          ({
-            transactionId,
-            providerTransactionId,
-            amount,
-            currency,
-            attributable,
-            verifiedAt,
-          }) => ({
-            transactionId,
-            providerTransactionId,
-            amount: amount.toFixed(),
-            currency,
-            attributable,
-            verifiedAt,
-          }),
-        ),
+        settlements: attempt.settlements.map((settlement) => ({
+          id: settlement.id,
+          transactionId: settlement.transactionId,
+          providerTransactionId: settlement.providerTransactionId,
+          amount: settlement.amount.toFixed(),
+          currency: settlement.currency,
+          attributable: settlement.attributable,
+          verifiedAt: settlement.verifiedAt,
+          refundableCapacity: settlementCapacity(order, settlement),
+        })),
       })),
     }),
   }));
