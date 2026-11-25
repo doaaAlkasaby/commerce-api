@@ -138,6 +138,7 @@ export async function verify(directory = 'postman') {
     deviceToken: 'manual-device-token',
     activeRefreshToken: 'manual-refresh-token',
     referenceId: 'manual-reference',
+    specialCheckoutPreviewToken: 'a'.repeat(64),
   };
   for (const key of Object.keys(samples))
     if (key.endsWith('Id') && !samples[key])

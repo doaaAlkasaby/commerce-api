@@ -42,6 +42,8 @@ enum InventoryTransactionType {
 }
 
 model User {
+  specialOrderRequests SpecialOrderRequest[]
+
   id           String @id @default(uuid())
   email        String @unique
   passwordHash String
@@ -202,6 +204,8 @@ model Brand {
 }
 
 model Product {
+  specialOrderRequestItems SpecialOrderRequestItem[]
+
   id          String        @id @default(uuid())
   name        String
   slug        String
@@ -313,6 +317,8 @@ model ProductAttributeValue {
 }
 
 model ProductVariant {
+  specialOrderRequestItems SpecialOrderRequestItem[]
+
   id        String @id @default(uuid())
   productId String
 
@@ -418,6 +424,7 @@ model Inventory {
   variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
 
   transactions InventoryTransaction[]
+  sourcingEntries SpecialOrderSourcingEntry[]
   warehouse Warehouse @relation(fields: [tenantId, warehouseId], references: [tenantId, id], onDelete: Restrict)
 
   @@unique([warehouseId, variantId])
@@ -1379,6 +1386,8 @@ enum TenantMemberStatus {
 }
 
 model Tenant {
+  specialOrderRequests SpecialOrderRequest[]
+
   orderPolicy TenantOrderPolicy?
   id String @id @default(uuid())
 
@@ -1467,6 +1476,7 @@ model Warehouse {
   inventory Inventory[]
   orders Order[]
   coverage WarehouseCoverage[]
+  specialOrders SpecialOrder[]
 
   @@unique([tenantId, id])
   @@unique([tenantId, code])
@@ -1638,6 +1648,7 @@ model PaymentProviderAccount {
   refundRecoveryJobs   PaymentRefundRecoveryJob[]
   refundWebhookEvents  MyFatoorahRefundWebhookEvent[]
   refundConflicts      PaymentRefundConflictAudit[]
+  specialOrderAttempts SpecialOrderPaymentAttempt[]
 
   @@unique([provider, environment, accountKey])
   @@unique([id, environment])
@@ -1658,6 +1669,7 @@ model PaymentProviderAccountTenant {
   tenant          Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   providerAccount PaymentProviderAccount @relation(fields: [providerAccountId, provider, environment], references: [id, provider, environment], onDelete: Restrict, onUpdate: Restrict)
   paymentRefunds  PaymentRefund[]
+  specialOrderAttempts SpecialOrderPaymentAttempt[]
 
   @@id([tenantId, providerAccountId])
   @@unique([tenantId, providerAccountId, provider, environment])
@@ -2008,4 +2020,483 @@ model PasswordChangeRequest {
 
   @@unique([userId, idempotencyKey])
   @@index([expiresAt])
+}
+
+enum SpecialOrderRequestStatus {
+  NEW
+  UNDER_REVIEW
+  QUOTED
+  ACCEPTED
+  REJECTED
+  CANCELLED
+  ORDER_CREATED
+}
+
+model SpecialOrderRequest {
+  id                 String                    @id @default(uuid())
+  tenantId           String
+  customerId         String
+  number             Int
+  contactPhone       String
+  notes              String?
+  status             SpecialOrderRequestStatus @default(NEW)
+  rejectionReason    String?
+  idempotencyKey     String
+  requestFingerprint String
+  history            Json                      @default("[]")
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+
+  tenant      Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  customer    User                     @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  items       SpecialOrderRequestItem[]
+  attachments SpecialOrderAttachment[]
+
+  quotations SpecialOrderQuotation[]
+  finalOrder SpecialOrder?
+
+  @@unique([tenantId, customerId, id])
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, number])
+  @@unique([tenantId, customerId, idempotencyKey])
+  @@index([tenantId, customerId, createdAt])
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, createdAt])
+}
+
+model SpecialOrderRequestItem {
+  id             String @id @default(uuid())
+  requestId      String
+  position       Int
+  name           String
+  quantity       Int
+  specifications String?
+  productId      String?
+  variantId      String?
+
+  request     SpecialOrderRequest     @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  product     Product?                @relation(fields: [productId], references: [id], onDelete: SetNull)
+  variant     ProductVariant?          @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  attachments SpecialOrderAttachment[]
+
+  @@unique([requestId, id])
+  @@index([productId])
+  @@index([variantId])
+}
+
+model SpecialOrderAttachment {
+  id          String   @id @default(uuid())
+  requestId   String
+  itemId      String?
+  contentType String
+  byteSize    Int
+  content     Bytes
+  createdAt   DateTime @default(now())
+
+  request SpecialOrderRequest      @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  item    SpecialOrderRequestItem? @relation(fields: [requestId, itemId], references: [requestId, id], onDelete: Cascade)
+
+  @@index([requestId, itemId])
+}
+
+enum SpecialOrderQuotationStatus {
+  DRAFT
+  PUBLISHED
+  ACCEPTED
+}
+
+enum SpecialOrderQuotationItemType {
+  AVAILABLE
+  SUGGESTED
+}
+
+model SpecialOrderQuotation {
+  id String @id @default(uuid())
+  requestId String
+  tenantId String
+  isDraft Boolean @default(true)
+  status SpecialOrderQuotationStatus @default(DRAFT)
+  version Int @default(1)
+  currency String
+  taxCountryCode String
+  sourcingDays Int
+  validityHours Int @default(48)
+  notes String?
+  sourcingFee Decimal @default(0) @db.Decimal(14, 4)
+  sourcingFeeDescription String?
+  sourcingFeeTax Json?
+  paymentTerms Json?
+  createdAt DateTime @default(now())
+  publishedAt DateTime?
+  expiresAt DateTime?
+
+  request SpecialOrderRequest @relation(fields: [tenantId, requestId], references: [tenantId, id], onDelete: Cascade)
+  items SpecialOrderQuotationItem[]
+  acceptance SpecialOrderAcceptance?
+
+  @@unique([requestId, isDraft])
+}
+
+model SpecialOrderQuotationItem {
+  id String @id @default(uuid())
+  quotationId String
+  type SpecialOrderQuotationItemType
+  position Int
+  name String
+  specifications String?
+  productId String?
+  variantId String?
+  requestedItemId String?
+  offeredQuantity Int
+  unitPrice Decimal @db.Decimal(14, 4)
+  pricesIncludeTax Boolean
+  tax Json
+  notes String?
+  image Bytes?
+  imageContentType String?
+
+  quotation SpecialOrderQuotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  finalItem SpecialOrderItem?
+
+  @@index([quotationId, position])
+}
+
+model SpecialOrderAcceptance {
+  id String @id @default(uuid())
+  quotationId String @unique
+  selectionKey String
+  snapshot Json
+  consumedAt DateTime?
+  createdAt DateTime @default(now())
+
+  finalOrder SpecialOrder?
+  quotation SpecialOrderQuotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+}
+
+enum SpecialOrderFulfillmentMethod {
+  HOME_DELIVERY
+  STORE_PICKUP
+}
+
+enum SpecialOrderState {
+  SHIPPED
+  DELIVERED
+  AWAITING_PICKUP
+  PICKED_UP
+  SOURCING
+  READY_FOR_FULFILLMENT
+  PENDING_SOURCING
+}
+
+model SpecialOrder {
+  id                  String @id @default(uuid())
+  tenantId            String
+  customerId          String
+  requestId           String @unique
+  acceptanceId        String @unique
+  number              Int
+  currency            String
+  state               SpecialOrderState @default(PENDING_SOURCING)
+  paymentStatus       PaymentStatus @default(PENDING)
+  fulfillmentMethod   SpecialOrderFulfillmentMethod
+  customerFirstName   String
+  customerLastName    String
+  customerEmail       String
+  customerPhone       String
+  deliveryAddress     Json?
+  pickupLocation      Json?
+  shippingMethod      Json?
+  financials          Json
+  grandTotal          Decimal @db.Decimal(20, 4)
+  paymentTerms        Json
+  initialPayment      Decimal @db.Decimal(20, 4)
+  remainingBalance    Decimal @db.Decimal(20, 4)
+  commercialTerms     Json
+  sourcingDays        Int
+  idempotencyKey      String
+  requestFingerprint  String
+  createdAt           DateTime @default(now())
+
+  request SpecialOrderRequest @relation(fields: [tenantId, customerId, requestId], references: [tenantId, customerId, id], onDelete: Restrict)
+  acceptance SpecialOrderAcceptance @relation(fields: [acceptanceId], references: [id], onDelete: Restrict)
+  warehouseId String?
+  sourcingStartedAt DateTime?
+  readyAt DateTime?
+  warehouse Warehouse? @relation(fields: [tenantId, warehouseId], references: [tenantId, id], onDelete: Restrict)
+  sourcingOperations SpecialOrderSourcingOperation[]
+  fulfillmentEvents SpecialOrderFulfillmentEvent[]
+  completedAt DateTime?
+  fulfillmentDiscrepancy String?
+  cancellationStatus SpecialOrderCancellationStatus @default(NONE)
+  resolutionEvents SpecialOrderResolutionEvent[]
+  returns SpecialOrderReturn[]
+  refunds SpecialOrderRefund[]
+  items SpecialOrderItem[]
+  paymentObligations SpecialOrderPayment[]
+
+  @@unique([tenantId, id])
+
+  @@unique([tenantId, customerId, requestId])
+  @@unique([tenantId, number])
+  @@unique([tenantId, customerId, idempotencyKey])
+  @@index([tenantId, customerId, createdAt])
+  @@index([tenantId, state, createdAt])
+  @@index([tenantId, createdAt])
+}
+
+model SpecialOrderItem {
+  id                 String @id @default(uuid())
+  orderId            String
+  quotationItemId    String @unique
+  position           Int
+  name               String
+  specifications     String?
+  notes              String?
+  productId          String?
+  variantId          String?
+  quantity           Int
+  unitPrice          Decimal @db.Decimal(14, 4)
+  pricesIncludeTax   Boolean
+  tax                Json
+  subtotalBeforeTax  Decimal @db.Decimal(20, 4)
+  taxAmount          Decimal @db.Decimal(20, 4)
+  totalIncludingTax  Decimal @db.Decimal(20, 4)
+  hasImage           Boolean
+
+  order SpecialOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  quotationItem SpecialOrderQuotationItem @relation(fields: [quotationItemId], references: [id], onDelete: Restrict)
+
+  sourcingEntries SpecialOrderSourcingEntry[]
+
+  @@unique([orderId, id])
+  @@unique([orderId, position])
+}
+
+
+enum SpecialOrderObligationKind {
+  INITIAL
+  BALANCE
+}
+
+enum SpecialOrderObligationMethod {
+  ONLINE
+  CASH
+}
+
+model SpecialOrderPayment {
+  id        String @id @default(uuid())
+  tenantId  String
+  orderId   String
+  kind      SpecialOrderObligationKind
+  method    SpecialOrderObligationMethod
+  amount    Decimal @db.Decimal(20, 4)
+  currency  String
+  expiresAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime @default(now())
+
+  order SpecialOrder @relation(fields: [tenantId, orderId], references: [tenantId, id], onDelete: Restrict)
+  attempts SpecialOrderPaymentAttempt[]
+  cashSettlement SpecialOrderPaymentSettlement?
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, orderId, kind])
+}
+
+model SpecialOrderPaymentAttempt {
+  id                  String @id @default(uuid())
+  tenantId            String
+  obligationId        String
+  idempotencyKey      String
+  provider            PaymentProvider
+  providerAccountId   String
+  providerEnvironment PaymentProviderEnvironment
+  credentialVersion   Int
+  invoiceId           String? @unique
+  checkoutUrl         String?
+  status              PaymentStatus @default(PENDING)
+  initiationState     PaymentInitiationState @default(IN_PROGRESS)
+  conflictCode        String?
+  claimToken          String?
+  leaseUntil          DateTime? @db.Timestamptz(3)
+  recheckAt           DateTime? @db.Timestamptz(3)
+  mockStatus          PaymentStatus?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  obligation SpecialOrderPayment @relation(fields: [tenantId, obligationId], references: [tenantId, id], onDelete: Restrict)
+  providerAccount PaymentProviderAccount @relation(fields: [providerAccountId, provider, providerEnvironment], references: [id, provider, environment], onDelete: Restrict, onUpdate: Restrict)
+  tenantAuthorization PaymentProviderAccountTenant @relation(fields: [tenantId, providerAccountId, provider, providerEnvironment], references: [tenantId, providerAccountId, provider, environment], onDelete: Restrict, onUpdate: Restrict)
+  settlements SpecialOrderPaymentSettlement[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, obligationId, idempotencyKey])
+  @@index([recheckAt])
+}
+
+model SpecialOrderPaymentSettlement {
+  id                    String @id @default(uuid())
+  tenantId              String
+  attemptId             String?
+  cashObligationId      String?
+  cashEventId           String?
+  provider              PaymentProvider
+  transactionId         String
+  providerTransactionId String
+  amount                Decimal @db.Decimal(20, 4)
+  currency              String
+  attributable          Boolean
+  verifiedAt            DateTime @default(now())
+
+  cashObligation SpecialOrderPayment? @relation(fields: [tenantId, cashObligationId], references: [tenantId, id], onDelete: Restrict)
+  cashEvent SpecialOrderFulfillmentEvent? @relation(fields: [tenantId, cashEventId], references: [tenantId, id], onDelete: Restrict)
+  refunds SpecialOrderRefund[]
+  attempt SpecialOrderPaymentAttempt? @relation(fields: [tenantId, attemptId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, cashObligationId])
+  @@unique([tenantId, cashEventId])
+  @@unique([tenantId, attemptId, providerTransactionId])
+  @@index([provider, transactionId])
+  @@index([provider, providerTransactionId])
+}
+
+model SpecialOrderSourcingOperation {
+  id String @id @default(uuid())
+  tenantId String
+  orderId String
+  key String
+  fingerprint String
+  action String
+  actorId String
+  createdAt DateTime @default(now())
+
+  order SpecialOrder @relation(fields: [tenantId, orderId], references: [tenantId, id], onDelete: Restrict)
+  entries SpecialOrderSourcingEntry[]
+
+  @@unique([orderId, id])
+  @@unique([orderId, key])
+}
+
+model SpecialOrderSourcingEntry {
+  id String @id @default(uuid())
+  orderId String
+  operationId String
+  itemId String
+  inventoryId String?
+  quantity Int
+
+  operation SpecialOrderSourcingOperation @relation(fields: [orderId, operationId], references: [orderId, id], onDelete: Restrict)
+  item SpecialOrderItem @relation(fields: [orderId, itemId], references: [orderId, id], onDelete: Restrict)
+  corrections SpecialOrderSourcingCorrection[]
+  inventory Inventory? @relation(fields: [inventoryId], references: [id], onDelete: Restrict)
+
+  @@unique([operationId, itemId])
+  @@index([orderId, itemId])
+  @@index([inventoryId])
+}
+
+model SpecialOrderFulfillmentEvent {
+  id String @id @default(uuid())
+  tenantId String
+  orderId String
+  action String
+  key String
+  fingerprint String
+  actorId String
+  occurredAt DateTime
+  evidence Json
+  createdAt DateTime @default(now())
+
+  order SpecialOrder @relation(fields: [tenantId, orderId], references: [tenantId, id], onDelete: Restrict)
+  cashSettlement SpecialOrderPaymentSettlement?
+
+  @@unique([tenantId, id])
+  @@unique([orderId, key])
+  @@index([orderId, createdAt])
+}
+
+enum SpecialOrderCancellationStatus {
+  NONE
+  UNDER_REVIEW
+  CANCELLED
+}
+
+enum SpecialOrderReturnStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  RECEIVED
+}
+
+enum SpecialOrderRefundState {
+  DUE
+  IN_PROGRESS
+  UNKNOWN
+  SETTLED
+  UNSUPPORTED
+}
+
+model SpecialOrderResolutionEvent {
+  id String @id @default(uuid())
+  tenantId String
+  orderId String
+  actorId String
+  key String
+  fingerprint String
+  action String
+  reason String
+  evidence Json
+  createdAt DateTime @default(now())
+
+  order SpecialOrder @relation(fields: [tenantId, orderId], references: [tenantId, id], onDelete: Restrict)
+  correction SpecialOrderSourcingCorrection?
+
+  @@unique([orderId, key])
+  @@index([orderId, createdAt])
+}
+
+model SpecialOrderSourcingCorrection {
+  eventId String @id
+  entryId String
+  quantity Int
+  event SpecialOrderResolutionEvent @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  entry SpecialOrderSourcingEntry @relation(fields: [entryId], references: [id], onDelete: Restrict)
+
+  @@index([entryId])
+}
+
+model SpecialOrderReturn {
+  id String @id @default(uuid())
+  tenantId String
+  orderId String
+  status SpecialOrderReturnStatus @default(REQUESTED)
+  items Json
+  receipt Json?
+  warehouseReturn Boolean @default(false)
+  createdAt DateTime @default(now())
+
+  order SpecialOrder @relation(fields: [tenantId, orderId], references: [tenantId, id], onDelete: Restrict)
+
+  @@index([orderId, status])
+}
+
+model SpecialOrderRefund {
+  id String @id @default(uuid())
+  tenantId String
+  orderId String
+  settlementId String
+  sourceKey String
+  amount Decimal @db.Decimal(20, 4)
+  currency String
+  state SpecialOrderRefundState @default(DUE)
+  providerRefundId String? @unique
+  outcome Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order SpecialOrder @relation(fields: [tenantId, orderId], references: [tenantId, id], onDelete: Restrict)
+  settlement SpecialOrderPaymentSettlement @relation(fields: [settlementId], references: [id], onDelete: Restrict)
+
+  @@unique([settlementId, sourceKey])
+  @@index([orderId, state])
 }

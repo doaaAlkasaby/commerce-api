@@ -4,6 +4,7 @@ import { setTimeout as pause } from 'node:timers/promises';
 import { env } from '../../config/env.js';
 import type { WorkerConfiguration } from '../../config/worker-options.js';
 import { logger } from '../../common/logger/logger.js';
+import { recoverSpecialPaymentAttempts } from '../special-orders/special-order-payments.service.js';
 import { RecoveryService } from './recovery.service.js';
 
 export class RecoveryWorker {
@@ -85,6 +86,18 @@ export class RecoveryWorker {
               'commerce_worker_last_successful_cycle_timestamp_seconds',
               Date.now() / 1000,
             );
+          try {
+            if (!signal.aborted)
+              await recoverSpecialPaymentAttempts(
+                this.configuration.WORKER_CONCURRENCY,
+                signal,
+              );
+          } catch {
+            logger.error(
+              { category: 'SPECIAL_PAYMENT_RECOVERY_FAILED' },
+              'Special order payment recovery polling failed',
+            );
+          }
         } catch {
           metrics.increment(
             'commerce_database_connectivity_failures_total',

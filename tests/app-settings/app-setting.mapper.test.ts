@@ -6,6 +6,7 @@ describe('AppSetting Mapper Unit Tests', () => {
   it('1. Preserves existing 6 fields and safely defaults when empty', () => {
     const result = mapPublicSettings([]);
     expect(result).toEqual({
+      specialOrders: { enabled: false, instructionsAr: null, instructionsEn: null },
       android_build: [],
       ios_build: [],
       forceUpdate: false,

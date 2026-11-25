@@ -3820,6 +3820,1243 @@
   },
   {
     "method": "GET",
+    "path": "/{{apiPrefix}}/special-orders/analytics/overview",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "query": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "analyticsRangeSchema",
+        "expression": "analyticsRangeSchema"
+      }
+    },
+    "requestName": "GET /special-orders/analytics/overview"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/special-orders/analytics/demand",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "query": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "demandAnalyticsSchema",
+        "expression": "demandAnalyticsSchema"
+      }
+    },
+    "requestName": "GET /special-orders/analytics/demand"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/special-orders/analytics/financial",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "query": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "analyticsRangeSchema",
+        "expression": "analyticsRangeSchema"
+      }
+    },
+    "requestName": "GET /special-orders/analytics/financial"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/special-orders/my/orders/:id/resolution",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["CUSTOMER"],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      }
+    },
+    "requestName": "GET /special-orders/my/orders/:id/resolution"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/special-orders/my/orders/:id/resolution",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["CUSTOMER"],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      },
+      "body": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "customerResolutionSchema",
+        "expression": "customerResolutionSchema"
+      }
+    },
+    "requestName": "POST /special-orders/my/orders/:id/resolution"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/special-orders/orders/:id/resolution",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      }
+    },
+    "requestName": "GET /special-orders/orders/:id/resolution"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/special-orders/orders/:id/resolution",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      },
+      "body": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "merchantResolutionSchema",
+        "expression": "merchantResolutionSchema"
+      }
+    },
+    "requestName": "POST /special-orders/orders/:id/resolution"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/special-orders/orders/:id/refunds",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      },
+      "body": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "executeSpecialRefundSchema",
+        "expression": "executeSpecialRefundSchema"
+      }
+    },
+    "requestName": "POST /special-orders/orders/:id/refunds"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/special-orders/orders/:id/fulfillment",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      }
+    },
+    "requestName": "GET /special-orders/orders/:id/fulfillment"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/special-orders/orders/:id/fulfillment",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      },
+      "body": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "fulfillmentActionSchema",
+        "expression": "fulfillmentActionSchema"
+      }
+    },
+    "requestName": "POST /special-orders/orders/:id/fulfillment"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/special-orders/orders/:id/sourcing",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      }
+    },
+    "requestName": "GET /special-orders/orders/:id/sourcing"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/special-orders/orders/:id/sourcing",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      },
+      "body": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "sourcingActionSchema",
+        "expression": "sourcingActionSchema"
+      }
+    },
+    "requestName": "POST /special-orders/orders/:id/sourcing"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/special-orders/my/orders/:id/payment",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["CUSTOMER"],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      }
+    },
+    "requestName": "GET /special-orders/my/orders/:id/payment"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/special-orders/my/orders/:id/payment/options",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["CUSTOMER"],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      }
+    },
+    "requestName": "GET /special-orders/my/orders/:id/payment/options"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/special-orders/my/orders/:id/payment/attempts",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["CUSTOMER"],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200, 201],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      },
+      "body": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "specialPaymentInitiationSchema",
+        "expression": "specialPaymentInitiationSchema"
+      }
+    },
+    "requestName": "POST /special-orders/my/orders/:id/payment/attempts"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/special-orders/my/orders/:id/payment/attempts/:attemptId",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["CUSTOMER"],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "specialAttemptParams",
+        "expression": "specialAttemptParams"
+      }
+    },
+    "requestName": "GET /special-orders/my/orders/:id/payment/attempts/:attemptId"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/special-orders/my/orders/:id/payment/attempts/:attemptId/verify",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["CUSTOMER"],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "specialAttemptParams",
+        "expression": "specialAttemptParams"
+      },
+      "body": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "specialPaymentVerificationSchema",
+        "expression": "specialPaymentVerificationSchema"
+      }
+    },
+    "requestName": "POST /special-orders/my/orders/:id/payment/attempts/:attemptId/verify"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/special-orders/orders/:id/payment",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      }
+    },
+    "requestName": "GET /special-orders/orders/:id/payment"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/special-orders/my/orders",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["CUSTOMER"],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "query": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestListSchema",
+        "expression": "requestListSchema"
+      }
+    },
+    "requestName": "GET /special-orders/my/orders"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/special-orders/my/orders/:id",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["CUSTOMER"],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      }
+    },
+    "requestName": "GET /special-orders/my/orders/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/special-orders/orders",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "query": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "specialOrderListSchema",
+        "expression": "specialOrderListSchema"
+      }
+    },
+    "requestName": "GET /special-orders/orders"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/special-orders/orders/:id",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      }
+    },
+    "requestName": "GET /special-orders/orders/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/special-orders/my/:id/order",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["CUSTOMER"],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      }
+    },
+    "requestName": "GET /special-orders/my/:id/order"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/special-orders/my/:id/checkout",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["CUSTOMER"],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      }
+    },
+    "requestName": "GET /special-orders/my/:id/checkout"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/special-orders/my/:id/checkout/options",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["CUSTOMER"],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      },
+      "query": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "checkoutOptionsSchema",
+        "expression": "checkoutOptionsSchema"
+      }
+    },
+    "requestName": "GET /special-orders/my/:id/checkout/options"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/special-orders/my/:id/checkout/preview",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["CUSTOMER"],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      },
+      "body": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "checkoutPreviewSchema",
+        "expression": "checkoutPreviewSchema"
+      }
+    },
+    "requestName": "POST /special-orders/my/:id/checkout/preview"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/special-orders/my/:id/checkout/confirm",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["CUSTOMER"],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200, 201],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      },
+      "body": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "checkoutConfirmSchema",
+        "expression": "checkoutConfirmSchema"
+      }
+    },
+    "requestName": "POST /special-orders/my/:id/checkout/confirm"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/special-orders/my",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["CUSTOMER"],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200, 201],
+    "schemas": {
+      "body": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "createRequestSchema",
+        "expression": "createRequestSchema"
+      }
+    },
+    "requestName": "POST /special-orders/my"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/special-orders/my",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["CUSTOMER"],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "query": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestListSchema",
+        "expression": "requestListSchema"
+      }
+    },
+    "requestName": "GET /special-orders/my"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/special-orders/my/:id",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["CUSTOMER"],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      }
+    },
+    "requestName": "GET /special-orders/my/:id"
+  },
+  {
+    "method": "PATCH",
+    "path": "/{{apiPrefix}}/special-orders/my/:id",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["CUSTOMER"],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      },
+      "body": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "editRequestSchema",
+        "expression": "editRequestSchema"
+      }
+    },
+    "requestName": "PATCH /special-orders/my/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/special-orders/my/:id/cancel",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["CUSTOMER"],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      }
+    },
+    "requestName": "POST /special-orders/my/:id/cancel"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/special-orders/my/:id/attachments",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["CUSTOMER"],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [201],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      }
+    },
+    "requestName": "POST /special-orders/my/:id/attachments"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/special-orders/my/:id/attachments/:attachmentId",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["CUSTOMER"],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "attachmentParamsSchema",
+        "expression": "attachmentParamsSchema"
+      }
+    },
+    "requestName": "GET /special-orders/my/:id/attachments/:attachmentId"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/special-orders",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "query": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "merchantListSchema",
+        "expression": "merchantListSchema"
+      }
+    },
+    "requestName": "GET /special-orders"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/special-orders/:id",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      }
+    },
+    "requestName": "GET /special-orders/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/special-orders/:id/review",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      }
+    },
+    "requestName": "POST /special-orders/:id/review"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/special-orders/:id/reject",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      },
+      "body": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "rejectRequestSchema",
+        "expression": "rejectRequestSchema"
+      }
+    },
+    "requestName": "POST /special-orders/:id/reject"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/special-orders/:id/attachments/:attachmentId",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "attachmentParamsSchema",
+        "expression": "attachmentParamsSchema"
+      }
+    },
+    "requestName": "GET /special-orders/:id/attachments/:attachmentId"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/special-orders/my/:id/quotation",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["CUSTOMER"],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      }
+    },
+    "requestName": "GET /special-orders/my/:id/quotation"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/special-orders/my/:id/quotation/calculate",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["CUSTOMER"],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      },
+      "body": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "quotationSelectionSchema",
+        "expression": "quotationSelectionSchema"
+      }
+    },
+    "requestName": "POST /special-orders/my/:id/quotation/calculate"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/special-orders/my/:id/quotation/accept",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["CUSTOMER"],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      },
+      "body": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "quotationSelectionSchema",
+        "expression": "quotationSelectionSchema"
+      }
+    },
+    "requestName": "POST /special-orders/my/:id/quotation/accept"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/special-orders/my/:id/quotation/reject",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["CUSTOMER"],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      },
+      "body": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "customerQuotationRejectionSchema",
+        "expression": "customerQuotationRejectionSchema"
+      }
+    },
+    "requestName": "POST /special-orders/my/:id/quotation/reject"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/special-orders/:id/quotation",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      }
+    },
+    "requestName": "GET /special-orders/:id/quotation"
+  },
+  {
+    "method": "PUT",
+    "path": "/{{apiPrefix}}/special-orders/:id/quotation/draft",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      },
+      "body": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "quotationDraftSchema",
+        "expression": "quotationDraftSchema"
+      }
+    },
+    "requestName": "PUT /special-orders/:id/quotation/draft"
+  },
+  {
+    "method": "POST",
+    "path": "/{{apiPrefix}}/special-orders/:id/quotation/publish",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "requestIdSchema",
+        "expression": "requestIdSchema"
+      },
+      "body": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "quotationVersionSchema",
+        "expression": "quotationVersionSchema"
+      }
+    },
+    "requestName": "POST /special-orders/:id/quotation/publish"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/special-orders/my/:id/quotation/:quotationId/items/:itemId/image",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["CUSTOMER"],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "quotationImageParamsSchema",
+        "expression": "quotationImageParamsSchema"
+      }
+    },
+    "requestName": "GET /special-orders/my/:id/quotation/:quotationId/items/:itemId/image"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/special-orders/:id/quotation/:quotationId/items/:itemId/image",
+    "source": "src/modules/special-orders/special-order.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/special-orders/special-order.schemas.ts",
+        "name": "quotationImageParamsSchema",
+        "expression": "quotationImageParamsSchema"
+      }
+    },
+    "requestName": "GET /special-orders/:id/quotation/:quotationId/items/:itemId/image"
+  },
+  {
+    "method": "GET",
     "path": "/{{apiPrefix}}/app-settings",
     "source": "src/modules/app-settings/app-setting.routes.ts",
     "access": {

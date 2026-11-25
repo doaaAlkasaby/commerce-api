@@ -22,7 +22,10 @@ export interface PaymentProviderAdapter {
   validatePayment?(
     input: Pick<PaymentProviderCreateInput, 'amount' | 'currency'>,
   ): void;
-  getPaymentStatus?(invoiceId: string): Promise<VerifiedProviderPayment>;
+  getPaymentStatus?(
+    invoiceId: string,
+    options?: { allowMultipleCollections: true },
+  ): Promise<VerifiedProviderPayment>;
 
   createPayment(
     input: PaymentProviderCreateInput,

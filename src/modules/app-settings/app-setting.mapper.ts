@@ -1,3 +1,4 @@
+import { readSpecialOrderSettings } from './special-order-settings.js';
 import type { AppSetting } from '../../generated/prisma/client.js';
 
 import type {
@@ -89,6 +90,7 @@ export const mapPublicSettings = (
   const faq = parseFAQSetting(settingsMap.get('faq'));
 
   return {
+    specialOrders: readSpecialOrderSettings(settingsMap.get('special_orders')),
     android_build: Array.isArray(androidBuild)
       ? androidBuild.filter(
           (value): value is number =>

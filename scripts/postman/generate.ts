@@ -107,6 +107,17 @@ export const values: Record<string, string> = {
   bannerId: developmentId('visual-banner:fashion'),
   cartId: '',
   orderId: '',
+  specialRequestId: '',
+  specialOrderId: '',
+  specialRefundId: '',
+  specialPaymentAttemptId: '',
+  obligationId: '',
+  acceptanceId: '',
+  specialCheckoutPreviewToken: '',
+  quotationId: '',
+  quotationItemId: '',
+  quotationVersion: '1',
+  attachmentId: '',
   paymentId: '',
   couponId: developmentId('coupon:fashion'),
   reviewId: '',
@@ -122,6 +133,7 @@ export const values: Record<string, string> = {
 const sensitive = /Token$|password|Password|Signature|opsMetricsToken/;
 const fieldVars: Record<string, string> = {
   id: 'userId',
+  attemptId: 'specialPaymentAttemptId',
   token: 'verificationToken',
   currentPassword: 'password',
   password: 'password',
@@ -144,6 +156,8 @@ const notes: Record<string, string> = {
     'Tenant staff OWNER/ADMIN/MANAGER. Explicit coverage authorizes destination countries; physical warehouse country does not imply cross-border coverage. Reservations/unresolved orders can block changes. Coverage PUT replaces the whole country list. Example Kuwait source; change city/address/coordinates/country for Riyadh deliberately.',
   'order-policy':
     'Amounts are decimal strings in tenant currency. Null removes a limit; omitted PATCH fields stay unchanged. Merchandise limits exclude shipping/tax and apply after discounts. Do not change policies in a normal run.',
+  'special-orders':
+    'Submit with an Idempotency-Key, then review as a merchant. Save a draft and publish using its captured quotation ID and version. An update to an existing draft includes its draft ID and version. Customers can read the current quotation and calculate or accept any valid selection. Set quotationItemId or edit the items array to choose other products. For quoted or accepted cancellation and resubmission, include the observed quotation ID, version, and request status. Fetch checkout options, then preview and confirm using the captured acceptance, shipping method, preview token, and a fresh idempotency key. Use STORE_PICKUP with a configured pickupLocationId for pickup. For online payment, read payment options, initiate an eligible obligation with a new idempotency key, and verify the returned attempt after checkout. Merchants can read sourcing and send START, RESERVE, RECEIVE, SECURE or READY with distinct idempotency keys. READY unlocks an eligible online balance. Record merchant fulfillment using DISPATCH or AVAILABLE_FOR_PICKUP, then DELIVER or PICK_UP. Use COMPLETE after handover and payment. The resolution endpoints record cancellation, returns, inspections, and corrections. Read the merchant resolution before executing an approved refund. Merchant analytics accept inclusive UTC dates from and to. Demand additionally supports page and limit.',
   cart: 'Requires active tenant membership. GET may create an empty cart and is therefore guarded. Guest cart is client-local. POST items adds quantity; PATCH sets absolute quantity. Do not blindly retry additive POST after an ambiguous response.',
   checkout:
     'Requires tenant, active membership and verified email. Preview/shipping-options reserve nothing. Final checkout recalculates and reserves one eligible warehouse for the whole cart. Never submit a warehouse selector. All money uses tenant currency. Same key+payload replays (200); new order returns 201. Changed purchase needs a new key. Set idempotencyKey manually with Postman {{$guid}} once, then keep it for retries; no script regenerates it.',
@@ -179,7 +193,7 @@ export function access(route: Route) {
     roles,
     token: globalAdmin
       ? 'adminAccessToken'
-      : roles.length || management
+      : roles.some((role) => role !== 'CUSTOMER') || management
         ? 'ownerAccessToken'
         : 'customerAccessToken',
     management,
@@ -187,7 +201,14 @@ export function access(route: Route) {
   };
 }
 function variableFor(name: string, route: Route): string {
+  if (name === 'itemId' && route.path.endsWith('/image'))
+    return 'quotationItemId';
   if (name !== 'id') return fieldVars[name] ?? name;
+  if (
+    route.path.includes('/special-orders/') &&
+    /\/orders\/:id(?:\/|$)/.test(route.path)
+  )
+    return 'specialOrderId';
   if (route.path.endsWith('/merchant/products/:id')) return 'productId';
   return (
     {
@@ -198,6 +219,7 @@ function variableFor(name: string, route: Route): string {
       warehouses: 'warehouseId',
       addresses: 'shippingAddressId',
       orders: 'orderId',
+      'special-orders': 'specialRequestId',
       payments: 'paymentId',
       coupons: 'couponId',
       'product-images': 'productImageId',
@@ -223,7 +245,23 @@ function template(value: unknown, route: Route, key = ''): unknown {
         template(item, route, name),
       ]),
     );
-  const name = fieldVars[key] ?? key;
+  if (
+    route.path.includes('/special-orders/') &&
+    route.path.includes('/checkout/')
+  ) {
+    if (key === 'previewToken') return '{{specialCheckoutPreviewToken}}';
+    if (key === 'shippingMethodCode') return '{{shippingMethodCode}}';
+    if (key === 'addressId') return '{{shippingAddressId}}';
+  }
+  if (
+    route.path.endsWith('/special-orders/orders/:id/refunds') &&
+    key === 'refundId'
+  )
+    return '{{specialRefundId}}';
+  const name =
+    key === 'itemId' && route.path.includes('/quotation/')
+      ? 'quotationItemId'
+      : (fieldVars[key] ?? key);
   if (
     (/Id$/.test(key) ||
       [
@@ -292,9 +330,98 @@ export async function buildRequest(route: Route): Promise<Item> {
     body = example(json, '', route.method === 'PATCH');
   }
   const endpoint = `${route.method} ${route.path.replace('/{{apiPrefix}}', '')}`;
+  const specialConfirm =
+    endpoint === 'POST /special-orders/my/:id/checkout/confirm';
+  const specialPreview =
+    endpoint === 'POST /special-orders/my/:id/checkout/preview';
+  const specialInitiate =
+    endpoint === 'POST /special-orders/my/orders/:id/payment/attempts';
+  const idempotent =
+    endpoint === 'POST /checkout' ||
+    endpoint === 'POST /special-orders/my' ||
+    specialConfirm ||
+    specialInitiate ||
+    endpoint === 'POST /special-orders/orders/:id/sourcing' ||
+    endpoint === 'POST /special-orders/orders/:id/fulfillment' ||
+    endpoint === 'POST /special-orders/my/orders/:id/resolution' ||
+    endpoint === 'POST /special-orders/orders/:id/resolution' ||
+    endpoint === 'POST /special-orders/orders/:id/refunds';
+  if (endpoint === 'POST /special-orders/my/orders/:id/resolution') {
+    body = {
+      action: 'REQUEST_CANCELLATION',
+      reason: 'Customer requested cancellation',
+    };
+  }
+  if (endpoint === 'POST /special-orders/orders/:id/resolution') {
+    body = { action: 'CANCEL', reason: 'Merchant approved cancellation' };
+  }
+  if (endpoint === 'POST /special-orders/orders/:id/refunds') {
+    body = { refundId: sampleUuid, reason: 'Refund the verified settlement' };
+  }
+  if (endpoint === 'POST /special-orders/orders/:id/sourcing') {
+    body = { action: 'START', warehouseId: sampleUuid };
+  }
+  if (endpoint === 'POST /special-orders/orders/:id/fulfillment') {
+    body = {
+      action: 'DISPATCH',
+      deliveryMethod: 'MERCHANT',
+      evidence: 'Dispatch receipt',
+    };
+  }
   const mockCheckout = endpoint === 'GET /payments/mock/checkout/:id';
   const mockScenario = endpoint === 'POST /payments/mock/checkout/:id/scenario';
+  if (specialPreview || specialConfirm)
+    body = {
+      acceptanceId: sampleUuid,
+      fulfillment: {
+        method: 'HOME_DELIVERY',
+        addressId: sampleUuid,
+        shippingMethodCode: 'standard',
+      },
+      paymentMethod: 'CASH_ON_FULFILLMENT',
+      ...(specialConfirm && { previewToken: 'a'.repeat(64) }),
+    };
   if (mockScenario) body = { status: 'PAID' };
+  if (
+    endpoint === 'POST /special-orders/my' ||
+    endpoint === 'PATCH /special-orders/my/:id'
+  ) {
+    body = {
+      contactPhone: '+15550102030',
+      items: [{ name: 'Example requested product', quantity: 2 }],
+    };
+  }
+  if (endpoint === 'PUT /special-orders/:id/quotation/draft')
+    body = {
+      sourcingDays: 3,
+      validityHours: 48,
+      sourcingFee: '4.00',
+      paymentTerms: [{ method: 'CASH_ON_FULFILLMENT' }],
+      items: [
+        {
+          type: 'AVAILABLE',
+          name: 'Example 200 ml',
+          offeredQuantity: 2,
+          unitPrice: '50.00',
+          pricesIncludeTax: false,
+        },
+        {
+          type: 'SUGGESTED',
+          name: 'Example alternative',
+          offeredQuantity: 5,
+          unitPrice: '45.00',
+          pricesIncludeTax: true,
+        },
+      ],
+    };
+  if (endpoint.includes('/quotation/') && route.method === 'POST')
+    body = {
+      quotationId: sampleUuid,
+      version: 1,
+      ...(/\/(calculate|accept)$/.test(endpoint)
+        ? { items: [{ itemId: sampleUuid, quantity: 1 }] }
+        : {}),
+    };
   if (endpoint === 'POST /products/:productId/reviews')
     body = {
       rating: 5,
@@ -406,7 +533,7 @@ export async function buildRequest(route: Route): Promise<Item> {
     request.url.query = [{ key: 'token', value: '{{mockCheckoutToken}}' }];
     request.url.raw += '?token={{mockCheckoutToken}}';
   }
-  if (endpoint === 'POST /checkout')
+  if (idempotent)
     request.header.push({
       key: 'Idempotency-Key',
       value: '{{idempotencyKey}}',
@@ -422,7 +549,8 @@ export async function buildRequest(route: Route): Promise<Item> {
     module === 'cart';
   const payment =
     (module === 'payments' && mutates) ||
-    (module === 'checkout' && endpoint === 'POST /checkout');
+    (module === 'checkout' && endpoint === 'POST /checkout') ||
+    endpoint === 'POST /special-orders/orders/:id/refunds';
   const prerequest = `
 if (${mutates} && pm.variables.get('allowMutations') !== 'true') pm.execution.skipRequest();
 if (${payment} && pm.variables.get('allowPaymentMutations') !== 'true') pm.execution.skipRequest();
@@ -435,12 +563,26 @@ pm.variables.set('activeRefreshToken', pm.environment.get(profile+'RefreshToken'
 pm.variables.set('activeAccessToken', pm.environment.get(profile+'AccessToken') || '');`
     : ''
 }
+${
+  endpoint.includes('/quotation/') && route.method === 'POST'
+    ? `const quoteBody = JSON.parse(pm.request.body.raw);
+quoteBody.version = Number(pm.variables.get('quotationVersion'));
+pm.request.body.update({mode:'raw',raw:JSON.stringify(quoteBody)});`
+    : ''
+}
 ${mockCheckout || mockScenario ? `if (!pm.variables.get('mockCheckoutToken')) pm.execution.skipRequest();` : ''}
 ${a.auth || route.path === '/ops/metrics' ? `if (!pm.variables.get('${token}')) pm.execution.skipRequest();` : ''}
-${endpoint === 'POST /checkout' ? `if (!pm.variables.get('idempotencyKey')) throw new Error('Set a new idempotencyKey once for this purchase; keep it for retries');` : ''}
+${idempotent ? `if (!pm.variables.get('idempotencyKey')) throw new Error('Set a new idempotencyKey once for this purchase; keep it for retries');` : ''}
 `;
   let post = `pm.test('Expected successful status', () => pm.expect(pm.response.code).to.be.oneOf(${JSON.stringify(success)}));`;
-  if (mockCheckout)
+  if (
+    route.method === 'GET' &&
+    module === 'special-orders' &&
+    (route.path.endsWith('/:attachmentId') || route.path.endsWith('/image'))
+  )
+    post += `
+pm.test('Private download', () => pm.expect(pm.response.headers.get('Content-Disposition')).to.include('attachment'));`;
+  else if (mockCheckout)
     post += `
 pm.test('Mock checkout HTML', () => pm.expect(pm.response.headers.get('Content-Type')).to.include('text/html'));`;
   else if (!route.path.startsWith('/ops/'))
@@ -473,7 +615,37 @@ if(pm.response.code===200){const data=pm.response.json().data;pm.expect(data.cur
   if (route.path.endsWith('/checkout/shipping-options'))
     post += `\nif(pm.response.code===200){const d=pm.response.json().data;pm.expect(d.estimated).to.eql(true);pm.expect(d.options).to.be.an('array');}`;
   // Only unambiguous customer-created IDs are captured; never replace catalog/staff IDs on list reads.
+  if (
+    endpoint === 'PUT /special-orders/:id/quotation/draft' ||
+    endpoint === 'POST /special-orders/:id/quotation/publish' ||
+    endpoint === 'GET /special-orders/my/:id/quotation'
+  )
+    post += `
+if(pm.response.code===200){
+ const quote=pm.response.json().data;
+ pm.environment.set('quotationId',quote.quotationId);
+ pm.environment.set('quotationVersion',String(quote.version));
+ const first=quote.availableProducts[0] || quote.suggestedProducts[0];
+ if(first) pm.environment.set('quotationItemId',first.id);
+}`;
+  if (endpoint === 'POST /special-orders/my/:id/quotation/accept')
+    post += `\nif(pm.response.code===200) pm.environment.set('acceptanceId',pm.response.json().data.id);`;
+  if (specialPreview)
+    post += `\nif(pm.response.code===200){
+ const preview=pm.response.json().data;
+ pm.environment.unset('specialCheckoutPreviewToken');
+ if(preview.previewToken) pm.environment.set('specialCheckoutPreviewToken',preview.previewToken);
+ if(preview.shippingMethod) pm.environment.set('shippingMethodCode',preview.shippingMethod.code);
+}`;
+  if (endpoint === 'GET /special-orders/my/orders/:id/payment/options')
+    post += `\nif(pm.response.code===200){const next=pm.response.json().data.obligations.find(obligation=>obligation.payable);if(next)pm.environment.set('obligationId',next.id);}`;
+  if (endpoint === 'GET /special-orders/orders/:id/resolution')
+    post += `\nif(pm.response.code===200){const due=pm.response.json().data.refunds.find(refund=>refund.state==='DUE');if(due)pm.environment.set('specialRefundId',due.id);}`;
   const capture = {
+    'POST /special-orders/my/orders/:id/payment/attempts':
+      'specialPaymentAttemptId',
+    'POST /special-orders/my/:id/checkout/confirm': 'specialOrderId',
+    'POST /special-orders/my': 'specialRequestId',
     'POST /addresses': 'shippingAddressId',
     'GET /cart': 'cartId',
     'POST /auth/register': 'userId',

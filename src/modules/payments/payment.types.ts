@@ -143,6 +143,12 @@ export interface VerifiedProviderPayment {
   transactionId?: string;
   transactionPaymentId?: string;
   transactionPaymentIds: string[];
+  collections?: {
+    transactionId: string;
+    paymentId: string;
+    amount: string;
+    currency: string;
+  }[];
 }
 
 export type ProviderRefundOutcome =

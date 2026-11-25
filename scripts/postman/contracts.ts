@@ -18,6 +18,18 @@ const ref = (file: string, name: string): SchemaRef => ({
 export function completeSchemas(route: Route) {
   const key = `${route.method} ${route.path.replace('/{{apiPrefix}}', '')}`;
   const extra: Record<string, SchemaRef> = {
+    'PATCH /special-orders/my/:id': ref(
+      'special-orders/special-order.schemas',
+      'editRequestSchema',
+    ),
+    'PUT /special-orders/:id/quotation/draft': ref(
+      'special-orders/special-order.schemas',
+      'quotationDraftSchema',
+    ),
+    'POST /special-orders/my': ref(
+      'special-orders/special-order.schemas',
+      'createRequestSchema',
+    ),
     'POST /warehouses': ref(
       'warehouses/warehouse.schemas',
       'createWarehouseSchema',
@@ -181,9 +193,18 @@ export function inlineBody(route: Route): unknown {
 export function statuses(route: Route): number[] {
   if (
     route.path.endsWith('/storefront/enroll') ||
-    (route.method === 'POST' && route.path.endsWith('/checkout'))
+    (route.method === 'POST' &&
+      (route.path.endsWith('/checkout') ||
+        route.path.endsWith('/special-orders/my') ||
+        route.path.endsWith('/checkout/confirm') ||
+        route.path.endsWith('/payment/attempts')))
   )
     return [200, 201];
+  if (
+    route.method === 'POST' &&
+    route.path.endsWith('/special-orders/my/:id/attachments')
+  )
+    return [201];
   const wrapped = route.handler.match(
     /=>\s*[A-Za-z0-9_]+\.([A-Za-z0-9_]+)\(/,
   )?.[1];

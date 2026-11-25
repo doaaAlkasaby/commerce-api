@@ -136,7 +136,8 @@ export class MockMyFatoorahProvider implements PaymentProviderAdapter {
     const token = MockMyFatoorahProvider.generateSessionToken(input.paymentId);
     const checkoutUrl = `${baseUrl}/api/v1/payments/mock/checkout/${input.paymentId}?token=${token}`;
 
-    MockMyFatoorahProvider.mockInvoices.set(invoiceId, {
+    // Match the adapter's idempotent initiation contract for durable retries.
+    if (!MockMyFatoorahProvider.mockInvoices.has(invoiceId)) MockMyFatoorahProvider.mockInvoices.set(invoiceId, {
       invoiceId,
       paymentId: input.paymentId,
       orderId: input.orderId,
@@ -190,6 +191,29 @@ export class MockMyFatoorahProvider implements PaymentProviderAdapter {
         transactionId: `tx-${invoiceId}`,
         transactionPaymentId: `tx-${invoiceId}`,
       };
+    }
+
+    if (invoiceId.startsWith('mock-inv-')) {
+      const special = await prisma.specialOrderPaymentAttempt.findFirst({
+        where: {
+          invoiceId,
+          provider: 'MYFATOORAH',
+          providerEnvironment: 'MOCK',
+        },
+        include: { obligation: true },
+      });
+      if (special?.mockStatus)
+        return {
+          invoiceId,
+          customerReference: special.id,
+          orderReference: `SO:${special.obligation.orderId}`,
+          amount: special.obligation.amount.toFixed(),
+          currency: special.obligation.currency,
+          status: special.mockStatus,
+          transactionPaymentIds: [`tx-${invoiceId}`],
+          transactionId: `tx-${invoiceId}`,
+          transactionPaymentId: `tx-${invoiceId}`,
+        };
     }
 
     const record = MockMyFatoorahProvider.mockInvoices.get(invoiceId);

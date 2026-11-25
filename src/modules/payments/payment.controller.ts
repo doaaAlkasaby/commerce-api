@@ -127,6 +127,35 @@ export class PaymentController {
       });
 
       if (!dbPayment) {
+        const invoiceId = `mock-inv-${paymentId}`;
+        const special = await prisma.specialOrderPaymentAttempt.updateMany({
+          where: {
+            id: paymentId,
+            invoiceId,
+            provider: 'MYFATOORAH',
+            providerEnvironment: 'MOCK',
+            mockStatus: { in: ['PENDING', 'REQUIRES_ACTION'] },
+            conflictCode: null,
+            obligation: {
+              order: { tenantId: req.tenant!.tenantId, customerId: req.user!.userId },
+              OR: [
+                { kind: 'INITIAL', expiresAt: { gt: new Date() } },
+                { kind: 'BALANCE', method: 'ONLINE', order: { state: 'READY_FOR_FULFILLMENT', readyAt: { not: null } } },
+              ],
+            },
+          },
+          data: { mockStatus: status },
+        });
+        if (special.count === 1) {
+          res
+            .status(200)
+            .json({
+              success: true,
+              message: null,
+              data: { paymentId, invoiceId, status },
+            });
+          return;
+        }
         throw new AppError('Payment not found', 404, 'PAYMENT_NOT_FOUND');
       }
 

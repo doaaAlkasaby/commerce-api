@@ -140,7 +140,10 @@ export class MyFatoorahProvider implements PaymentProviderAdapter {
     };
   }
 
-  async getPaymentStatus(invoiceId: string): Promise<VerifiedProviderPayment> {
+  async getPaymentStatus(
+    invoiceId: string,
+    options?: { allowMultipleCollections: true },
+  ): Promise<VerifiedProviderPayment> {
     const parsed = invoiceStatus.safeParse(
       await this.request(
         '/v2/GetPaymentStatus',
@@ -172,13 +175,17 @@ export class MyFatoorahProvider implements PaymentProviderAdapter {
     ) {
       throw providerError('MYFATOORAH_STATUS_UNVERIFIED');
     }
-    if (data.InvoiceStatus === 'Paid' && successful.length !== 1)
+    if (
+      data.InvoiceStatus === 'Paid' &&
+      (successful.length === 0 || (!options && successful.length !== 1))
+    )
       throw providerError('MYFATOORAH_STATUS_UNVERIFIED');
     const selected =
       data.InvoiceStatus === 'Paid'
         ? successful[0]
         : data.InvoiceTransactions.at(-1);
     if (
+      !options &&
       selected &&
       (!['KD', 'KWD'].includes(selected.Currency) ||
         (selected.PaidCurrency !== undefined &&
@@ -211,6 +218,17 @@ export class MyFatoorahProvider implements PaymentProviderAdapter {
       amount: data.InvoiceValue,
       currency: 'KWD',
       status,
+      ...(options && {
+        collections: successful.map((item) => ({
+          transactionId: item.TransactionId,
+          paymentId: item.PaymentId,
+          amount: item.PaidCurrencyValue ?? item.TransationValue,
+          currency:
+            (item.PaidCurrency ?? item.Currency) === 'KD'
+              ? 'KWD'
+              : (item.PaidCurrency ?? item.Currency),
+        })),
+      }),
       ...(selected
         ? {
             transactionId: selected.TransactionId,

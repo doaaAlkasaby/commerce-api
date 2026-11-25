@@ -16,7 +16,7 @@ import type {
   InventoryResponse,
 } from './inventory.types.js';
 
-const RESERVED_MANUAL_REFERENCE_PREFIXES = ['cod-dmg:', 'init:'] as const;
+const RESERVED_MANUAL_REFERENCE_PREFIXES = ['cod-dmg:', 'init:', 'special-sourcing:', 'special-fulfillment:', 'special-resolution:'] as const;
 
 const isPrismaUniqueConstraintError = (error: unknown): boolean =>
   typeof error === 'object' &&

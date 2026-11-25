@@ -4,6 +4,7 @@ export interface PublicFAQItem {
 }
 
 export interface AppSettingsResponse {
+  specialOrders: { enabled: boolean; instructionsAr: string | null; instructionsEn: string | null };
   android_build: number[];
   ios_build: number[];
   forceUpdate: boolean;

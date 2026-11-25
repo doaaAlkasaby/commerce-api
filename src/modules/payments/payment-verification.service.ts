@@ -1,3 +1,4 @@
+import { processSpecialPaymentWebhook } from '../special-orders/special-order-payments.service.js';
 import { logger } from '../../common/logger/logger.js';
 import {
   metrics,
@@ -115,8 +116,34 @@ export class PaymentVerificationService {
     const mapping = await this.repository.findMyFatoorahInvoice(
       event.invoiceId,
     );
+    if (!mapping) {
+      const special = await processSpecialPaymentWebhook(event);
+      if (special) return special;
+    }
     // Network IO happens before any order lock/transaction, even for webhook recovery.
-    const verified = await this.fetchStatus(event.invoiceId, mapping?.payment);
+    const verified = await this.fetchStatus(
+      event.invoiceId,
+      mapping?.payment,
+    ).catch(async (error: unknown) => {
+      if (
+        mapping ||
+        !(error instanceof AppError) ||
+        error.code !== 'MYFATOORAH_STATUS_UNVERIFIED'
+      )
+        throw error;
+      // The regular adapter deliberately rejects multiple successes on one invoice.
+      // A lost Special Order initiation may have no local invoice mapping yet.
+      const adapter = this.providers.getProvider('MYFATOORAH');
+      const observed = await adapter.getPaymentStatus?.(event.invoiceId, {
+        allowMultipleCollections: true,
+      });
+      if (!observed?.orderReference.startsWith('SO:')) throw error;
+      return observed;
+    });
+    if (!mapping && verified.orderReference.startsWith('SO:')) {
+      const special = await processSpecialPaymentWebhook(event, verified);
+      if (special) return special;
+    }
     const payment =
       mapping?.payment ??
       (await this.repository.findMyFatoorahCustomerReference(
@@ -307,7 +334,10 @@ export class PaymentVerificationService {
           current.status === PaymentStatus.REFUND_PENDING ||
           current.status === PaymentStatus.PARTIALLY_REFUNDED ||
           current.status === PaymentStatus.REFUNDED;
-        if (isPostCaptureRefundStatus && verified.status === PaymentStatus.PAID) {
+        if (
+          isPostCaptureRefundStatus &&
+          verified.status === PaymentStatus.PAID
+        ) {
           if (
             current.providerTransactionId &&
             verified.transactionId &&

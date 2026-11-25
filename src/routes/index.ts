@@ -1,3 +1,4 @@
+import specialOrderRoutes from '../modules/special-orders/special-order.routes.js';
 import { Router } from 'express';
 
 import authRoutes from '../modules/auth/auth.routes.js';
@@ -114,6 +115,7 @@ router.use('/payments', paymentRoutes);
 router.use('/checkout', checkoutRoutes);
 
 router.use('/orders', orderRoutes);
+router.use('/special-orders', specialOrderRoutes);
 router.use('/app-settings', appSettingRouter);
 router.use('/devices', deviceRouter);
 
