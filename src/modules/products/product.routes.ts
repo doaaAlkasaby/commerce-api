@@ -12,6 +12,7 @@ import {
   createProductSchema,
   productListQuerySchema,
   productListingQuerySchema,
+  productRecommendationsQuerySchema,
   updateProductSchema,
   productIdParamSchema,
   productStatusSchema,
@@ -21,6 +22,7 @@ import {
   createProduct,
   updateProduct,
   getProduct,
+  getProductRecommendations,
   listProducts,
   changeProductStatus,
   deleteProduct,
@@ -101,6 +103,18 @@ router.get(
     'query',
   ),
   listProducts,
+);
+
+/**
+ * Get automatic similar product recommendations
+ */
+router.get(
+  '/:id/recommendations',
+  tenantMiddleware,
+  optionalAuthenticate,
+  validate(productIdParamSchema, 'params'),
+  validate(productRecommendationsQuerySchema, 'query'),
+  getProductRecommendations,
 );
 
 /**

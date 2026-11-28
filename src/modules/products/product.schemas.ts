@@ -145,3 +145,35 @@ export type ProductListQueryRequest = z.infer<typeof productListQuerySchema>;
 export const productListingQuerySchema = paginationQuerySchema;
 
 export type ProductListingQuery = z.infer<typeof productListingQuerySchema>;
+
+const strictBooleanQueryParam = z.preprocess((value) => {
+  if (value === undefined) return false;
+  if (typeof value === 'boolean') return value;
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  return value;
+}, z.boolean());
+
+export const SIMILAR_RECOMMENDATIONS_MAX_LIMIT = 8;
+export const COMPLEMENTARY_DEFAULT_LIMIT = 6;
+export const COMPLEMENTARY_MAX_LIMIT = 15;
+
+export const productRecommendationsQuerySchema = z.object({
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(SIMILAR_RECOMMENDATIONS_MAX_LIMIT)
+    .default(SIMILAR_RECOMMENDATIONS_MAX_LIMIT),
+  includeComplementary: strictBooleanQueryParam.default(false),
+  complementaryLimit: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(COMPLEMENTARY_MAX_LIMIT)
+    .default(COMPLEMENTARY_DEFAULT_LIMIT),
+});
+
+export type ProductRecommendationsQuery = z.infer<
+  typeof productRecommendationsQuerySchema
+>;

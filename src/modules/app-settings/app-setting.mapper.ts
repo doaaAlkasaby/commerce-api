@@ -1,4 +1,13 @@
 import { readSpecialOrderSettings } from './special-order-settings.js';
+import {
+  CART_RECOMMENDATIONS_SETTING_KEY,
+  COMPLEMENTARY_PRODUCTS_SETTING_KEY,
+  SIMILAR_PRODUCTS_SETTING_KEY,
+  readShowCartRecommendationsSetting,
+  readShowComplementaryProductsSetting,
+  readShowSimilarProductsSetting,
+  type SimilarProductsSettingRecord,
+} from './similar-products-settings.js';
 import type { AppSetting } from '../../generated/prisma/client.js';
 
 import type {
@@ -67,10 +76,36 @@ const parseFAQSetting = (val: unknown): PublicFAQItem[] | undefined => {
 
 export const mapPublicSettings = (
   settings: AppSetting[],
+  overrides?: {
+    showSimilarProductsSetting?: SimilarProductsSettingRecord | null;
+    showComplementaryProductsSetting?: SimilarProductsSettingRecord | null;
+    showCartRecommendationsSetting?: SimilarProductsSettingRecord | null;
+  },
 ): AppSettingsResponse => {
   const settingsMap = new Map(
     settings.map((setting) => [setting.key, setting.value]),
   );
+
+  const similarProductsSetting =
+    overrides?.showSimilarProductsSetting !== undefined
+      ? overrides.showSimilarProductsSetting
+      : (settings.find(
+          (setting) => setting.key === SIMILAR_PRODUCTS_SETTING_KEY,
+        ) ?? null);
+
+  const complementaryProductsSetting =
+    overrides?.showComplementaryProductsSetting !== undefined
+      ? overrides.showComplementaryProductsSetting
+      : (settings.find(
+          (setting) => setting.key === COMPLEMENTARY_PRODUCTS_SETTING_KEY,
+        ) ?? null);
+
+  const cartRecommendationsSetting =
+    overrides?.showCartRecommendationsSetting !== undefined
+      ? overrides.showCartRecommendationsSetting
+      : (settings.find(
+          (setting) => setting.key === CART_RECOMMENDATIONS_SETTING_KEY,
+        ) ?? null);
 
   const androidBuild = settingsMap.get('android_build');
   const iosBuild = settingsMap.get('ios_build');
@@ -91,6 +126,13 @@ export const mapPublicSettings = (
 
   return {
     specialOrders: readSpecialOrderSettings(settingsMap.get('special_orders')),
+    showSimilarProducts: readShowSimilarProductsSetting(similarProductsSetting),
+    showComplementaryProducts: readShowComplementaryProductsSetting(
+      complementaryProductsSetting,
+    ),
+    showCartRecommendations: readShowCartRecommendationsSetting(
+      cartRecommendationsSetting,
+    ),
     android_build: Array.isArray(androidBuild)
       ? androidBuild.filter(
           (value): value is number =>

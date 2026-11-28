@@ -33,6 +33,19 @@ export class AppSettingRepository {
     });
   }
 
+  async findByKeys(tenantId: string, keys: string[]): Promise<AppSetting[]> {
+    if (keys.length === 0) {
+      return [];
+    }
+
+    return this.prisma.appSetting.findMany({
+      where: {
+        tenantId,
+        key: { in: keys },
+      },
+    });
+  }
+
   async findAll(tenantId: string): Promise<AppSetting[]> {
     return this.prisma.appSetting.findMany({
       where: { tenantId },

@@ -36,3 +36,15 @@ export interface UploadCategoryImageInput {
   originalName: string;
   contentType: string;
 }
+
+export interface ComplementaryCategoryItemResponse {
+  id: string;
+  name: string;
+  slug: string;
+  isActive: boolean;
+  sortOrder: number;
+}
+
+export interface ReplaceComplementaryCategoriesInput {
+  targetCategoryIds: string[];
+}

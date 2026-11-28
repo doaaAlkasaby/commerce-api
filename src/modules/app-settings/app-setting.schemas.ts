@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { isStrictBooleanStorefrontSettingKey } from './similar-products-settings.js';
+
 export const appSettingKeySchema = z
   .string()
   .trim()
@@ -12,17 +14,39 @@ export const appSettingKeySchema = z
 
 export const appSettingValueSchema = z.json();
 
-export const createAppSettingSchema = z.object({
-  key: appSettingKeySchema,
-  value: appSettingValueSchema,
-  description: z
-    .string()
-    .trim()
-    .max(500, 'Description must not exceed 500 characters')
-    .nullable()
-    .optional(),
-  isPublic: z.boolean().default(true),
-});
+export const createAppSettingSchema = z
+  .object({
+    key: appSettingKeySchema,
+    value: appSettingValueSchema,
+    description: z
+      .string()
+      .trim()
+      .max(500, 'Description must not exceed 500 characters')
+      .nullable()
+      .optional(),
+    isPublic: z.boolean().default(true),
+  })
+  .superRefine((input, ctx) => {
+    if (!isStrictBooleanStorefrontSettingKey(input.key)) {
+      return;
+    }
+
+    if (typeof input.value !== 'boolean') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['value'],
+        message: `${input.key} value must be a JSON boolean`,
+      });
+    }
+
+    if (input.isPublic !== true) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['isPublic'],
+        message: `${input.key} must be a public setting`,
+      });
+    }
+  });
 
 export const updateAppSettingSchema = z
   .object({

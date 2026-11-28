@@ -11,6 +11,12 @@ import {
 import {
   cartService,
 } from './cart.service.instance.js';
+import {
+  productRecommendationService,
+} from '../products/product-recommendation.service.js';
+import {
+  cartRecommendationsQuerySchema,
+} from './cart.schemas.js';
 
 import type {
   AddCartItemInput,
@@ -45,6 +51,44 @@ export class CartController {
         success: true,
         message: null,
         data: cart,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * GET /cart/recommendations
+   */
+  getRecommendations = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    try {
+      if (!req.user) {
+        throw new AppError(
+          'Authentication required',
+          401,
+          'UNAUTHORIZED',
+        );
+      }
+
+      const { limit } = cartRecommendationsQuerySchema.parse(
+        req.validatedQuery ?? req.query,
+      );
+
+      const recommendations =
+        await productRecommendationService.getCartRecommendations(
+          req.tenant!.tenantId,
+          req.user.userId,
+          limit,
+        );
+
+      res.status(200).json({
+        success: true,
+        message: null,
+        data: recommendations,
       });
     } catch (error) {
       next(error);

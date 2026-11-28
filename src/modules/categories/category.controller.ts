@@ -10,6 +10,7 @@ import {
 import {
   categoryService,
 } from './category.service.instance.js';
+import type { ReplaceComplementaryCategoriesInput } from './category.types.js';
 
 const getCategoryId = (
   req: Request,
@@ -206,6 +207,40 @@ export const categoryController = {
       message:
         'Category deleted successfully',
       data: null,
+    });
+  },
+
+  getComplementaryCategories: async (
+    req: Request,
+    res: Response,
+  ): Promise<void> => {
+    const items = await categoryService.getComplementaryCategories(
+      req.tenant!.tenantId,
+      getCategoryId(req),
+    );
+
+    res.status(200).json({
+      success: true,
+      message: null,
+      data: items,
+    });
+  },
+
+  replaceComplementaryCategories: async (
+    req: Request,
+    res: Response,
+  ): Promise<void> => {
+    const body = req.validatedBody as ReplaceComplementaryCategoriesInput;
+    const items = await categoryService.replaceComplementaryCategories(
+      req.tenant!.tenantId,
+      getCategoryId(req),
+      body,
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Complementary categories updated successfully',
+      data: items,
     });
   },
 };

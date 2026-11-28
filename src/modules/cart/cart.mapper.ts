@@ -112,6 +112,7 @@ const mapProduct = (
 const calculateItemPricing = (
   variant: CartItemWithRelations['variant'],
   currency: string,
+  now: Date,
 ) => {
   /**
    * Variant price overrides Product.basePrice.
@@ -143,7 +144,7 @@ const calculateItemPricing = (
     basePrice,
     productDiscount,
     variantDiscount,
-    new Date(),
+    now,
     currency,
   );
 };
@@ -151,8 +152,9 @@ const calculateItemPricing = (
 export const mapCartItem = (
   item: CartItemWithRelations,
   currency = 'USD',
+  now = new Date(),
 ): CartItemResponse => {
-  const effectivePrice = calculateItemPricing(item.variant, currency);
+  const effectivePrice = calculateItemPricing(item.variant, currency, now);
 
   const quantity = BigInt(item.quantity);
 
@@ -216,8 +218,9 @@ export const mapCartItem = (
 export const mapCart = (
   cart: CartWithItems,
   currency = 'USD',
+  now?: Date,
 ): CartResponse => {
-  const items = cart.items.map((item) => mapCartItem(item, currency));
+  const items = cart.items.map((item) => mapCartItem(item, currency, now));
 
   let subtotalCents = 0n;
 

@@ -1,8 +1,13 @@
+import { Prisma } from '../../generated/prisma/client.js';
 import type {
   PrismaClient,
 } from '../../generated/prisma/client.js';
 
+import { AppError } from '../../common/errors/app-error.js';
+import { COMPLEMENTARY_MAX_TARGET_CATEGORIES } from './category.schemas.js';
+
 import type {
+  ComplementaryCategoryItemResponse,
   CreateCategoryInput,
   UpdateCategoryInput,
 } from './category.types.js';
@@ -261,6 +266,188 @@ export const createCategoryRepository = (
           id,
           tenantId,
         },
+      });
+    },
+
+    findComplementaryCategories: async (
+      tenantId: string,
+      sourceCategoryId: string,
+    ): Promise<ComplementaryCategoryItemResponse[]> => {
+      const rows = await db.categoryComplementaryRelation.findMany({
+        where: {
+          tenantId,
+          sourceCategoryId,
+        },
+        orderBy: [{ sortOrder: 'asc' }, { targetCategoryId: 'asc' }],
+        select: {
+          sortOrder: true,
+          targetCategory: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              isActive: true,
+            },
+          },
+        },
+      });
+
+      return rows.map((row) => ({
+        id: row.targetCategory.id,
+        name: row.targetCategory.name,
+        slug: row.targetCategory.slug,
+        isActive: row.targetCategory.isActive,
+        sortOrder: row.sortOrder,
+      }));
+    },
+
+    replaceComplementaryCategories: async (
+      tenantId: string,
+      sourceCategoryId: string,
+      targetCategoryIds: string[],
+    ): Promise<ComplementaryCategoryItemResponse[]> => {
+      if (targetCategoryIds.length > COMPLEMENTARY_MAX_TARGET_CATEGORIES) {
+        throw new AppError(
+          `At most ${COMPLEMENTARY_MAX_TARGET_CATEGORIES} complementary categories may be configured`,
+          400,
+          'MAX_COMPLEMENTARY_CATEGORIES_EXCEEDED',
+        );
+      }
+
+      if (new Set(targetCategoryIds).size !== targetCategoryIds.length) {
+        throw new AppError(
+          'Duplicate target category IDs are not allowed',
+          400,
+          'DUPLICATE_TARGET_CATEGORY',
+        );
+      }
+
+      if (targetCategoryIds.includes(sourceCategoryId)) {
+        throw new AppError(
+          'A category cannot be complementary to itself',
+          400,
+          'CATEGORY_SELF_RELATIONSHIP_NOT_ALLOWED',
+        );
+      }
+
+      return db.$transaction(async (tx) => {
+        // Serialize concurrent replacements per source category within the tenant.
+        const lockedSource = await tx.$queryRaw<Array<{ id: string }>>(
+          Prisma.sql`
+            SELECT "id"
+            FROM "Category"
+            WHERE "id" = ${sourceCategoryId}
+              AND "tenantId" = ${tenantId}
+            FOR UPDATE
+          `,
+        );
+
+        if (lockedSource.length === 0) {
+          throw new AppError('Category not found', 404, 'CATEGORY_NOT_FOUND');
+        }
+
+        const existingRelations =
+          await tx.categoryComplementaryRelation.findMany({
+            where: {
+              tenantId,
+              sourceCategoryId,
+            },
+            select: {
+              targetCategoryId: true,
+            },
+          });
+        const existingTargetIds = new Set(
+          existingRelations.map((relation) => relation.targetCategoryId),
+        );
+
+        if (targetCategoryIds.length > 0) {
+          const targetCategories = await tx.category.findMany({
+            where: {
+              tenantId,
+              id: { in: targetCategoryIds },
+            },
+            select: {
+              id: true,
+              isActive: true,
+            },
+          });
+
+          if (targetCategories.length !== targetCategoryIds.length) {
+            throw new AppError(
+              'One or more target categories were not found',
+              404,
+              'TARGET_CATEGORY_NOT_FOUND',
+            );
+          }
+
+          const targetById = new Map(
+            targetCategories.map((category) => [category.id, category]),
+          );
+
+          for (const targetId of targetCategoryIds) {
+            const target = targetById.get(targetId);
+            if (!target) {
+              throw new AppError(
+                'One or more target categories were not found',
+                404,
+                'TARGET_CATEGORY_NOT_FOUND',
+              );
+            }
+
+            if (!target.isActive && !existingTargetIds.has(targetId)) {
+              throw new AppError(
+                'Cannot add an inactive category as a complementary target',
+                400,
+                'TARGET_CATEGORY_INACTIVE',
+              );
+            }
+          }
+        }
+
+        await tx.categoryComplementaryRelation.deleteMany({
+          where: {
+            tenantId,
+            sourceCategoryId,
+          },
+        });
+
+        if (targetCategoryIds.length > 0) {
+          await tx.categoryComplementaryRelation.createMany({
+            data: targetCategoryIds.map((targetCategoryId, index) => ({
+              tenantId,
+              sourceCategoryId,
+              targetCategoryId,
+              sortOrder: index,
+            })),
+          });
+        }
+
+        const updatedRows = await tx.categoryComplementaryRelation.findMany({
+          where: {
+            tenantId,
+            sourceCategoryId,
+          },
+          orderBy: [{ sortOrder: 'asc' }, { targetCategoryId: 'asc' }],
+          select: {
+            sortOrder: true,
+            targetCategory: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+                isActive: true,
+              },
+            },
+          },
+        });
+
+        return updatedRows.map((row) => ({
+          id: row.targetCategory.id,
+          name: row.targetCategory.name,
+          slug: row.targetCategory.slug,
+          isActive: row.targetCategory.isActive,
+          sortOrder: row.sortOrder,
+        }));
       });
     },
   };

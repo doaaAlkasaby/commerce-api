@@ -5,6 +5,9 @@ export interface PublicFAQItem {
 
 export interface AppSettingsResponse {
   specialOrders: { enabled: boolean; instructionsAr: string | null; instructionsEn: string | null };
+  showSimilarProducts: boolean;
+  showComplementaryProducts: boolean;
+  showCartRecommendations: boolean;
   android_build: number[];
   ios_build: number[];
   forceUpdate: boolean;

@@ -1,3 +1,9 @@
+import { toMinorUnits } from '../../common/pricing/money.js';
+import {
+  cartPromotionGuidanceEnabled,
+  evaluateCommercePromotions,
+  projectCartPromotionGuidance,
+} from '../promotions/promotion-commerce.service.js';
 import { OrderPolicyRepository } from '../warehouses/order-policy.repository.js';
 import { enforceOrderPolicy } from '../warehouses/order-policy.service.js';
 import { tenantCurrency } from '../../common/pricing/money.repository.js';
@@ -33,7 +39,47 @@ export class CartService {
       throw new AppError('Unable to load cart', 500, 'CART_LOAD_FAILED');
     }
 
-    return mapCart(cart, await tenantCurrency(tenantId));
+    const currency = await tenantCurrency(tenantId);
+    if (!cartPromotionGuidanceEnabled(tenantId)) return mapCart(cart, currency);
+
+    const now = new Date();
+    const response = mapCart(cart, currency, now);
+    const lines = cart.items.flatMap(({ variant, ...item }, index) => {
+      if (!variant.isActive || variant.product.status !== ProductStatus.ACTIVE)
+        return [];
+      return [
+        {
+          id: item.id,
+          productId: variant.product.id,
+          variantId: variant.id,
+          categoryId: variant.product.categoryId,
+          brandId: variant.product.brandId,
+          quantity: item.quantity,
+          saleUnitMinor: toMinorUnits(
+            response.items[index]!.finalUnitPrice,
+            currency,
+          ),
+          saleMerchandiseGrossMinor: toMinorUnits(
+            response.items[index]!.totalPrice,
+            currency,
+          ),
+        },
+      ];
+    });
+    const result = await evaluateCommercePromotions(prisma, {
+      tenantId,
+      userId,
+      currency,
+      now,
+      lines,
+      hasAuthoritativeMerchandiseGross: false,
+      // The regular cart does not persist coupon codes. Checkout still validates them.
+      coupon: 'NONE',
+    });
+    return {
+      ...response,
+      promotionGuidance: projectCartPromotionGuidance(result, currency),
+    };
   }
 
   /**

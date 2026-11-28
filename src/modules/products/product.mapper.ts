@@ -268,9 +268,48 @@ export const mapProductDetails = (product: ProductDetails) => {
   };
 };
 
-export function mapProductCard(
-  product: ProductCardRecord & ProductEnrichedFields,
-): ProductCardResponse {
+export interface ProductCardPricingInput {
+  tenant: {
+    defaultCurrency: string | null;
+  };
+  basePrice: { toString(): string } | string;
+  discountType: ProductCardRecord['discountType'];
+  discountValue: ProductCardRecord['discountValue'];
+  discountStartsAt: Date | null;
+  discountEndsAt: Date | null;
+  variants: Array<{
+    price: { toString(): string } | string | null;
+    isActive: boolean;
+    discountType: ProductCardRecord['discountType'];
+    discountValue: ProductCardRecord['discountValue'];
+    discountStartsAt: Date | null;
+    discountEndsAt: Date | null;
+  }>;
+}
+
+export interface ProductCardMapperInput extends ProductCardPricingInput {
+  id: string;
+  name: string;
+  slug: string;
+  images: Array<{ url: string }>;
+  category: { id: string; name: string; slug: string } | null;
+  brand: { id: string; name: string; slug: string } | null;
+  variants: Array<{
+    id: string;
+    price: { toString(): string } | string | null;
+    isActive: boolean;
+    isDefault: boolean;
+    discountType: ProductCardRecord['discountType'];
+    discountValue: ProductCardRecord['discountValue'];
+    discountStartsAt: Date | null;
+    discountEndsAt: Date | null;
+  }>;
+}
+
+export function calculateProductCardEffectivePrice(
+  product: ProductCardPricingInput,
+  now: Date = new Date(),
+) {
   const productDiscount = {
     type: product.discountType,
     value: product.discountValue?.toString() ?? null,
@@ -279,6 +318,7 @@ export function mapProductCard(
   };
   const activeVariants = product.variants.filter((variant) => variant.isActive);
   const variants = activeVariants.length > 0 ? activeVariants : [null];
+  const currency = product.tenant.defaultCurrency ?? '';
   const pricing = variants
     .map((variant) =>
       calculateEffectivePrice(
@@ -297,25 +337,34 @@ export function mapProductCard(
               startsAt: null,
               endsAt: null,
             },
-        new Date(),
-        product.tenant.defaultCurrency ?? '',
+        now,
+        currency,
       ),
     )
     .sort((left, right) => {
-      const leftPrice = toCents(
-        left.finalPrice,
-        product.tenant.defaultCurrency ?? '',
-      );
-      const rightPrice = toCents(
-        right.finalPrice,
-        product.tenant.defaultCurrency ?? '',
-      );
+      const leftPrice = toCents(left.finalPrice, currency);
+      const rightPrice = toCents(right.finalPrice, currency);
       return leftPrice < rightPrice ? -1 : leftPrice > rightPrice ? 1 : 0;
     })[0];
 
   if (!pricing) {
     throw new Error('Unable to calculate product card pricing');
   }
+
+  return pricing;
+}
+
+export function mapProductCard(
+  product: ProductCardMapperInput & ProductEnrichedFields,
+): ProductCardResponse {
+  return mapProductCardAt(product, new Date());
+}
+
+export function mapProductCardAt(
+  product: ProductCardMapperInput & ProductEnrichedFields,
+  now: Date,
+): ProductCardResponse {
+  const pricing = calculateProductCardEffectivePrice(product, now);
 
   const baseCents = toCents(
     pricing.basePrice,

@@ -10,6 +10,7 @@ import {
   addCartItemSchema,
   updateCartItemSchema,
   cartVariantParamsSchema,
+  cartRecommendationsQuerySchema,
 } from './cart.schemas.js';
 
 import { cartController } from './cart.controller.js';
@@ -33,6 +34,18 @@ router.get(
   authenticate,
   tenantMemberMiddleware,
   cartController.getCart,
+);
+
+/**
+ * Get complementary product recommendations for current user's cart
+ */
+router.get(
+  '/recommendations',
+  tenantMiddleware,
+  authenticate,
+  tenantMemberMiddleware,
+  validate(cartRecommendationsQuerySchema, 'query'),
+  cartController.getRecommendations,
 );
 
 /**

@@ -29,6 +29,18 @@ export const cartVariantParamsSchema =
     variantId: z.string().uuid(),
   });
 
+export const CART_RECOMMENDATIONS_DEFAULT_LIMIT = 15;
+export const CART_RECOMMENDATIONS_MAX_LIMIT = 15;
+
+export const cartRecommendationsQuerySchema = z.object({
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(CART_RECOMMENDATIONS_MAX_LIMIT)
+    .default(CART_RECOMMENDATIONS_DEFAULT_LIMIT),
+});
+
 export type AddCartItemSchemaInput =
   z.infer<typeof addCartItemSchema>;
 
@@ -39,3 +51,6 @@ export type CartVariantParamsInput =
   z.infer<
     typeof cartVariantParamsSchema
   >;
+
+export type CartRecommendationsQueryInput =
+  z.infer<typeof cartRecommendationsQuerySchema>;

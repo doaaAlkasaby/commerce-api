@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import { ProductStatus } from '../../generated/prisma/client.js';
 
 import { productService } from './product.service.instance.js';
+import { productRecommendationService } from './product-recommendation.service.js';
 
 import type {
   CreateProductInput,
@@ -13,8 +14,10 @@ import type {
 import {
   productListQuerySchema,
   productListingQuerySchema,
+  productRecommendationsQuerySchema,
   type ProductListQueryRequest,
   type ProductListingQuery,
+  type ProductRecommendationsQuery,
 } from './product.schemas.js';
 
 const getProductId = (req: Request): string => {
@@ -27,6 +30,9 @@ const getListingQuery = (req: Request): ProductListingQuery =>
 
 const getProductListQuery = (req: Request): ProductListQueryRequest =>
   productListQuerySchema.parse(req.validatedQuery ?? req.query);
+
+const getRecommendationsQuery = (req: Request): ProductRecommendationsQuery =>
+  productRecommendationsQuerySchema.parse(req.validatedQuery ?? req.query);
 
 const normalizeDiscount = (
   discount: ProductDiscountInput | null,
@@ -187,6 +193,31 @@ export const getNewArrivals = async (
   const userId = req.user?.userId;
   const { page, limit } = getListingQuery(req);
   const data = await productService.getNewArrivals(req.tenant!.tenantId, page, limit, userId);
+
+  res.status(200).json({
+    success: true,
+    message: null,
+    data,
+  });
+};
+
+export const getProductRecommendations = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  const userId = req.user?.userId;
+  const { limit, includeComplementary, complementaryLimit } =
+    getRecommendationsQuery(req);
+  const data = await productRecommendationService.getRecommendations(
+    req.tenant!.tenantId,
+    getProductId(req),
+    limit,
+    userId,
+    {
+      includeComplementary,
+      complementaryLimit,
+    },
+  );
 
   res.status(200).json({
     success: true,

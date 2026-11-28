@@ -20,6 +20,7 @@ import {
 
 import type {
   CreateCategoryInput,
+  ReplaceComplementaryCategoriesInput,
   UpdateCategoryInput,
   UploadCategoryImageInput,
 } from './category.types.js';
@@ -390,6 +391,37 @@ export const createCategoryService = (
       await categoryRepository.delete(
         tenantId,
         id,
+      );
+    },
+
+    getComplementaryCategories: async (
+      tenantId: string,
+      sourceCategoryId: string,
+    ) => {
+      const source = await categoryRepository.findById(
+        tenantId,
+        sourceCategoryId,
+      );
+
+      if (!source) {
+        throw new AppError('Category not found', 404, 'CATEGORY_NOT_FOUND');
+      }
+
+      return categoryRepository.findComplementaryCategories(
+        tenantId,
+        sourceCategoryId,
+      );
+    },
+
+    replaceComplementaryCategories: async (
+      tenantId: string,
+      sourceCategoryId: string,
+      input: ReplaceComplementaryCategoriesInput,
+    ) => {
+      return categoryRepository.replaceComplementaryCategories(
+        tenantId,
+        sourceCategoryId,
+        input.targetCategoryIds,
       );
     },
   };

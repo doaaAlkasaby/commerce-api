@@ -1267,7 +1267,7 @@
             "auth": {
               "type": "noauth"
             },
-            "description": "GET /categories/active: categoryController.\n\nAuthentication: Public; no bearer. Tenant header: X-Tenant-Slug: {{tenantSlug}}.     \n\nHeaders: X-Tenant-Slug. Path parameters: none. Success status: 200.\n\nBody: none. \n\nQuery: none documented by route validation.\n\nImportant module business errors: CATEGORY_CANNOT_BE_OWN_PARENT, CATEGORY_NOT_FOUND, CATEGORY_SLUG_ALREADY_EXISTS, IMAGE_FILE_REQUIRED, INVALID_CATEGORY_ID, PARENT_CATEGORY_INACTIVE, PARENT_CATEGORY_NOT_FOUND, VALIDATION_ERROR. Shared failures include AUTHENTICATION_REQUIRED/INVALID_ACCESS_TOKEN (protected requests), UNAUTHORIZED/TENANT_NOT_FOUND (tenant context), FORBIDDEN (roles), and VALIDATION_ERROR. Business errors retain {success:false,message,code,data:null}.\n\nSide effects: read-only. \n\nUse selected tenant and owned resource identifiers. Refer to source validation and response mappers; no response sample was fabricated.\n\nSource: src/modules/categories/category.routes.ts. Schema references: inline/controller validation; see source."
+            "description": "GET /categories/active: categoryController.\n\nAuthentication: Public; no bearer. Tenant header: X-Tenant-Slug: {{tenantSlug}}.     \n\nHeaders: X-Tenant-Slug. Path parameters: none. Success status: 200.\n\nBody: none. \n\nQuery: none documented by route validation.\n\nImportant module business errors: CATEGORY_CANNOT_BE_OWN_PARENT, CATEGORY_NOT_FOUND, CATEGORY_SELF_RELATIONSHIP_NOT_ALLOWED, CATEGORY_SLUG_ALREADY_EXISTS, DUPLICATE_TARGET_CATEGORY, IMAGE_FILE_REQUIRED, INVALID_CATEGORY_ID, MAX_COMPLEMENTARY_CATEGORIES_EXCEEDED, PARENT_CATEGORY_INACTIVE, PARENT_CATEGORY_NOT_FOUND, TARGET_CATEGORY_INACTIVE, TARGET_CATEGORY_NOT_FOUND, VALIDATION_ERROR. Shared failures include AUTHENTICATION_REQUIRED/INVALID_ACCESS_TOKEN (protected requests), UNAUTHORIZED/TENANT_NOT_FOUND (tenant context), FORBIDDEN (roles), and VALIDATION_ERROR. Business errors retain {success:false,message,code,data:null}.\n\nSide effects: read-only. \n\nUse selected tenant and owned resource identifiers. Refer to source validation and response mappers; no response sample was fabricated.\n\nSource: src/modules/categories/category.routes.ts. Schema references: inline/controller validation; see source."
           },
           "event": [
             {
@@ -1312,7 +1312,7 @@
             "auth": {
               "type": "noauth"
             },
-            "description": "GET /categories: categoryController.\n\nAuthentication: Public; no bearer. Tenant header: X-Tenant-Slug: {{tenantSlug}}.     \n\nHeaders: X-Tenant-Slug. Path parameters: none. Success status: 200.\n\nBody: none. \n\nQuery: none documented by route validation.\n\nImportant module business errors: CATEGORY_CANNOT_BE_OWN_PARENT, CATEGORY_NOT_FOUND, CATEGORY_SLUG_ALREADY_EXISTS, IMAGE_FILE_REQUIRED, INVALID_CATEGORY_ID, PARENT_CATEGORY_INACTIVE, PARENT_CATEGORY_NOT_FOUND, VALIDATION_ERROR. Shared failures include AUTHENTICATION_REQUIRED/INVALID_ACCESS_TOKEN (protected requests), UNAUTHORIZED/TENANT_NOT_FOUND (tenant context), FORBIDDEN (roles), and VALIDATION_ERROR. Business errors retain {success:false,message,code,data:null}.\n\nSide effects: read-only. \n\nUse selected tenant and owned resource identifiers. Refer to source validation and response mappers; no response sample was fabricated.\n\nSource: src/modules/categories/category.routes.ts. Schema references: inline/controller validation; see source."
+            "description": "GET /categories: categoryController.\n\nAuthentication: Public; no bearer. Tenant header: X-Tenant-Slug: {{tenantSlug}}.     \n\nHeaders: X-Tenant-Slug. Path parameters: none. Success status: 200.\n\nBody: none. \n\nQuery: none documented by route validation.\n\nImportant module business errors: CATEGORY_CANNOT_BE_OWN_PARENT, CATEGORY_NOT_FOUND, CATEGORY_SELF_RELATIONSHIP_NOT_ALLOWED, CATEGORY_SLUG_ALREADY_EXISTS, DUPLICATE_TARGET_CATEGORY, IMAGE_FILE_REQUIRED, INVALID_CATEGORY_ID, MAX_COMPLEMENTARY_CATEGORIES_EXCEEDED, PARENT_CATEGORY_INACTIVE, PARENT_CATEGORY_NOT_FOUND, TARGET_CATEGORY_INACTIVE, TARGET_CATEGORY_NOT_FOUND, VALIDATION_ERROR. Shared failures include AUTHENTICATION_REQUIRED/INVALID_ACCESS_TOKEN (protected requests), UNAUTHORIZED/TENANT_NOT_FOUND (tenant context), FORBIDDEN (roles), and VALIDATION_ERROR. Business errors retain {success:false,message,code,data:null}.\n\nSide effects: read-only. \n\nUse selected tenant and owned resource identifiers. Refer to source validation and response mappers; no response sample was fabricated.\n\nSource: src/modules/categories/category.routes.ts. Schema references: inline/controller validation; see source."
           },
           "event": [
             {
@@ -1357,7 +1357,7 @@
             "auth": {
               "type": "noauth"
             },
-            "description": "GET /categories/:id: categoryController.\n\nAuthentication: Public; no bearer. Tenant header: X-Tenant-Slug: {{tenantSlug}}.     \n\nHeaders: X-Tenant-Slug. Path parameters: id={{categoryId}}. Success status: 200.\n\nBody: none. \n\nQuery: none documented by route validation.\n\nImportant module business errors: CATEGORY_CANNOT_BE_OWN_PARENT, CATEGORY_NOT_FOUND, CATEGORY_SLUG_ALREADY_EXISTS, IMAGE_FILE_REQUIRED, INVALID_CATEGORY_ID, PARENT_CATEGORY_INACTIVE, PARENT_CATEGORY_NOT_FOUND, VALIDATION_ERROR. Shared failures include AUTHENTICATION_REQUIRED/INVALID_ACCESS_TOKEN (protected requests), UNAUTHORIZED/TENANT_NOT_FOUND (tenant context), FORBIDDEN (roles), and VALIDATION_ERROR. Business errors retain {success:false,message,code,data:null}.\n\nSide effects: read-only. \n\nUse selected tenant and owned resource identifiers. Refer to source validation and response mappers; no response sample was fabricated.\n\nSource: src/modules/categories/category.routes.ts. Schema references: params: src/modules/categories/category.schemas.ts#categoryIdSchema."
+            "description": "GET /categories/:id: categoryController.\n\nAuthentication: Public; no bearer. Tenant header: X-Tenant-Slug: {{tenantSlug}}.     \n\nHeaders: X-Tenant-Slug. Path parameters: id={{categoryId}}. Success status: 200.\n\nBody: none. \n\nQuery: none documented by route validation.\n\nImportant module business errors: CATEGORY_CANNOT_BE_OWN_PARENT, CATEGORY_NOT_FOUND, CATEGORY_SELF_RELATIONSHIP_NOT_ALLOWED, CATEGORY_SLUG_ALREADY_EXISTS, DUPLICATE_TARGET_CATEGORY, IMAGE_FILE_REQUIRED, INVALID_CATEGORY_ID, MAX_COMPLEMENTARY_CATEGORIES_EXCEEDED, PARENT_CATEGORY_INACTIVE, PARENT_CATEGORY_NOT_FOUND, TARGET_CATEGORY_INACTIVE, TARGET_CATEGORY_NOT_FOUND, VALIDATION_ERROR. Shared failures include AUTHENTICATION_REQUIRED/INVALID_ACCESS_TOKEN (protected requests), UNAUTHORIZED/TENANT_NOT_FOUND (tenant context), FORBIDDEN (roles), and VALIDATION_ERROR. Business errors retain {success:false,message,code,data:null}.\n\nSide effects: read-only. \n\nUse selected tenant and owned resource identifiers. Refer to source validation and response mappers; no response sample was fabricated.\n\nSource: src/modules/categories/category.routes.ts. Schema references: params: src/modules/categories/category.schemas.ts#categoryIdSchema."
           },
           "event": [
             {
@@ -1407,7 +1407,7 @@
             "auth": {
               "type": "noauth"
             },
-            "description": "GET /categories/:id/children: categoryController.\n\nAuthentication: Public; no bearer. Tenant header: X-Tenant-Slug: {{tenantSlug}}.     \n\nHeaders: X-Tenant-Slug. Path parameters: id={{categoryId}}. Success status: 200.\n\nBody: none. \n\nQuery: none documented by route validation.\n\nImportant module business errors: CATEGORY_CANNOT_BE_OWN_PARENT, CATEGORY_NOT_FOUND, CATEGORY_SLUG_ALREADY_EXISTS, IMAGE_FILE_REQUIRED, INVALID_CATEGORY_ID, PARENT_CATEGORY_INACTIVE, PARENT_CATEGORY_NOT_FOUND, VALIDATION_ERROR. Shared failures include AUTHENTICATION_REQUIRED/INVALID_ACCESS_TOKEN (protected requests), UNAUTHORIZED/TENANT_NOT_FOUND (tenant context), FORBIDDEN (roles), and VALIDATION_ERROR. Business errors retain {success:false,message,code,data:null}.\n\nSide effects: read-only. \n\nUse selected tenant and owned resource identifiers. Refer to source validation and response mappers; no response sample was fabricated.\n\nSource: src/modules/categories/category.routes.ts. Schema references: params: src/modules/categories/category.schemas.ts#categoryIdSchema."
+            "description": "GET /categories/:id/children: categoryController.\n\nAuthentication: Public; no bearer. Tenant header: X-Tenant-Slug: {{tenantSlug}}.     \n\nHeaders: X-Tenant-Slug. Path parameters: id={{categoryId}}. Success status: 200.\n\nBody: none. \n\nQuery: none documented by route validation.\n\nImportant module business errors: CATEGORY_CANNOT_BE_OWN_PARENT, CATEGORY_NOT_FOUND, CATEGORY_SELF_RELATIONSHIP_NOT_ALLOWED, CATEGORY_SLUG_ALREADY_EXISTS, DUPLICATE_TARGET_CATEGORY, IMAGE_FILE_REQUIRED, INVALID_CATEGORY_ID, MAX_COMPLEMENTARY_CATEGORIES_EXCEEDED, PARENT_CATEGORY_INACTIVE, PARENT_CATEGORY_NOT_FOUND, TARGET_CATEGORY_INACTIVE, TARGET_CATEGORY_NOT_FOUND, VALIDATION_ERROR. Shared failures include AUTHENTICATION_REQUIRED/INVALID_ACCESS_TOKEN (protected requests), UNAUTHORIZED/TENANT_NOT_FOUND (tenant context), FORBIDDEN (roles), and VALIDATION_ERROR. Business errors retain {success:false,message,code,data:null}.\n\nSide effects: read-only. \n\nUse selected tenant and owned resource identifiers. Refer to source validation and response mappers; no response sample was fabricated.\n\nSource: src/modules/categories/category.routes.ts. Schema references: params: src/modules/categories/category.schemas.ts#categoryIdSchema."
           },
           "event": [
             {
@@ -1418,6 +1418,141 @@
                   "if (false && pm.variables.get('allowMutations') !== 'true') pm.execution.skipRequest();",
                   "if (false && pm.variables.get('allowPaymentMutations') !== 'true') pm.execution.skipRequest();",
                   "if (false && pm.variables.get('allowProviderWebhook') !== 'true') pm.execution.skipRequest();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected successful status', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('Success envelope', () => { const body=pm.response.json(); pm.expect(body.success).to.eql(true); pm.expect(body).to.have.property('message'); pm.expect(body).to.have.property('data'); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /categories/:id/complementary-categories",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/categories/{{categoryId}}/complementary-categories",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "{{apiPrefix}}",
+                "categories",
+                "{{categoryId}}",
+                "complementary-categories"
+              ]
+            },
+            "header": [
+              {
+                "key": "X-Tenant-Slug",
+                "value": "{{tenantSlug}}"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ownerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "GET /categories/:id/complementary-categories: categoryController.\n\nAuthentication: Bearer ownerAccessToken. Tenant header: X-Tenant-Slug: {{tenantSlug}}. Active tenant membership required.  Tenant roles: OWNER/ADMIN/MANAGER.  \n\nHeaders: X-Tenant-Slug. Path parameters: id={{categoryId}}. Success status: 200.\n\nBody: none. \n\nQuery: none documented by route validation.\n\nImportant module business errors: CATEGORY_CANNOT_BE_OWN_PARENT, CATEGORY_NOT_FOUND, CATEGORY_SELF_RELATIONSHIP_NOT_ALLOWED, CATEGORY_SLUG_ALREADY_EXISTS, DUPLICATE_TARGET_CATEGORY, IMAGE_FILE_REQUIRED, INVALID_CATEGORY_ID, MAX_COMPLEMENTARY_CATEGORIES_EXCEEDED, PARENT_CATEGORY_INACTIVE, PARENT_CATEGORY_NOT_FOUND, TARGET_CATEGORY_INACTIVE, TARGET_CATEGORY_NOT_FOUND, VALIDATION_ERROR. Shared failures include AUTHENTICATION_REQUIRED/INVALID_ACCESS_TOKEN (protected requests), UNAUTHORIZED/TENANT_NOT_FOUND (tenant context), FORBIDDEN (roles), and VALIDATION_ERROR. Business errors retain {success:false,message,code,data:null}.\n\nSide effects: read-only. \n\nUse selected tenant and owned resource identifiers. Refer to source validation and response mappers; no response sample was fabricated.\n\nSource: src/modules/categories/category.routes.ts. Schema references: params: src/modules/categories/category.schemas.ts#categoryIdSchema."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (false && pm.variables.get('allowMutations') !== 'true') pm.execution.skipRequest();",
+                  "if (false && pm.variables.get('allowPaymentMutations') !== 'true') pm.execution.skipRequest();",
+                  "if (false && pm.variables.get('allowProviderWebhook') !== 'true') pm.execution.skipRequest();",
+                  "",
+                  "",
+                  "",
+                  "if (!pm.variables.get('ownerAccessToken')) pm.execution.skipRequest();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected successful status', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('Success envelope', () => { const body=pm.response.json(); pm.expect(body.success).to.eql(true); pm.expect(body).to.have.property('message'); pm.expect(body).to.have.property('data'); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "PUT /categories/:id/complementary-categories",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/categories/{{categoryId}}/complementary-categories",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "{{apiPrefix}}",
+                "categories",
+                "{{categoryId}}",
+                "complementary-categories"
+              ]
+            },
+            "header": [
+              {
+                "key": "X-Tenant-Slug",
+                "value": "{{tenantSlug}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ownerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "PUT /categories/:id/complementary-categories: categoryController.\n\nAuthentication: Bearer ownerAccessToken. Tenant header: X-Tenant-Slug: {{tenantSlug}}. Active tenant membership required.  Tenant roles: OWNER/ADMIN/MANAGER.  \n\nHeaders: X-Tenant-Slug, Content-Type. Path parameters: id={{categoryId}}. Success status: 200.\n\nBody: raw. Input JSON schema (required fields and supported optional fields):\n{\n  \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n  \"type\": \"object\",\n  \"properties\": {\n    \"targetCategoryIds\": {\n      \"maxItems\": 12,\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\",\n        \"format\": \"uuid\",\n        \"pattern\": \"^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$\"\n      }\n    }\n  },\n  \"required\": [\n    \"targetCategoryIds\"\n  ],\n  \"additionalProperties\": false\n}\n\nQuery: none documented by route validation.\n\nImportant module business errors: CATEGORY_CANNOT_BE_OWN_PARENT, CATEGORY_NOT_FOUND, CATEGORY_SELF_RELATIONSHIP_NOT_ALLOWED, CATEGORY_SLUG_ALREADY_EXISTS, DUPLICATE_TARGET_CATEGORY, IMAGE_FILE_REQUIRED, INVALID_CATEGORY_ID, MAX_COMPLEMENTARY_CATEGORIES_EXCEEDED, PARENT_CATEGORY_INACTIVE, PARENT_CATEGORY_NOT_FOUND, TARGET_CATEGORY_INACTIVE, TARGET_CATEGORY_NOT_FOUND, VALIDATION_ERROR. Shared failures include AUTHENTICATION_REQUIRED/INVALID_ACCESS_TOKEN (protected requests), UNAUTHORIZED/TENANT_NOT_FOUND (tenant context), FORBIDDEN (roles), and VALIDATION_ERROR. Business errors retain {success:false,message,code,data:null}.\n\nSide effects: may modify state; requires allowMutations=true; do not run against existing/production data without explicit intent.. \n\nUse selected tenant and owned resource identifiers. Refer to source validation and response mappers; no response sample was fabricated.\n\nSource: src/modules/categories/category.routes.ts. Schema references: params: src/modules/categories/category.schemas.ts#categoryIdSchema; body: src/modules/categories/category.schemas.ts#replaceComplementaryCategoriesSchema.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"targetCategoryIds\": [\n    \"00000000-0000-4000-a000-000000000001\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (true && pm.variables.get('allowMutations') !== 'true') pm.execution.skipRequest();",
+                  "if (false && pm.variables.get('allowPaymentMutations') !== 'true') pm.execution.skipRequest();",
+                  "if (false && pm.variables.get('allowProviderWebhook') !== 'true') pm.execution.skipRequest();",
+                  "",
+                  "",
+                  "",
+                  "if (!pm.variables.get('ownerAccessToken')) pm.execution.skipRequest();"
                 ]
               }
             },
@@ -1463,7 +1598,7 @@
                 }
               ]
             },
-            "description": "POST /categories: categoryController.\n\nAuthentication: Bearer ownerAccessToken. Tenant header: X-Tenant-Slug: {{tenantSlug}}. Active tenant membership required.  Tenant roles: OWNER/ADMIN/MANAGER.  \n\nHeaders: X-Tenant-Slug, Content-Type. Path parameters: none. Success status: 201.\n\nBody: raw. Input JSON schema (required fields and supported optional fields):\n{\n  \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n  \"type\": \"object\",\n  \"properties\": {\n    \"name\": {\n      \"type\": \"string\",\n      \"minLength\": 1,\n      \"maxLength\": 100\n    },\n    \"slug\": {\n      \"type\": \"string\",\n      \"minLength\": 1,\n      \"maxLength\": 120,\n      \"pattern\": \"^[a-z0-9]+(?:-[a-z0-9]+)*$\"\n    },\n    \"description\": {\n      \"type\": \"string\",\n      \"maxLength\": 1000\n    },\n    \"parentId\": {\n      \"anyOf\": [\n        {\n          \"type\": \"string\",\n          \"format\": \"uuid\",\n          \"pattern\": \"^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$\"\n        },\n        {\n          \"type\": \"null\"\n        }\n      ]\n    }\n  },\n  \"required\": [\n    \"name\",\n    \"slug\"\n  ]\n}\n\nQuery: none documented by route validation.\n\nImportant module business errors: CATEGORY_CANNOT_BE_OWN_PARENT, CATEGORY_NOT_FOUND, CATEGORY_SLUG_ALREADY_EXISTS, IMAGE_FILE_REQUIRED, INVALID_CATEGORY_ID, PARENT_CATEGORY_INACTIVE, PARENT_CATEGORY_NOT_FOUND, VALIDATION_ERROR. Shared failures include AUTHENTICATION_REQUIRED/INVALID_ACCESS_TOKEN (protected requests), UNAUTHORIZED/TENANT_NOT_FOUND (tenant context), FORBIDDEN (roles), and VALIDATION_ERROR. Business errors retain {success:false,message,code,data:null}.\n\nSide effects: may modify state; requires allowMutations=true; do not run against existing/production data without explicit intent.. \n\nUse selected tenant and owned resource identifiers. Refer to source validation and response mappers; no response sample was fabricated.\n\nSource: src/modules/categories/category.routes.ts. Schema references: body: src/modules/categories/category.schemas.ts#createCategorySchema.",
+            "description": "POST /categories: categoryController.\n\nAuthentication: Bearer ownerAccessToken. Tenant header: X-Tenant-Slug: {{tenantSlug}}. Active tenant membership required.  Tenant roles: OWNER/ADMIN/MANAGER.  \n\nHeaders: X-Tenant-Slug, Content-Type. Path parameters: none. Success status: 201.\n\nBody: raw. Input JSON schema (required fields and supported optional fields):\n{\n  \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n  \"type\": \"object\",\n  \"properties\": {\n    \"name\": {\n      \"type\": \"string\",\n      \"minLength\": 1,\n      \"maxLength\": 100\n    },\n    \"slug\": {\n      \"type\": \"string\",\n      \"minLength\": 1,\n      \"maxLength\": 120,\n      \"pattern\": \"^[a-z0-9]+(?:-[a-z0-9]+)*$\"\n    },\n    \"description\": {\n      \"type\": \"string\",\n      \"maxLength\": 1000\n    },\n    \"parentId\": {\n      \"anyOf\": [\n        {\n          \"type\": \"string\",\n          \"format\": \"uuid\",\n          \"pattern\": \"^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$\"\n        },\n        {\n          \"type\": \"null\"\n        }\n      ]\n    }\n  },\n  \"required\": [\n    \"name\",\n    \"slug\"\n  ]\n}\n\nQuery: none documented by route validation.\n\nImportant module business errors: CATEGORY_CANNOT_BE_OWN_PARENT, CATEGORY_NOT_FOUND, CATEGORY_SELF_RELATIONSHIP_NOT_ALLOWED, CATEGORY_SLUG_ALREADY_EXISTS, DUPLICATE_TARGET_CATEGORY, IMAGE_FILE_REQUIRED, INVALID_CATEGORY_ID, MAX_COMPLEMENTARY_CATEGORIES_EXCEEDED, PARENT_CATEGORY_INACTIVE, PARENT_CATEGORY_NOT_FOUND, TARGET_CATEGORY_INACTIVE, TARGET_CATEGORY_NOT_FOUND, VALIDATION_ERROR. Shared failures include AUTHENTICATION_REQUIRED/INVALID_ACCESS_TOKEN (protected requests), UNAUTHORIZED/TENANT_NOT_FOUND (tenant context), FORBIDDEN (roles), and VALIDATION_ERROR. Business errors retain {success:false,message,code,data:null}.\n\nSide effects: may modify state; requires allowMutations=true; do not run against existing/production data without explicit intent.. \n\nUse selected tenant and owned resource identifiers. Refer to source validation and response mappers; no response sample was fabricated.\n\nSource: src/modules/categories/category.routes.ts. Schema references: body: src/modules/categories/category.schemas.ts#createCategorySchema.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"Development example\",\n  \"slug\": \"development-example\"\n}",
@@ -1532,7 +1667,7 @@
                 }
               ]
             },
-            "description": "PATCH /categories/:id: categoryController.\n\nAuthentication: Bearer ownerAccessToken. Tenant header: X-Tenant-Slug: {{tenantSlug}}. Active tenant membership required.  Tenant roles: OWNER/ADMIN/MANAGER.  \n\nHeaders: X-Tenant-Slug, Content-Type. Path parameters: id={{categoryId}}. Success status: 200.\n\nBody: raw. Input JSON schema (required fields and supported optional fields):\n{\n  \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n  \"type\": \"object\",\n  \"properties\": {\n    \"name\": {\n      \"type\": \"string\",\n      \"minLength\": 1,\n      \"maxLength\": 100\n    },\n    \"slug\": {\n      \"type\": \"string\",\n      \"minLength\": 1,\n      \"maxLength\": 120,\n      \"pattern\": \"^[a-z0-9]+(?:-[a-z0-9]+)*$\"\n    },\n    \"description\": {\n      \"anyOf\": [\n        {\n          \"type\": \"string\",\n          \"maxLength\": 1000\n        },\n        {\n          \"type\": \"null\"\n        }\n      ]\n    },\n    \"parentId\": {\n      \"anyOf\": [\n        {\n          \"type\": \"string\",\n          \"format\": \"uuid\",\n          \"pattern\": \"^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$\"\n        },\n        {\n          \"type\": \"null\"\n        }\n      ]\n    }\n  }\n}\n\nQuery: none documented by route validation.\n\nImportant module business errors: CATEGORY_CANNOT_BE_OWN_PARENT, CATEGORY_NOT_FOUND, CATEGORY_SLUG_ALREADY_EXISTS, IMAGE_FILE_REQUIRED, INVALID_CATEGORY_ID, PARENT_CATEGORY_INACTIVE, PARENT_CATEGORY_NOT_FOUND, VALIDATION_ERROR. Shared failures include AUTHENTICATION_REQUIRED/INVALID_ACCESS_TOKEN (protected requests), UNAUTHORIZED/TENANT_NOT_FOUND (tenant context), FORBIDDEN (roles), and VALIDATION_ERROR. Business errors retain {success:false,message,code,data:null}.\n\nSide effects: may modify state; requires allowMutations=true; do not run against existing/production data without explicit intent.. \n\nUse selected tenant and owned resource identifiers. Refer to source validation and response mappers; no response sample was fabricated.\n\nSource: src/modules/categories/category.routes.ts. Schema references: params: src/modules/categories/category.schemas.ts#categoryIdSchema; body: src/modules/categories/category.schemas.ts#updateCategorySchema.",
+            "description": "PATCH /categories/:id: categoryController.\n\nAuthentication: Bearer ownerAccessToken. Tenant header: X-Tenant-Slug: {{tenantSlug}}. Active tenant membership required.  Tenant roles: OWNER/ADMIN/MANAGER.  \n\nHeaders: X-Tenant-Slug, Content-Type. Path parameters: id={{categoryId}}. Success status: 200.\n\nBody: raw. Input JSON schema (required fields and supported optional fields):\n{\n  \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n  \"type\": \"object\",\n  \"properties\": {\n    \"name\": {\n      \"type\": \"string\",\n      \"minLength\": 1,\n      \"maxLength\": 100\n    },\n    \"slug\": {\n      \"type\": \"string\",\n      \"minLength\": 1,\n      \"maxLength\": 120,\n      \"pattern\": \"^[a-z0-9]+(?:-[a-z0-9]+)*$\"\n    },\n    \"description\": {\n      \"anyOf\": [\n        {\n          \"type\": \"string\",\n          \"maxLength\": 1000\n        },\n        {\n          \"type\": \"null\"\n        }\n      ]\n    },\n    \"parentId\": {\n      \"anyOf\": [\n        {\n          \"type\": \"string\",\n          \"format\": \"uuid\",\n          \"pattern\": \"^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$\"\n        },\n        {\n          \"type\": \"null\"\n        }\n      ]\n    }\n  }\n}\n\nQuery: none documented by route validation.\n\nImportant module business errors: CATEGORY_CANNOT_BE_OWN_PARENT, CATEGORY_NOT_FOUND, CATEGORY_SELF_RELATIONSHIP_NOT_ALLOWED, CATEGORY_SLUG_ALREADY_EXISTS, DUPLICATE_TARGET_CATEGORY, IMAGE_FILE_REQUIRED, INVALID_CATEGORY_ID, MAX_COMPLEMENTARY_CATEGORIES_EXCEEDED, PARENT_CATEGORY_INACTIVE, PARENT_CATEGORY_NOT_FOUND, TARGET_CATEGORY_INACTIVE, TARGET_CATEGORY_NOT_FOUND, VALIDATION_ERROR. Shared failures include AUTHENTICATION_REQUIRED/INVALID_ACCESS_TOKEN (protected requests), UNAUTHORIZED/TENANT_NOT_FOUND (tenant context), FORBIDDEN (roles), and VALIDATION_ERROR. Business errors retain {success:false,message,code,data:null}.\n\nSide effects: may modify state; requires allowMutations=true; do not run against existing/production data without explicit intent.. \n\nUse selected tenant and owned resource identifiers. Refer to source validation and response mappers; no response sample was fabricated.\n\nSource: src/modules/categories/category.routes.ts. Schema references: params: src/modules/categories/category.schemas.ts#categoryIdSchema; body: src/modules/categories/category.schemas.ts#updateCategorySchema.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"Development example\"\n}",
@@ -1606,7 +1741,7 @@
                 }
               ]
             },
-            "description": "PATCH /categories/:id/status: categoryController.\n\nAuthentication: Bearer ownerAccessToken. Tenant header: X-Tenant-Slug: {{tenantSlug}}. Active tenant membership required.  Tenant roles: OWNER/ADMIN/MANAGER.  \n\nHeaders: X-Tenant-Slug, Content-Type. Path parameters: id={{categoryId}}. Success status: 200.\n\nBody: raw. Use the exact example; no invented tenant/currency selectors.\n\nQuery: none documented by route validation.\n\nImportant module business errors: CATEGORY_CANNOT_BE_OWN_PARENT, CATEGORY_NOT_FOUND, CATEGORY_SLUG_ALREADY_EXISTS, IMAGE_FILE_REQUIRED, INVALID_CATEGORY_ID, PARENT_CATEGORY_INACTIVE, PARENT_CATEGORY_NOT_FOUND, VALIDATION_ERROR. Shared failures include AUTHENTICATION_REQUIRED/INVALID_ACCESS_TOKEN (protected requests), UNAUTHORIZED/TENANT_NOT_FOUND (tenant context), FORBIDDEN (roles), and VALIDATION_ERROR. Business errors retain {success:false,message,code,data:null}.\n\nSide effects: may modify state; requires allowMutations=true; do not run against existing/production data without explicit intent.. \n\nUse selected tenant and owned resource identifiers. Refer to source validation and response mappers; no response sample was fabricated.\n\nSource: src/modules/categories/category.routes.ts. Schema references: params: src/modules/categories/category.schemas.ts#categoryIdSchema.",
+            "description": "PATCH /categories/:id/status: categoryController.\n\nAuthentication: Bearer ownerAccessToken. Tenant header: X-Tenant-Slug: {{tenantSlug}}. Active tenant membership required.  Tenant roles: OWNER/ADMIN/MANAGER.  \n\nHeaders: X-Tenant-Slug, Content-Type. Path parameters: id={{categoryId}}. Success status: 200.\n\nBody: raw. Use the exact example; no invented tenant/currency selectors.\n\nQuery: none documented by route validation.\n\nImportant module business errors: CATEGORY_CANNOT_BE_OWN_PARENT, CATEGORY_NOT_FOUND, CATEGORY_SELF_RELATIONSHIP_NOT_ALLOWED, CATEGORY_SLUG_ALREADY_EXISTS, DUPLICATE_TARGET_CATEGORY, IMAGE_FILE_REQUIRED, INVALID_CATEGORY_ID, MAX_COMPLEMENTARY_CATEGORIES_EXCEEDED, PARENT_CATEGORY_INACTIVE, PARENT_CATEGORY_NOT_FOUND, TARGET_CATEGORY_INACTIVE, TARGET_CATEGORY_NOT_FOUND, VALIDATION_ERROR. Shared failures include AUTHENTICATION_REQUIRED/INVALID_ACCESS_TOKEN (protected requests), UNAUTHORIZED/TENANT_NOT_FOUND (tenant context), FORBIDDEN (roles), and VALIDATION_ERROR. Business errors retain {success:false,message,code,data:null}.\n\nSide effects: may modify state; requires allowMutations=true; do not run against existing/production data without explicit intent.. \n\nUse selected tenant and owned resource identifiers. Refer to source validation and response mappers; no response sample was fabricated.\n\nSource: src/modules/categories/category.routes.ts. Schema references: params: src/modules/categories/category.schemas.ts#categoryIdSchema.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"isActive\": true\n}",
@@ -1671,7 +1806,7 @@
                 }
               ]
             },
-            "description": "POST /categories/:id/image: categoryController.\n\nAuthentication: Bearer ownerAccessToken. Tenant header: X-Tenant-Slug: {{tenantSlug}}. Active tenant membership required.  Tenant roles: OWNER/ADMIN/MANAGER.  \n\nHeaders: X-Tenant-Slug. Path parameters: id={{categoryId}}. Success status: 200.\n\nBody: formdata. \n\nQuery: none documented by route validation.\n\nImportant module business errors: CATEGORY_CANNOT_BE_OWN_PARENT, CATEGORY_NOT_FOUND, CATEGORY_SLUG_ALREADY_EXISTS, IMAGE_FILE_REQUIRED, INVALID_CATEGORY_ID, PARENT_CATEGORY_INACTIVE, PARENT_CATEGORY_NOT_FOUND, VALIDATION_ERROR. Shared failures include AUTHENTICATION_REQUIRED/INVALID_ACCESS_TOKEN (protected requests), UNAUTHORIZED/TENANT_NOT_FOUND (tenant context), FORBIDDEN (roles), and VALIDATION_ERROR. Business errors retain {success:false,message,code,data:null}.\n\nSide effects: may modify state; requires allowMutations=true; do not run against existing/production data without explicit intent.. \n\nUse selected tenant and owned resource identifiers. Refer to source validation and response mappers; no response sample was fabricated.\n\nSource: src/modules/categories/category.routes.ts. Schema references: params: src/modules/categories/category.schemas.ts#categoryIdSchema.",
+            "description": "POST /categories/:id/image: categoryController.\n\nAuthentication: Bearer ownerAccessToken. Tenant header: X-Tenant-Slug: {{tenantSlug}}. Active tenant membership required.  Tenant roles: OWNER/ADMIN/MANAGER.  \n\nHeaders: X-Tenant-Slug. Path parameters: id={{categoryId}}. Success status: 200.\n\nBody: formdata. \n\nQuery: none documented by route validation.\n\nImportant module business errors: CATEGORY_CANNOT_BE_OWN_PARENT, CATEGORY_NOT_FOUND, CATEGORY_SELF_RELATIONSHIP_NOT_ALLOWED, CATEGORY_SLUG_ALREADY_EXISTS, DUPLICATE_TARGET_CATEGORY, IMAGE_FILE_REQUIRED, INVALID_CATEGORY_ID, MAX_COMPLEMENTARY_CATEGORIES_EXCEEDED, PARENT_CATEGORY_INACTIVE, PARENT_CATEGORY_NOT_FOUND, TARGET_CATEGORY_INACTIVE, TARGET_CATEGORY_NOT_FOUND, VALIDATION_ERROR. Shared failures include AUTHENTICATION_REQUIRED/INVALID_ACCESS_TOKEN (protected requests), UNAUTHORIZED/TENANT_NOT_FOUND (tenant context), FORBIDDEN (roles), and VALIDATION_ERROR. Business errors retain {success:false,message,code,data:null}.\n\nSide effects: may modify state; requires allowMutations=true; do not run against existing/production data without explicit intent.. \n\nUse selected tenant and owned resource identifiers. Refer to source validation and response mappers; no response sample was fabricated.\n\nSource: src/modules/categories/category.routes.ts. Schema references: params: src/modules/categories/category.schemas.ts#categoryIdSchema.",
             "body": {
               "mode": "formdata",
               "formdata": [
@@ -1737,7 +1872,7 @@
                 }
               ]
             },
-            "description": "DELETE /categories/:id/image: categoryController.\n\nAuthentication: Bearer ownerAccessToken. Tenant header: X-Tenant-Slug: {{tenantSlug}}. Active tenant membership required.  Tenant roles: OWNER/ADMIN/MANAGER.  \n\nHeaders: X-Tenant-Slug. Path parameters: id={{categoryId}}. Success status: 200.\n\nBody: none. \n\nQuery: none documented by route validation.\n\nImportant module business errors: CATEGORY_CANNOT_BE_OWN_PARENT, CATEGORY_NOT_FOUND, CATEGORY_SLUG_ALREADY_EXISTS, IMAGE_FILE_REQUIRED, INVALID_CATEGORY_ID, PARENT_CATEGORY_INACTIVE, PARENT_CATEGORY_NOT_FOUND, VALIDATION_ERROR. Shared failures include AUTHENTICATION_REQUIRED/INVALID_ACCESS_TOKEN (protected requests), UNAUTHORIZED/TENANT_NOT_FOUND (tenant context), FORBIDDEN (roles), and VALIDATION_ERROR. Business errors retain {success:false,message,code,data:null}.\n\nSide effects: may modify state; requires allowMutations=true; do not run against existing/production data without explicit intent.. \n\nUse selected tenant and owned resource identifiers. Refer to source validation and response mappers; no response sample was fabricated.\n\nSource: src/modules/categories/category.routes.ts. Schema references: params: src/modules/categories/category.schemas.ts#categoryIdSchema."
+            "description": "DELETE /categories/:id/image: categoryController.\n\nAuthentication: Bearer ownerAccessToken. Tenant header: X-Tenant-Slug: {{tenantSlug}}. Active tenant membership required.  Tenant roles: OWNER/ADMIN/MANAGER.  \n\nHeaders: X-Tenant-Slug. Path parameters: id={{categoryId}}. Success status: 200.\n\nBody: none. \n\nQuery: none documented by route validation.\n\nImportant module business errors: CATEGORY_CANNOT_BE_OWN_PARENT, CATEGORY_NOT_FOUND, CATEGORY_SELF_RELATIONSHIP_NOT_ALLOWED, CATEGORY_SLUG_ALREADY_EXISTS, DUPLICATE_TARGET_CATEGORY, IMAGE_FILE_REQUIRED, INVALID_CATEGORY_ID, MAX_COMPLEMENTARY_CATEGORIES_EXCEEDED, PARENT_CATEGORY_INACTIVE, PARENT_CATEGORY_NOT_FOUND, TARGET_CATEGORY_INACTIVE, TARGET_CATEGORY_NOT_FOUND, VALIDATION_ERROR. Shared failures include AUTHENTICATION_REQUIRED/INVALID_ACCESS_TOKEN (protected requests), UNAUTHORIZED/TENANT_NOT_FOUND (tenant context), FORBIDDEN (roles), and VALIDATION_ERROR. Business errors retain {success:false,message,code,data:null}.\n\nSide effects: may modify state; requires allowMutations=true; do not run against existing/production data without explicit intent.. \n\nUse selected tenant and owned resource identifiers. Refer to source validation and response mappers; no response sample was fabricated.\n\nSource: src/modules/categories/category.routes.ts. Schema references: params: src/modules/categories/category.schemas.ts#categoryIdSchema."
           },
           "event": [
             {
@@ -1793,7 +1928,7 @@
                 }
               ]
             },
-            "description": "DELETE /categories/:id: categoryController.\n\nAuthentication: Bearer ownerAccessToken. Tenant header: X-Tenant-Slug: {{tenantSlug}}. Active tenant membership required.  Tenant roles: OWNER/ADMIN/MANAGER.  \n\nHeaders: X-Tenant-Slug. Path parameters: id={{categoryId}}. Success status: 200.\n\nBody: none. \n\nQuery: none documented by route validation.\n\nImportant module business errors: CATEGORY_CANNOT_BE_OWN_PARENT, CATEGORY_NOT_FOUND, CATEGORY_SLUG_ALREADY_EXISTS, IMAGE_FILE_REQUIRED, INVALID_CATEGORY_ID, PARENT_CATEGORY_INACTIVE, PARENT_CATEGORY_NOT_FOUND, VALIDATION_ERROR. Shared failures include AUTHENTICATION_REQUIRED/INVALID_ACCESS_TOKEN (protected requests), UNAUTHORIZED/TENANT_NOT_FOUND (tenant context), FORBIDDEN (roles), and VALIDATION_ERROR. Business errors retain {success:false,message,code,data:null}.\n\nSide effects: may modify state; requires allowMutations=true; do not run against existing/production data without explicit intent.. \n\nUse selected tenant and owned resource identifiers. Refer to source validation and response mappers; no response sample was fabricated.\n\nSource: src/modules/categories/category.routes.ts. Schema references: params: src/modules/categories/category.schemas.ts#categoryIdSchema."
+            "description": "DELETE /categories/:id: categoryController.\n\nAuthentication: Bearer ownerAccessToken. Tenant header: X-Tenant-Slug: {{tenantSlug}}. Active tenant membership required.  Tenant roles: OWNER/ADMIN/MANAGER.  \n\nHeaders: X-Tenant-Slug. Path parameters: id={{categoryId}}. Success status: 200.\n\nBody: none. \n\nQuery: none documented by route validation.\n\nImportant module business errors: CATEGORY_CANNOT_BE_OWN_PARENT, CATEGORY_NOT_FOUND, CATEGORY_SELF_RELATIONSHIP_NOT_ALLOWED, CATEGORY_SLUG_ALREADY_EXISTS, DUPLICATE_TARGET_CATEGORY, IMAGE_FILE_REQUIRED, INVALID_CATEGORY_ID, MAX_COMPLEMENTARY_CATEGORIES_EXCEEDED, PARENT_CATEGORY_INACTIVE, PARENT_CATEGORY_NOT_FOUND, TARGET_CATEGORY_INACTIVE, TARGET_CATEGORY_NOT_FOUND, VALIDATION_ERROR. Shared failures include AUTHENTICATION_REQUIRED/INVALID_ACCESS_TOKEN (protected requests), UNAUTHORIZED/TENANT_NOT_FOUND (tenant context), FORBIDDEN (roles), and VALIDATION_ERROR. Business errors retain {success:false,message,code,data:null}.\n\nSide effects: may modify state; requires allowMutations=true; do not run against existing/production data without explicit intent.. \n\nUse selected tenant and owned resource identifiers. Refer to source validation and response mappers; no response sample was fabricated.\n\nSource: src/modules/categories/category.routes.ts. Schema references: params: src/modules/categories/category.schemas.ts#categoryIdSchema."
           },
           "event": [
             {
@@ -2608,6 +2743,76 @@
               "type": "noauth"
             },
             "description": "GET /products: listProducts.\n\nAuthentication: Public; no bearer. Tenant header: X-Tenant-Slug: {{tenantSlug}}.     \n\nHeaders: X-Tenant-Slug. Path parameters: none. Success status: 200.\n\nBody: none. \n\nQuery: {\n  \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n  \"type\": \"object\",\n  \"properties\": {\n    \"page\": {\n      \"default\": 1,\n      \"type\": \"integer\",\n      \"minimum\": 1,\n      \"maximum\": 21474836\n    },\n    \"limit\": {\n      \"default\": 20,\n      \"type\": \"integer\",\n      \"minimum\": 1,\n      \"maximum\": 100\n    },\n    \"search\": {\n      \"type\": \"string\",\n      \"minLength\": 1,\n      \"maxLength\": 200\n    },\n    \"categoryId\": {\n      \"type\": \"string\",\n      \"format\": \"uuid\",\n      \"pattern\": \"^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$\"\n    },\n    \"brandId\": {\n      \"type\": \"string\",\n      \"format\": \"uuid\",\n      \"pattern\": \"^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$\"\n    },\n    \"minPrice\": {\n      \"type\": \"string\",\n      \"pattern\": \"^\\\\d+(\\\\.\\\\d{1,4})?$\"\n    },\n    \"maxPrice\": {\n      \"type\": \"string\",\n      \"pattern\": \"^\\\\d+(\\\\.\\\\d{1,4})?$\"\n    },\n    \"sortBy\": {\n      \"default\": \"createdAt\",\n      \"type\": \"string\",\n      \"enum\": [\n        \"createdAt\",\n        \"name\",\n        \"basePrice\"\n      ]\n    },\n    \"sortOrder\": {\n      \"default\": \"desc\",\n      \"type\": \"string\",\n      \"enum\": [\n        \"asc\",\n        \"desc\"\n      ]\n    }\n  }\n}.\n\nImportant module business errors: ACTIVE_PRODUCT_CANNOT_BE_DELETED, BRAND_NOT_FOUND, CATEGORY_NOT_FOUND, INVALID_PRODUCT_STATUS_TRANSITION, PRODUCT_ALREADY_EXISTS, PRODUCT_HAS_DEPENDENCIES, PRODUCT_NOT_FOUND, PRODUCT_REQUIRES_ACTIVE_VARIANT, PRODUCT_SLUG_ALREADY_EXISTS, VALIDATION_ERROR. Shared failures include AUTHENTICATION_REQUIRED/INVALID_ACCESS_TOKEN (protected requests), UNAUTHORIZED/TENANT_NOT_FOUND (tenant context), FORBIDDEN (roles), and VALIDATION_ERROR. Business errors retain {success:false,message,code,data:null}.\n\nSide effects: read-only. \n\nPublished tenant catalog is public and needs no country header. Currency is selected by tenant, not browsing country. Product variants and images retain their actual relationships. Null media is valid; resolve relative paths against baseUrl, outside apiPrefix.\n\nSource: src/modules/products/product.routes.ts. Schema references: query: src/modules/products/product.schemas.ts#productListQuerySchema."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (false && pm.variables.get('allowMutations') !== 'true') pm.execution.skipRequest();",
+                  "if (false && pm.variables.get('allowPaymentMutations') !== 'true') pm.execution.skipRequest();",
+                  "if (false && pm.variables.get('allowProviderWebhook') !== 'true') pm.execution.skipRequest();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected successful status', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('Success envelope', () => { const body=pm.response.json(); pm.expect(body.success).to.eql(true); pm.expect(body).to.have.property('message'); pm.expect(body).to.have.property('data'); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /products/:id/recommendations",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/products/{{productId}}/recommendations?limit=8&complementaryLimit=6",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "{{apiPrefix}}",
+                "products",
+                "{{productId}}",
+                "recommendations"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "8",
+                  "disabled": false,
+                  "description": "{\"default\":8,\"type\":\"integer\",\"minimum\":1,\"maximum\":8}"
+                },
+                {
+                  "key": "includeComplementary",
+                  "value": "true",
+                  "disabled": true,
+                  "description": "{\"type\":\"boolean\"}"
+                },
+                {
+                  "key": "complementaryLimit",
+                  "value": "6",
+                  "disabled": false,
+                  "description": "{\"default\":6,\"type\":\"integer\",\"minimum\":1,\"maximum\":15}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "X-Tenant-Slug",
+                "value": "{{tenantSlug}}"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "GET /products/:id/recommendations: getProductRecommendations.\n\nAuthentication: Public; no bearer. Tenant header: X-Tenant-Slug: {{tenantSlug}}.     \n\nHeaders: X-Tenant-Slug. Path parameters: id={{productId}}. Success status: 200.\n\nBody: none. \n\nQuery: {\n  \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n  \"type\": \"object\",\n  \"properties\": {\n    \"limit\": {\n      \"default\": 8,\n      \"type\": \"integer\",\n      \"minimum\": 1,\n      \"maximum\": 8\n    },\n    \"includeComplementary\": {\n      \"type\": \"boolean\"\n    },\n    \"complementaryLimit\": {\n      \"default\": 6,\n      \"type\": \"integer\",\n      \"minimum\": 1,\n      \"maximum\": 15\n    }\n  }\n}.\n\nImportant module business errors: ACTIVE_PRODUCT_CANNOT_BE_DELETED, BRAND_NOT_FOUND, CATEGORY_NOT_FOUND, INVALID_PRODUCT_STATUS_TRANSITION, PRODUCT_ALREADY_EXISTS, PRODUCT_HAS_DEPENDENCIES, PRODUCT_NOT_FOUND, PRODUCT_REQUIRES_ACTIVE_VARIANT, PRODUCT_SLUG_ALREADY_EXISTS, VALIDATION_ERROR. Shared failures include AUTHENTICATION_REQUIRED/INVALID_ACCESS_TOKEN (protected requests), UNAUTHORIZED/TENANT_NOT_FOUND (tenant context), FORBIDDEN (roles), and VALIDATION_ERROR. Business errors retain {success:false,message,code,data:null}.\n\nSide effects: read-only. \n\nPublished tenant catalog is public and needs no country header. Currency is selected by tenant, not browsing country. Product variants and images retain their actual relationships. Null media is valid; resolve relative paths against baseUrl, outside apiPrefix.\n\nSource: src/modules/products/product.routes.ts. Schema references: params: src/modules/products/product.schemas.ts#productIdParamSchema; query: src/modules/products/product.schemas.ts#productRecommendationsQuerySchema."
           },
           "event": [
             {
@@ -4331,6 +4536,70 @@
                   "pm.test('Expected successful status', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
                   "pm.test('Success envelope', () => { const body=pm.response.json(); pm.expect(body.success).to.eql(true); pm.expect(body).to.have.property('message'); pm.expect(body).to.have.property('data'); });",
                   "if([200].includes(pm.response.code)){const d=pm.response.json().data;if(d && d.id)pm.environment.set('cartId',d.id);}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /cart/recommendations",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/cart/recommendations?limit=15",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "cart", "recommendations"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "15",
+                  "disabled": false,
+                  "description": "{\"default\":15,\"type\":\"integer\",\"minimum\":1,\"maximum\":15}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "X-Tenant-Slug",
+                "value": "{{tenantSlug}}"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "GET /cart/recommendations: cartController.\n\nAuthentication: Bearer customerAccessToken. Tenant header: X-Tenant-Slug: {{tenantSlug}}. Active tenant membership required.    \n\nHeaders: X-Tenant-Slug. Path parameters: none. Success status: 200.\n\nBody: none. \n\nQuery: {\n  \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n  \"type\": \"object\",\n  \"properties\": {\n    \"limit\": {\n      \"default\": 15,\n      \"type\": \"integer\",\n      \"minimum\": 1,\n      \"maximum\": 15\n    }\n  }\n}.\n\nImportant module business errors: CART_ITEM_NOT_FOUND, CART_LOAD_FAILED, INSUFFICIENT_INVENTORY, INVENTORY_NOT_FOUND, PRODUCT_NOT_AVAILABLE, UNAUTHORIZED, VALIDATION_ERROR, VARIANT_NOT_AVAILABLE, VARIANT_NOT_FOUND. Shared failures include AUTHENTICATION_REQUIRED/INVALID_ACCESS_TOKEN (protected requests), UNAUTHORIZED/TENANT_NOT_FOUND (tenant context), FORBIDDEN (roles), and VALIDATION_ERROR. Business errors retain {success:false,message,code,data:null}.\n\nSide effects: may modify state; requires allowMutations=true; do not run against existing/production data without explicit intent.. \n\nRequires active tenant membership. GET may create an empty cart and is therefore guarded. Guest cart is client-local. POST items adds quantity; PATCH sets absolute quantity. Do not blindly retry additive POST after an ambiguous response.\n\nSource: src/modules/cart/cart.routes.ts. Schema references: query: src/modules/cart/cart.schemas.ts#cartRecommendationsQuerySchema."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (true && pm.variables.get('allowMutations') !== 'true') pm.execution.skipRequest();",
+                  "if (false && pm.variables.get('allowPaymentMutations') !== 'true') pm.execution.skipRequest();",
+                  "if (false && pm.variables.get('allowProviderWebhook') !== 'true') pm.execution.skipRequest();",
+                  "",
+                  "",
+                  "",
+                  "if (!pm.variables.get('customerAccessToken')) pm.execution.skipRequest();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected successful status', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('Success envelope', () => { const body=pm.response.json(); pm.expect(body.success).to.eql(true); pm.expect(body).to.have.property('message'); pm.expect(body).to.have.property('data'); });"
                 ]
               }
             }

@@ -672,6 +672,59 @@
     "requestName": "GET /categories/:id/children"
   },
   {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/categories/:id/complementary-categories",
+    "source": "src/modules/categories/category.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/categories/category.schemas.ts",
+        "name": "categoryIdSchema",
+        "expression": "categoryIdSchema"
+      }
+    },
+    "requestName": "GET /categories/:id/complementary-categories"
+  },
+  {
+    "method": "PUT",
+    "path": "/{{apiPrefix}}/categories/:id/complementary-categories",
+    "source": "src/modules/categories/category.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": ["OWNER", "ADMIN", "MANAGER"],
+      "token": "ownerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/categories/category.schemas.ts",
+        "name": "categoryIdSchema",
+        "expression": "categoryIdSchema"
+      },
+      "body": {
+        "file": "src/modules/categories/category.schemas.ts",
+        "name": "replaceComplementaryCategoriesSchema",
+        "expression": "replaceComplementaryCategoriesSchema"
+      }
+    },
+    "requestName": "PUT /categories/:id/complementary-categories"
+  },
+  {
     "method": "POST",
     "path": "/{{apiPrefix}}/categories",
     "source": "src/modules/categories/category.routes.ts",
@@ -1124,6 +1177,35 @@
       }
     },
     "requestName": "GET /products"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/products/:id/recommendations",
+    "source": "src/modules/products/product.routes.ts",
+    "access": {
+      "auth": false,
+      "tenant": true,
+      "member": false,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "params": {
+        "file": "src/modules/products/product.schemas.ts",
+        "name": "productIdParamSchema",
+        "expression": "productIdParamSchema"
+      },
+      "query": {
+        "file": "src/modules/products/product.schemas.ts",
+        "name": "productRecommendationsQuerySchema",
+        "expression": "productRecommendationsQuerySchema"
+      }
+    },
+    "requestName": "GET /products/:id/recommendations"
   },
   {
     "method": "GET",
@@ -1711,6 +1793,30 @@
     "statuses": [200],
     "schemas": {},
     "requestName": "GET /cart"
+  },
+  {
+    "method": "GET",
+    "path": "/{{apiPrefix}}/cart/recommendations",
+    "source": "src/modules/cart/cart.routes.ts",
+    "access": {
+      "auth": true,
+      "tenant": true,
+      "member": true,
+      "verified": false,
+      "roles": [],
+      "token": "customerAccessToken",
+      "management": false,
+      "globalAdmin": false
+    },
+    "statuses": [200],
+    "schemas": {
+      "query": {
+        "file": "src/modules/cart/cart.schemas.ts",
+        "name": "cartRecommendationsQuerySchema",
+        "expression": "cartRecommendationsQuerySchema"
+      }
+    },
+    "requestName": "GET /cart/recommendations"
   },
   {
     "method": "POST",

@@ -102,6 +102,8 @@ export const categoryIdParamSchema =
   });
 
 
+export const COMPLEMENTARY_MAX_TARGET_CATEGORIES = 12;
+
 export const categoryIdSchema =
   z.object({
     id: z.string().uuid(
@@ -109,8 +111,24 @@ export const categoryIdSchema =
     ),
   });
 
+export const replaceComplementaryCategoriesSchema = z.strictObject({
+  targetCategoryIds: z
+    .array(z.string().uuid('Invalid target category ID'))
+    .max(
+      COMPLEMENTARY_MAX_TARGET_CATEGORIES,
+      `At most ${COMPLEMENTARY_MAX_TARGET_CATEGORIES} complementary categories may be configured`,
+    )
+    .refine(
+      (ids) => new Set(ids).size === ids.length,
+      'Duplicate target category IDs are not allowed',
+    ),
+});
+
 export type CreateCategoryRequest =
   z.infer<typeof createCategorySchema>;
 
 export type UpdateCategoryRequest =
   z.infer<typeof updateCategorySchema>;
+
+export type ReplaceComplementaryCategoriesRequest =
+  z.infer<typeof replaceComplementaryCategoriesSchema>;

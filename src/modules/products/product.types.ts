@@ -224,3 +224,18 @@ export interface ProductVariantSelectionInfo {
   hasVariants: boolean;
   defaultVariantId: string | null;
 }
+
+export interface RecommendedProductCardResponse extends ProductCardResponse {
+  canQuickAdd: boolean;
+}
+
+export interface RecommendationSectionResponse {
+  enabled: boolean;
+  items: RecommendedProductCardResponse[];
+}
+
+export interface ProductRecommendationsResponse {
+  enabled: boolean;
+  items: RecommendedProductCardResponse[];
+  complementary?: RecommendationSectionResponse;
+}

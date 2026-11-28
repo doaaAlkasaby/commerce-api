@@ -7,6 +7,9 @@ describe('AppSetting Mapper Unit Tests', () => {
     const result = mapPublicSettings([]);
     expect(result).toEqual({
       specialOrders: { enabled: false, instructionsAr: null, instructionsEn: null },
+      showSimilarProducts: true,
+      showComplementaryProducts: true,
+      showCartRecommendations: true,
       android_build: [],
       ios_build: [],
       forceUpdate: false,
@@ -198,5 +201,111 @@ describe('AppSetting Mapper Unit Tests', () => {
 
     expect(result.privacy_policy_url).toBeUndefined();
     expect(result.terms_url).toBeUndefined();
+  });
+
+  it('5. Evaluates show_similar_products strictly and fails closed on malformed or non-public rows', () => {
+    const makeRow = (value: unknown, isPublic = true): AppSetting => ({
+      id: 'similar-1',
+      tenantId: 'tenant-1',
+      key: 'show_similar_products',
+      value: value as AppSetting['value'],
+      description: null,
+      isPublic,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    expect(mapPublicSettings([makeRow(true, true)]).showSimilarProducts).toBe(true);
+    expect(mapPublicSettings([makeRow(false, true)]).showSimilarProducts).toBe(false);
+    expect(mapPublicSettings([makeRow('true', true)]).showSimilarProducts).toBe(false);
+    expect(mapPublicSettings([makeRow('false', true)]).showSimilarProducts).toBe(false);
+    expect(mapPublicSettings([makeRow(null, true)]).showSimilarProducts).toBe(false);
+    expect(
+      mapPublicSettings([], {
+        showSimilarProductsSetting: { value: false, isPublic: false },
+      }).showSimilarProducts,
+    ).toBe(false);
+    expect(
+      mapPublicSettings([], {
+        showSimilarProductsSetting: { value: true, isPublic: false },
+      }).showSimilarProducts,
+    ).toBe(false);
+  });
+
+  it('6. Evaluates show_complementary_products independently and fails closed on malformed or non-public rows', () => {
+    const makeRow = (
+      key: string,
+      value: unknown,
+      isPublic = true,
+    ): AppSetting => ({
+      id: `${key}-1`,
+      tenantId: 'tenant-1',
+      key,
+      value: value as AppSetting['value'],
+      description: null,
+      isPublic,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    expect(
+      mapPublicSettings([makeRow('show_complementary_products', true, true)])
+        .showComplementaryProducts,
+    ).toBe(true);
+    expect(
+      mapPublicSettings([makeRow('show_complementary_products', false, true)])
+        .showComplementaryProducts,
+    ).toBe(false);
+    expect(
+      mapPublicSettings([makeRow('show_complementary_products', 'true', true)])
+        .showComplementaryProducts,
+    ).toBe(false);
+    expect(
+      mapPublicSettings([makeRow('show_complementary_products', 'false', true)])
+        .showComplementaryProducts,
+    ).toBe(false);
+    expect(
+      mapPublicSettings([makeRow('show_complementary_products', null, true)])
+        .showComplementaryProducts,
+    ).toBe(false);
+    expect(
+      mapPublicSettings([], {
+        showComplementaryProductsSetting: { value: true, isPublic: false },
+      }).showComplementaryProducts,
+    ).toBe(false);
+
+    const independent = mapPublicSettings([
+      makeRow('show_similar_products', false, true),
+      makeRow('show_complementary_products', true, true),
+      makeRow('show_cart_recommendations', false, true),
+    ]);
+    expect(independent.showSimilarProducts).toBe(false);
+    expect(independent.showComplementaryProducts).toBe(true);
+    expect(independent.showCartRecommendations).toBe(false);
+  });
+
+  it('7. Evaluates show_cart_recommendations strictly and fails closed on malformed or non-public rows', () => {
+    const makeRow = (value: unknown, isPublic = true): AppSetting => ({
+      id: 'cart-rec-1',
+      tenantId: 'tenant-1',
+      key: 'show_cart_recommendations',
+      value: value as AppSetting['value'],
+      description: null,
+      isPublic,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    expect(mapPublicSettings([makeRow(true, true)]).showCartRecommendations).toBe(true);
+    expect(mapPublicSettings([makeRow(false, true)]).showCartRecommendations).toBe(false);
+    expect(mapPublicSettings([makeRow('true', true)]).showCartRecommendations).toBe(false);
+    expect(mapPublicSettings([makeRow('false', true)]).showCartRecommendations).toBe(false);
+    expect(mapPublicSettings([makeRow(1, true)]).showCartRecommendations).toBe(false);
+    expect(mapPublicSettings([makeRow(null, true)]).showCartRecommendations).toBe(false);
+    expect(
+      mapPublicSettings([], {
+        showCartRecommendationsSetting: { value: true, isPublic: false },
+      }).showCartRecommendations,
+    ).toBe(false);
   });
 });

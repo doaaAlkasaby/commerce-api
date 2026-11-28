@@ -24,6 +24,7 @@ import {
   createCategorySchema,
   updateCategorySchema,
   categoryIdSchema,
+  replaceComplementaryCategoriesSchema,
 } from './category.schemas.js';
 
 import { tenantMiddleware } from '../../middleware/tenant.middleware.js';
@@ -66,6 +67,34 @@ router.get(
 /*
  * Admin
  */
+
+router.get(
+  '/:id/complementary-categories',
+  authenticate,
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
+  validate(
+    categoryIdSchema,
+    'params',
+  ),
+  categoryController.getComplementaryCategories,
+);
+
+router.put(
+  '/:id/complementary-categories',
+  authenticate,
+  tenantMemberMiddleware,
+  requireTenantRoles('OWNER', 'ADMIN', 'MANAGER'),
+  validate(
+    categoryIdSchema,
+    'params',
+  ),
+  validate(
+    replaceComplementaryCategoriesSchema,
+    'body',
+  ),
+  categoryController.replaceComplementaryCategories,
+);
 
 router.post(
   '/',

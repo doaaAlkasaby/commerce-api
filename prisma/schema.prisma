@@ -166,6 +166,10 @@ model Category {
 
   products Product[]
 
+  complementarySources CategoryComplementaryRelation[] @relation("ComplementarySourceCategory")
+  complementaryTargets CategoryComplementaryRelation[] @relation("ComplementaryTargetCategory")
+
+  @@unique([tenantId, id])
   @@unique([tenantId, slug])
 
   @@index([tenantId])
@@ -173,6 +177,28 @@ model Category {
   @@index([tenantId, isActive])
   @@index([isActive])
   @@index([parentId])
+
+  promotionSelectors PromotionSelector[]
+}
+
+model CategoryComplementaryRelation {
+  id String @id @default(uuid())
+
+  tenantId         String
+  sourceCategoryId String
+  targetCategoryId String
+  sortOrder        Int    @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sourceCategory Category @relation("ComplementarySourceCategory", fields: [tenantId, sourceCategoryId], references: [tenantId, id], onDelete: Cascade)
+  targetCategory Category @relation("ComplementaryTargetCategory", fields: [tenantId, targetCategoryId], references: [tenantId, id], onDelete: Cascade)
+
+  @@unique([tenantId, sourceCategoryId, targetCategoryId])
+  @@index([tenantId, sourceCategoryId, sortOrder, targetCategoryId])
+  @@index([tenantId, targetCategoryId])
 }
 
 model Brand {
@@ -201,6 +227,10 @@ model Brand {
   @@index([tenantId])
   @@index([tenantId, isActive])
   @@index([isActive])
+
+  promotionSelectors PromotionSelector[]
+
+  @@unique([tenantId, id])
 }
 
 model Product {
@@ -260,6 +290,10 @@ model Product {
   @@index([categoryId])
   @@index([createdAt])
   @@index([status])
+
+  promotionSelectors PromotionSelector[]
+
+  @@unique([tenantId, id])
 }
 
 model ProductImage {
@@ -375,6 +409,10 @@ model ProductVariant {
   @@index([productId])
   @@index([isActive])
   @@index([productId, isDefault])
+
+  promotionSelectors PromotionSelector[]
+
+  @@unique([productId, id])
 }
 
 model ProductVariantValue {
@@ -642,6 +680,7 @@ model Order {
 @@index([tenantId, createdAt])
 @@index([tenantId, status])
 @@index([tenantId, paymentStatus])
+@@index([tenantId, paymentStatus, createdAt(sort: Desc), status])
 @@unique([tenantId, orderNumber])
   @@index([couponId])
   @@index([createdAt])
@@ -649,6 +688,10 @@ model Order {
   @@index([status])
   @@index([userId, createdAt])
   @@index([userId])
+
+  promotionRedemptions PromotionRedemption[]
+
+  @@unique([tenantId, id, userId])
 }
 
 model OrderItem {
@@ -691,6 +734,12 @@ model OrderItem {
   @@index([orderId])
   @@index([productId])
   @@index([variantId])
+  @@index([productId, orderId])
+  @@index([orderId, productId])
+
+  promotionAllocations PromotionAllocation[]
+
+  @@unique([orderId, id])
 }
 
 model OrderStatusHistory {
@@ -1420,6 +1469,7 @@ model Tenant {
   productCollections ProductCollection[]
   wishlists Wishlist[]
   categories Category[]
+  categoryComplementaryRelations CategoryComplementaryRelation[]
   brands Brand[]
 
   coupons Coupon[]
@@ -1450,6 +1500,9 @@ model Tenant {
   @@index([status])
   @@index([status, isPubliclyListed])
   @@index([defaultCountryCode])
+
+  promotionCampaigns PromotionCampaign[]
+  promotions Promotion[]
 }
 
 // A physical fulfillment source. Its country is independent of its delivery coverage.
@@ -1527,6 +1580,8 @@ model TenantMember {
   @@index([userId])
   @@index([tenantId, role])
   @@index([tenantId, status])
+
+  promotionSelections PromotionCustomer[]
 }
 
 
@@ -2499,4 +2554,159 @@ model SpecialOrderRefund {
 
   @@unique([settlementId, sourceKey])
   @@index([orderId, state])
+}
+
+enum PromotionPublication {
+  DRAFT
+  PUBLISHED
+  PAUSED
+  ENDED
+}
+
+enum PromotionTemplate {
+  BUY_X_GET_Y
+  ALL_REQUIRED
+  CROSS_PRODUCT
+  BUNDLE
+  SPEND_GET
+  MIX_MATCH
+  SELECT_GIFT
+  TIERED_QUANTITY
+  FREE_SHIPPING
+}
+
+enum PromotionAudience {
+  ALL
+  FIRST_TIME
+  RETURNING
+  SELECTED
+}
+
+model PromotionCampaign {
+  id          String               @id @default(uuid())
+  tenantId    String
+  titleAr     String
+  titleEn     String
+  descriptionAr String?
+  descriptionEn String?
+  imageUrl    String?
+  publication PromotionPublication @default(DRAFT)
+  startsAt    DateTime?            @db.Timestamptz(3)
+  endsAt      DateTime?            @db.Timestamptz(3)
+  publishedAt DateTime?            @db.Timestamptz(3)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  promotions Promotion[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, publication, startsAt, endsAt])
+}
+
+model Promotion {
+  id                 String               @id @default(uuid())
+  tenantId           String
+  campaignId         String?
+  titleAr            String
+  titleEn            String
+  descriptionAr      String?
+  descriptionEn      String?
+  imageUrl           String?
+  publication        PromotionPublication @default(DRAFT)
+  startsAt           DateTime?            @db.Timestamptz(3)
+  endsAt             DateTime?            @db.Timestamptz(3)
+  publishedAt        DateTime?            @db.Timestamptz(3)
+  template           PromotionTemplate
+  configuration      Json
+  currency           String               @db.Char(3)
+  audience           PromotionAudience    @default(ALL)
+  priority           Int                  @default(0)
+  perOrderLimit      Int                  @default(1)
+  perCustomerLimit   Int?
+  globalLimit        Int?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  campaign PromotionCampaign? @relation(fields: [tenantId, campaignId], references: [tenantId, id], onDelete: Restrict)
+  selectors PromotionSelector[]
+  customers PromotionCustomer[]
+  redemptions PromotionRedemption[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, campaignId])
+  @@index([tenantId, publication, startsAt, endsAt])
+}
+
+model PromotionSelector {
+  tenantId    String
+  promotionId String
+  key         String
+  productId   String?
+  variantId   String?
+  categoryId  String?
+  brandId     String?
+
+  promotion Promotion @relation(fields: [tenantId, promotionId], references: [tenantId, id], onDelete: Cascade)
+  product Product? @relation(fields: [tenantId, productId], references: [tenantId, id], onDelete: Restrict)
+  variant ProductVariant? @relation(fields: [productId, variantId], references: [productId, id], onDelete: Restrict)
+  category Category? @relation(fields: [tenantId, categoryId], references: [tenantId, id], onDelete: Restrict)
+  brand Brand? @relation(fields: [tenantId, brandId], references: [tenantId, id], onDelete: Restrict)
+
+  @@id([tenantId, promotionId, key])
+  @@index([tenantId, productId])
+  @@index([productId, variantId])
+  @@index([tenantId, categoryId])
+  @@index([tenantId, brandId])
+}
+
+model PromotionCustomer {
+  tenantId    String
+  promotionId String
+  userId      String
+
+  promotion Promotion @relation(fields: [tenantId, promotionId], references: [tenantId, id], onDelete: Cascade)
+  member TenantMember @relation(fields: [tenantId, userId], references: [tenantId, userId], onDelete: Restrict)
+
+  @@id([tenantId, promotionId, userId])
+  @@index([tenantId, userId])
+}
+
+model PromotionRedemption {
+  tenantId          String
+  promotionId       String
+  orderId           String
+  userId            String
+  applications      Int
+  currency          String   @db.Char(3)
+  merchandiseSavings Decimal @db.Decimal(14, 4)
+  shippingSavings    Decimal @db.Decimal(14, 4)
+  evidence          Json
+  createdAt         DateTime @default(now())
+  releasedAt        DateTime? @db.Timestamptz(3)
+
+  promotion Promotion @relation(fields: [tenantId, promotionId], references: [tenantId, id], onDelete: Restrict)
+  order Order @relation(fields: [tenantId, orderId, userId], references: [tenantId, id, userId], onDelete: Restrict)
+  allocations PromotionAllocation[]
+
+  @@id([tenantId, promotionId, orderId])
+  @@index([tenantId, orderId, userId])
+  @@index([tenantId, promotionId, releasedAt, userId])
+}
+
+model PromotionAllocation {
+  tenantId      String
+  promotionId   String
+  orderId       String
+  orderItemId   String
+  discountAmount Decimal @db.Decimal(14, 4)
+  rewardQuantity Int @default(0)
+  evidence      Json
+
+  redemption PromotionRedemption @relation(fields: [tenantId, promotionId, orderId], references: [tenantId, promotionId, orderId], onDelete: Restrict)
+  orderItem OrderItem @relation(fields: [orderId, orderItemId], references: [orderId, id], onDelete: Restrict)
+
+  @@id([tenantId, promotionId, orderId, orderItemId])
+  @@index([orderId, orderItemId])
 }
